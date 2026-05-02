@@ -1,0 +1,13 @@
+
+DATABASE_URL=file:./dev.db
+JWT_SECRET=super-secret-jwt-key-please-change-this-to-something-random-and-long
+GEMINI_API_KEY=your_key_here
+GEMINI_MODEL=gemini-3.1-flash-image-preview
+USE_MOCK_RENDER=true
+R2_ACCOUNT_ID=placeholder
+R2_ACCESS_KEY_ID=placeholder
+R2_SECRET_ACCESS_KEY=placeholder
+R2_BUCKET_NAME=myinteriordesigner-storage
+DEPLOYMENT_REGION=US
+STORAGE_REGION=WEUR
+EOF

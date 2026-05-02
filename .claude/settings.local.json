@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(sqlite3 *)",
+      "Bash(node *)",
+      "Bash(npx prisma *)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma migrate reset --force)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=yes npx prisma migrate dev --name add-db-indexes)",
+      "Bash(curl *)",
+      "Bash(python3 -c \" import sys, json try: d = json.load\\(sys.stdin\\) p = d.get\\('project', {}\\) print\\('floorPlanKey:', p.get\\('floorPlanKey'\\)\\) print\\('floorPlanUrl:', p.get\\('floorPlanUrl'\\)\\) print\\('designStyle:', p.get\\('designStyle'\\)\\) except: print\\('parse error'\\) \")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")",
+      "Bash(kill 50726)"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+@theme {
+  --color-sage-50: #f2f7f4;
+  --color-sage-100: #dff0e6;
+  --color-sage-200: #c0dece;
+  --color-sage-300: #94c4af;
+  --color-sage-400: #63a38e;
+  --color-sage-500: #428872;
+  --color-sage-600: #346e5c;
+  --color-sage-700: #2c5a4c;
+  --color-sage-800: #264a3f;
+  --color-sage-900: #213d35;
+}

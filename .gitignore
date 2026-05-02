@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Next.js
+.next/
+.turbopack/
+out/
+
+# Production builds
+dist/
+build/
+
+# Environment variables (SECRETS!)
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.db-journal
+
+# Logs
+*.log
+npm-debug.log*
+
+# Uploads (user data + privacy)
+uploads/
+backend/uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo.DS_Store
+.env
+backend/node_modules/
+backend/dist/
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+backend/uploads/

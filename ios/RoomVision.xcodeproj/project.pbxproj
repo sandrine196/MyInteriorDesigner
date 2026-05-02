@@ -1,0 +1,333 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0A6326BE605BA5D29842C29D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CDD9F548358B3A5B687A9A /* RootView.swift */; };
+		25DD01AACD0D31F01FC99255 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 090DAB6B71F91711EF5964A2 /* LoginView.swift */; };
+		5C2DE97A0F3BCF4AB4D38AE4 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC379059157E3308C7F7AF6B /* SessionStore.swift */; };
+		666F0CB4852E0C0F19D28FFA /* ProjectWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23A245E3260D0E147E402A6 /* ProjectWorkspaceView.swift */; };
+		71C8E80AFEEE34BE96521677 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E60341B2079BEECC6484958 /* Config.swift */; };
+		9C71D9D5BA423E1EE3B98715 /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD2CFB40A15E1FD19B58430 /* ProjectsView.swift */; };
+		C26B1299685E68E2C8E1A3AE /* AppLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F72EB93851784742AACD204 /* AppLogoView.swift */; };
+		D69EEFAEDB5935BB128A6340 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6A8694DDFA13455BB2F8B23F /* Assets.xcassets */; };
+		DBA1878DF64AB39972ABECCE /* RoomVisionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB638FFD3D6E5EE07E16BF18 /* RoomVisionApp.swift */; };
+		DF9E8CB3D2A353F894938EC9 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E3C7DA440A7A9ED4EC89BD /* Models.swift */; };
+		E9543C282D7BFF662EB349EE /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754F973C4218953ADC59F1E2 /* APIClient.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		090DAB6B71F91711EF5964A2 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		13E3C7DA440A7A9ED4EC89BD /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		5E60341B2079BEECC6484958 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		6A8694DDFA13455BB2F8B23F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		74426FB07672C4964ED3183A /* RoomVision.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = RoomVision.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		754F973C4218953ADC59F1E2 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		8D139702432C97C1CAB579A8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		9F72EB93851784742AACD204 /* AppLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogoView.swift; sourceTree = "<group>"; };
+		ADD2CFB40A15E1FD19B58430 /* ProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsView.swift; sourceTree = "<group>"; };
+		B23A245E3260D0E147E402A6 /* ProjectWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectWorkspaceView.swift; sourceTree = "<group>"; };
+		BB638FFD3D6E5EE07E16BF18 /* RoomVisionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomVisionApp.swift; sourceTree = "<group>"; };
+		DC379059157E3308C7F7AF6B /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		F7CDD9F548358B3A5B687A9A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		6FEEA278EC1A9B79B126B1FC = {
+			isa = PBXGroup;
+			children = (
+				FB8FA54CA31A916AB7B01A2F /* RoomVision */,
+				B7E7A7C576C86968329B3371 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B7E7A7C576C86968329B3371 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				74426FB07672C4964ED3183A /* RoomVision.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		FB8FA54CA31A916AB7B01A2F /* RoomVision */ = {
+			isa = PBXGroup;
+			children = (
+				754F973C4218953ADC59F1E2 /* APIClient.swift */,
+				9F72EB93851784742AACD204 /* AppLogoView.swift */,
+				6A8694DDFA13455BB2F8B23F /* Assets.xcassets */,
+				5E60341B2079BEECC6484958 /* Config.swift */,
+				8D139702432C97C1CAB579A8 /* Info.plist */,
+				090DAB6B71F91711EF5964A2 /* LoginView.swift */,
+				13E3C7DA440A7A9ED4EC89BD /* Models.swift */,
+				ADD2CFB40A15E1FD19B58430 /* ProjectsView.swift */,
+				B23A245E3260D0E147E402A6 /* ProjectWorkspaceView.swift */,
+				BB638FFD3D6E5EE07E16BF18 /* RoomVisionApp.swift */,
+				F7CDD9F548358B3A5B687A9A /* RootView.swift */,
+				DC379059157E3308C7F7AF6B /* SessionStore.swift */,
+			);
+			path = RoomVision;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		15BA6E39D103E27073EE0C0F /* RoomVision */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 57A5ECD6A9BA7714DF3F2C43 /* Build configuration list for PBXNativeTarget "RoomVision" */;
+			buildPhases = (
+				EFBE7335DE7F3ABEBFF58BDD /* Sources */,
+				ADA15B1E04391A8D4C23FA2D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RoomVision;
+			packageProductDependencies = (
+			);
+			productName = RoomVision;
+			productReference = 74426FB07672C4964ED3183A /* RoomVision.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8D7280C3835CF5D03D6E1683 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 86541DF619A28EFCEBA8667F /* Build configuration list for PBXProject "RoomVision" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 6FEEA278EC1A9B79B126B1FC;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = B7E7A7C576C86968329B3371 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				15BA6E39D103E27073EE0C0F /* RoomVision */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		ADA15B1E04391A8D4C23FA2D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D69EEFAEDB5935BB128A6340 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		EFBE7335DE7F3ABEBFF58BDD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E9543C282D7BFF662EB349EE /* APIClient.swift in Sources */,
+				C26B1299685E68E2C8E1A3AE /* AppLogoView.swift in Sources */,
+				71C8E80AFEEE34BE96521677 /* Config.swift in Sources */,
+				25DD01AACD0D31F01FC99255 /* LoginView.swift in Sources */,
+				DF9E8CB3D2A353F894938EC9 /* Models.swift in Sources */,
+				666F0CB4852E0C0F19D28FFA /* ProjectWorkspaceView.swift in Sources */,
+				9C71D9D5BA423E1EE3B98715 /* ProjectsView.swift in Sources */,
+				DBA1878DF64AB39972ABECCE /* RoomVisionApp.swift in Sources */,
+				0A6326BE605BA5D29842C29D /* RootView.swift in Sources */,
+				5C2DE97A0F3BCF4AB4D38AE4 /* SessionStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A63249F32A3E6308BD1755BC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = RoomVision/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.roomvision.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C5FD20E18D4EA690C38C2551 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = RoomVision/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.roomvision.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		DF759D41865972B000FE62AE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		E0B642115060609853FA167D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		57A5ECD6A9BA7714DF3F2C43 /* Build configuration list for PBXNativeTarget "RoomVision" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A63249F32A3E6308BD1755BC /* Debug */,
+				C5FD20E18D4EA690C38C2551 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		86541DF619A28EFCEBA8667F /* Build configuration list for PBXProject "RoomVision" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E0B642115060609853FA167D /* Debug */,
+				DF759D41865972B000FE62AE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8D7280C3835CF5D03D6E1683 /* Project object */;
+}

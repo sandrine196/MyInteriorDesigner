@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String               @id @default(cuid())
+  email        String               @unique
+  passwordHash String
+  tier         String               @default("free")
+  suspended    Boolean              @default(false)
+  isAdmin      Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+  projects     Project[]
+  resetTokens  PasswordResetToken[]
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  eventType String
+  userId    String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  floorPlanKey    String?
+  /// Longer horizontal axis of the usable floor area (mm), from the user's plan.
+  roomLengthMm    Int?
+  /// Shorter horizontal axis of the usable floor area (mm).
+  roomWidthMm     Int?
+  /// Floor-to-ceiling height (mm), for vertical clearance when placing tall furniture.
+  ceilingHeightMm Int?
+  /// Minimum budget in GBP.
+  budgetMin       Int?
+  /// Maximum budget in GBP (null = no upper limit).
+  budgetMax       Int?
+  /// JSON array of preferred retailer IDs e.g. ["ikea","john_lewis"].
+  preferredRetailers String?
+  /// Design style ID e.g. "scandi", "industrial".
+  designStyle     String?
+  createdAt       DateTime @default(now())
+  renders         Render[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Render {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  prompt       String
+  status       String   @default("pending")
+  imageKey     String?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Product {
+  id             String  @id @default(cuid())
+  retailer       String
+  externalId     String
+  title          String
+  imageUrl       String
+  productUrl     String
+  affiliateUrl   String?
+  widthMm        Int?
+  depthMm        Int?
+  heightMm       Int?
+  dimensionsRaw  String?
+  priceGbp       Float?
+  category       String?
+  /// JSON array of style tag IDs e.g. ["scandi","japandi"].
+  styleTags      String?
+
+  @@unique([retailer, externalId])
+}
