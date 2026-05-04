@@ -1,4 +1,4 @@
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { config } from "../config/index.js";
 
@@ -15,6 +15,8 @@ export interface StorageService {
   delete(key: string): Promise<void>;
   /** Return the public URL for a stored key. */
   getUrl(key: string): string;
+  /** Read a stored file and return its raw bytes. */
+  download(key: string): Promise<Buffer>;
 }
 
 // ── Local filesystem (current) ─────────────────────────────────────────────────
@@ -32,6 +34,10 @@ class LocalStorageService implements StorageService {
 
   getUrl(key: string): string {
     return `/uploads/${key}`;
+  }
+
+  async download(key: string): Promise<Buffer> {
+    return readFile(join(UPLOADS_ROOT, key));
   }
 }
 
@@ -57,6 +63,12 @@ class R2StorageService implements StorageService {
   getUrl(key: string): string {
     return `${config.storage.publicUrl ?? ""}/${key}`;
   }
+
+  async download(key: string): Promise<Buffer> {
+    const res = await fetch(this.getUrl(key));
+    if (!res.ok) throw new Error(`R2 download failed for key "${key}": ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  }
 }
 
 // ── AWS S3 ─────────────────────────────────────────────────────────────────────
@@ -65,7 +77,6 @@ class R2StorageService implements StorageService {
 
 class S3StorageService implements StorageService {
   async upload(_key: string, _data: Buffer, _contentType?: string): Promise<void> {
-    // Same S3Client pattern as R2 but without the custom endpoint
     throw new Error("S3 storage not yet wired up. Configure S3 credentials.");
   }
 
@@ -75,6 +86,12 @@ class S3StorageService implements StorageService {
 
   getUrl(key: string): string {
     return `${config.storage.publicUrl ?? ""}/${key}`;
+  }
+
+  async download(key: string): Promise<Buffer> {
+    const res = await fetch(this.getUrl(key));
+    if (!res.ok) throw new Error(`S3 download failed for key "${key}": ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
   }
 }
 
@@ -96,6 +113,12 @@ class ScalewayStorageService implements StorageService {
 
   getUrl(key: string): string {
     return `${config.storage.publicUrl ?? ""}/${key}`;
+  }
+
+  async download(key: string): Promise<Buffer> {
+    const res = await fetch(this.getUrl(key));
+    if (!res.ok) throw new Error(`Scaleway download failed for key "${key}": ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
   }
 }
 

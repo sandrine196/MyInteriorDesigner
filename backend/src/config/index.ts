@@ -39,9 +39,10 @@ export const config = {
 
   ai: {
     // AI_PROVIDER selects the image-generation backend.
-    // "gemini" = current, "stability" | "mock" for alternatives/testing.
-    provider: (process.env.AI_PROVIDER ?? "gemini") as "gemini" | "stability" | "mock",
+    // "gemini" = current, "openai" | "stability" | "mock" for alternatives/testing.
+    provider: (process.env.AI_PROVIDER ?? "gemini") as "gemini" | "openai" | "stability" | "mock",
     apiKey: env.GEMINI_API_KEY,
+    openaiKey: env.OPENAI_API_KEY,
     model: env.GEMINI_IMAGE_MODEL,
     // AI_REGION can route to an EU endpoint when Google makes one available.
     region: process.env.AI_REGION ?? "global",
@@ -50,6 +51,7 @@ export const config = {
 
   email: {
     alertEmail: env.ALERT_EMAIL,
+    apiKey: env.RESEND_API_KEY,
     from: process.env.EMAIL_FROM ?? "hello@myinteriordesigner.co.uk",
     provider: (process.env.EMAIL_PROVIDER ?? "console") as "console" | "resend" | "smtp",
   },

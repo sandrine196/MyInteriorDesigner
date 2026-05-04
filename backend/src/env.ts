@@ -4,6 +4,7 @@ const schema = z.object({
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string().min(16),
   GEMINI_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
   GEMINI_IMAGE_MODEL: z.string().default("gemini-2.5-flash-image"),
   PORT: z.coerce.number().default(3000),
   FRONTEND_URL: z.string().default("http://localhost:3001"),
@@ -15,6 +16,7 @@ const schema = z.object({
   RENDER_COOLDOWN_SECONDS: z.coerce.number().default(30),
   MAX_CONCURRENT_RENDERS: z.coerce.number().default(3),
   ALERT_EMAIL: z.string().email().optional(),
+  RESEND_API_KEY: z.string().optional(),
   USE_MOCK_RENDER: z.string().optional().transform((v) => v === "true"),
 });
 

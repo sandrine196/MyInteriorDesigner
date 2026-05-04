@@ -15,6 +15,7 @@ import { checkSuspiciousActivity } from "../lib/alert.js";
 import { track } from "../lib/analytics.js";
 import { storage } from "../services/storage.service.js";
 import { aiService } from "../services/ai.service.js";
+import { emailService } from "../services/email.service.js";
 import type { Env } from "../env.js";
 
 const FLOOR_PLAN_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -28,6 +29,8 @@ const setupBody = z.object({
   budgetMax: z.number().int().positive().nullable(),
   preferredRetailers: z.array(z.string()).default([]),
   designStyle: z.string().max(50).nullable(),
+  wallColorPalette: z.string().max(100).nullable().default(null),
+  flooringType: z.string().max(50).nullable().default(null),
 });
 
 const renderBody = z.object({
@@ -96,10 +99,17 @@ async function autoSelectProducts(project: {
 
 function serializeProject(p: Record<string, unknown>) {
   const renders = Array.isArray(p.renders)
-    ? (p.renders as Array<Record<string, unknown>>).map((r) => ({
-        ...r,
-        imageUrl: toImageUrl(r.imageKey as string | null),
-      }))
+    ? (p.renders as Array<Record<string, unknown>>).map((r) => {
+        const { productsSnapshot, ...rest } = r;
+        return {
+          ...rest,
+          imageUrl: toImageUrl(r.imageKey as string | null),
+          products: (() => {
+            try { return JSON.parse((productsSnapshot as string | null) ?? "[]"); }
+            catch { return []; }
+          })(),
+        };
+      })
     : p.renders;
   return {
     ...p,
@@ -228,6 +238,8 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           budgetMax: body.budgetMax,
           preferredRetailers: JSON.stringify(body.preferredRetailers),
           designStyle: body.designStyle,
+          wallColorPalette: body.wallColorPalette,
+          flooringType: body.flooringType,
         },
         include: { renders: { orderBy: { createdAt: "desc" }, take: 5 } },
       });
@@ -442,25 +454,44 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       }
 
       // ── Generate render ───────────────────────────────────────────────────
+      const productsSnapshot = JSON.stringify(
+        products.map((p) => ({
+          id: p.id,
+          title: p.title,
+          retailer: p.retailer,
+          priceGbp: p.priceGbp ?? null,
+          imageUrl: p.imageUrl,
+          productUrl: p.productUrl,
+          affiliateUrl: p.affiliateUrl ?? null,
+        }))
+      );
+
       const render = await prisma.render.create({
-        data: { projectId, prompt: body.prompt, status: "pending" },
+        data: { projectId, prompt: body.prompt, status: "pending", productsSnapshot },
       });
       track("render_created", u.sub, { renderId: render.id, projectId });
 
       try {
         const { buffer, mock } = await aiService.generateRoomImage({
-          userPrompt: body.prompt,
+          userPrompt:       body.prompt,
+          floorPlanKey:     project.floorPlanKey,
+          projectName:      project.name,
+          designStyle:      project.designStyle,
+          wallColorPalette: project.wallColorPalette,
+          flooringType:     project.flooringType,
           products: products.map((p) => ({
-            title: p.title,
-            retailer: p.retailer,
-            widthMm: p.widthMm,
-            depthMm: p.depthMm,
-            heightMm: p.heightMm,
+            title:        p.title,
+            retailer:     p.retailer,
+            priceGbp:     p.priceGbp,
+            category:     p.category,
+            widthMm:      p.widthMm,
+            depthMm:      p.depthMm,
+            heightMm:     p.heightMm,
             dimensionsRaw: p.dimensionsRaw,
           })),
           room: {
-            length: project.roomLengthMm!,
-            width: project.roomWidthMm!,
+            length:        project.roomLengthMm!,
+            width:         project.roomWidthMm!,
             ceilingHeight: project.ceilingHeightMm!,
           },
         });
@@ -477,6 +508,18 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           },
         });
         track("render_completed", u.sub, { renderId: render.id, status: "done" });
+
+        // Fire notification emails without blocking the response
+        if (user?.email) {
+          void emailService.sendRenderReady(user.email, project.name, projectId);
+
+          if (u.tier === "free") {
+            const usedAfter = await countSuccessfulRendersThisMonth(u.sub);
+            if (usedAfter === env.FREE_RENDERS_PER_MONTH - 1) {
+              void emailService.sendUsageWarning(user.email, usedAfter, env.FREE_RENDERS_PER_MONTH);
+            }
+          }
+        }
 
         return { render: { id: render.id, status: "done", imageUrl: storage.getUrl(imageKey), mock } };
       } catch (err) {

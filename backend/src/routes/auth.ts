@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma.js";
 import { hashPassword, verifyPassword } from "../lib/auth.js";
 import { track } from "../lib/analytics.js";
 import { exportUserData, deleteUserData } from "../services/gdpr.service.js";
+import { emailService } from "../services/email.service.js";
 
 const passwordSchema = z
   .string()
@@ -60,6 +61,7 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       select: { id: true, email: true, tier: true, isAdmin: true },
     });
     track("user_signup", user.id, { email: user.email });
+    void emailService.sendWelcome(user.email);
     const token = await reply.jwtSign({ sub: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin });
     return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin } };
   });
@@ -103,8 +105,7 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
       await prisma.passwordResetToken.create({ data: { token, userId: user.id, expiresAt } });
-      const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${token}`;
-      console.log(`[Password Reset] ${email} → ${resetUrl}`);
+      await emailService.sendPasswordReset(email, token);
     }
     return { message: "If that email is registered, a reset link has been logged to the console." };
   });
