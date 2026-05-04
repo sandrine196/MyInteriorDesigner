@@ -121,12 +121,23 @@ export const products = {
 
 // ── Projects ─────────────────────────────────────────────────────────────────
 
+export type RenderProduct = {
+  id: string;
+  title: string;
+  retailer: string;
+  priceGbp: number | null;
+  imageUrl: string;
+  productUrl: string;
+  affiliateUrl: string | null;
+};
+
 export type Render = {
   id: string;
   status: "pending" | "done" | "failed";
   prompt: string;
   imageUrl: string | null;
   errorMessage: string | null;
+  products: RenderProduct[];
 };
 
 export type Project = {
@@ -141,6 +152,8 @@ export type Project = {
   budgetMax: number | null;
   preferredRetailers: string[];
   designStyle: string | null;
+  wallColorPalette: string | null;
+  flooringType: string | null;
   createdAt: string;
   renders: Render[];
 };
@@ -150,6 +163,8 @@ export type ProjectSetup = {
   budgetMax: number | null;
   preferredRetailers: string[];
   designStyle: string | null;
+  wallColorPalette: string | null;
+  flooringType: string | null;
 };
 
 export const projects = {

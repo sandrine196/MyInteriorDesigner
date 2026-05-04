@@ -53,7 +53,7 @@ export default function ProjectsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-stone-900 tracking-tight">Your rooms</h1>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#1B4965" }}>Your rooms</h1>
         <p className="text-stone-500 mt-1 text-sm">Design each room in your new home, one at a time.</p>
       </div>
 
@@ -65,12 +65,13 @@ export default function ProjectsPage() {
             placeholder="e.g. Living room, Main bedroom, Kitchen…"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="flex-1 border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500 focus:border-transparent placeholder:text-stone-400"
+            className="flex-1 border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
           />
           <button
             type="submit"
             disabled={creating || !name.trim()}
-            className="bg-stone-900 hover:bg-stone-800 disabled:opacity-40 text-white rounded-xl px-5 py-2.5 text-sm font-medium transition-colors whitespace-nowrap"
+            className="disabled:opacity-40 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all hover:bg-mid-gold-dark active:scale-95 whitespace-nowrap"
+            style={{ background: "#D4A574", color: "#1B4965" }}
           >
             {creating ? "Creating…" : "Create room →"}
           </button>
@@ -90,12 +91,12 @@ export default function ProjectsPage() {
         </ul>
       ) : list.length === 0 ? (
         <div className="text-center py-16 px-4">
-          <div className="w-16 h-16 bg-sage-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-sage-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "#e8f0f5" }}>
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: "#1B4965" }}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
             </svg>
           </div>
-          <h3 className="text-stone-900 font-semibold text-lg mb-2">Ready to design your first room?</h3>
+          <h3 className="font-bold text-lg mb-2" style={{ color: "#1B4965" }}>Ready to design your first room?</h3>
           <p className="text-stone-500 text-sm max-w-sm mx-auto mb-5">
             Give your room a name above — like "Living room" or "Main bedroom" — and we'll walk you through designing it step by step.
           </p>
@@ -105,7 +106,6 @@ export default function ProjectsPage() {
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((p) => (
             <li key={p.id} className="relative group">
-              {/* Delete button */}
               {confirmDelete === p.id ? (
                 <div className="absolute inset-0 z-10 bg-white rounded-2xl border border-red-200 shadow-lg p-5 flex flex-col justify-center items-center gap-3">
                   <p className="text-sm font-medium text-stone-800 text-center">
@@ -145,7 +145,7 @@ export default function ProjectsPage() {
 
               <button
                 onClick={() => router.push(`/projects/${p.id}`)}
-                className="w-full text-left bg-white rounded-2xl border border-stone-200 hover:border-stone-300 hover:shadow-md transition-all p-5"
+                className="w-full text-left bg-white rounded-2xl border border-stone-200 hover:border-mid-blue-light hover:shadow-md transition-all p-5"
               >
                 {p.renders[0]?.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -155,13 +155,13 @@ export default function ProjectsPage() {
                     className="w-full h-36 object-cover rounded-xl mb-4"
                   />
                 ) : (
-                  <div className="w-full h-36 bg-stone-50 rounded-xl mb-4 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-stone-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                  <div className="w-full h-36 rounded-xl mb-4 flex items-center justify-center" style={{ background: "#e8f0f5" }}>
+                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1} style={{ color: "#2A5F7F" }}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                     </svg>
                   </div>
                 )}
-                <p className="font-semibold text-stone-900 mb-1 truncate group-hover:text-sage-700 transition-colors pr-6">
+                <p className="font-semibold text-stone-900 mb-1 truncate pr-6 group-hover:text-mid-blue transition-colors">
                   {p.name}
                 </p>
                 <p className="text-xs text-stone-400">

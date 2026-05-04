@@ -8,6 +8,7 @@ import {
   type Project,
   type Product,
   type Render,
+  type RenderProduct,
   type ProjectSetup,
 } from "@/lib/api";
 
@@ -33,6 +34,23 @@ const SHOPS = [
   { id: "made",       label: "Made.com" },
   { id: "muji",       label: "Muji" },
   { id: "amazon",     label: "Amazon" },
+];
+
+const WALL_COLORS = [
+  { id: "pale",    label: "Pale",    desc: "Light, airy",                  swatch: "#EDE8DC" },
+  { id: "cold",    label: "Cold",    desc: "Grays & blues",                swatch: "#C4CDD8" },
+  { id: "warm",    label: "Warm",    desc: "Beiges, creams & terracotta",  swatch: "#D9B99A" },
+  { id: "vivid",   label: "Vivid",   desc: "Bold colours",                 swatch: "#9B8DC4" },
+  { id: "neutral", label: "Neutral", desc: "White & off-white",            swatch: "#F5F4F2" },
+  { id: "custom",  label: "Custom",  desc: "Enter a specific colour",      swatch: null },
+];
+
+const FLOORING_TYPES = [
+  { id: "pale_wood", label: "Pale wood", desc: "Light oak, birch",     swatch: "#D4B88A" },
+  { id: "dark_wood", label: "Dark wood", desc: "Walnut, mahogany",     swatch: "#4A2E1A" },
+  { id: "warm_oak",  label: "Warm oak",  desc: "Medium honey tones",   swatch: "#C4834E" },
+  { id: "carpet",    label: "Carpet",    desc: "Soft, specify if needed", swatch: "#B0A89C" },
+  { id: "tiles",     label: "Tiles",     desc: "Ceramic, stone",       swatch: "#C8C4BC" },
 ];
 
 const DESIGN_STYLES = [
@@ -85,6 +103,9 @@ export default function ProjectWorkspacePage() {
   const [budgetBracket, setBudgetBracket] = useState<typeof BUDGET_OPTIONS[number] | null>(null);
   const [selectedShops, setSelectedShops] = useState<string[]>(SHOPS.map((s) => s.id));
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [selectedWallColor, setSelectedWallColor] = useState<string | null>(null);
+  const [customWallColor, setCustomWallColor] = useState("");
+  const [selectedFlooring, setSelectedFlooring] = useState<string | null>(null);
   const [submittingSetup, setSubmittingSetup] = useState(false);
   const [setupError, setSetupError] = useState("");
 
@@ -101,19 +122,28 @@ export default function ProjectWorkspacePage() {
         setLength(mmToM(p.roomLengthMm));
         setWidth(mmToM(p.roomWidthMm));
         setCeiling(mmToM(p.ceilingHeightMm));
-        // Pre-fill onboarding if partially set
         if (p.budgetMin != null) {
           const match = BUDGET_OPTIONS.find((b) => b.min === p.budgetMin && b.max === p.budgetMax);
           if (match) setBudgetBracket(match);
         }
         if (p.preferredRetailers.length) setSelectedShops(p.preferredRetailers);
         if (p.designStyle) setSelectedStyle(p.designStyle);
+        if (p.wallColorPalette) {
+          const known = WALL_COLORS.find((w) => w.id === p.wallColorPalette);
+          if (known) { setSelectedWallColor(p.wallColorPalette); }
+          else { setSelectedWallColor("custom"); setCustomWallColor(p.wallColorPalette!); }
+        }
+        if (p.flooringType) setSelectedFlooring(p.flooringType);
       })
       .catch(() => router.replace("/projects"))
       .finally(() => setLoading(false));
   }, [id, router]);
 
-  const setupComplete = project !== null && project.designStyle !== null;
+  const setupComplete =
+    project !== null &&
+    project.designStyle !== null &&
+    project.wallColorPalette !== null &&
+    project.flooringType !== null;
   const retailersKey = project?.preferredRetailers.join(",") ?? "";
   const maxBudget = project?.budgetMax ?? null;
 
@@ -132,8 +162,13 @@ export default function ProjectWorkspacePage() {
   }, [productSearch, setupComplete, retailersKey, maxBudget]);
 
   async function submitSetup() {
-    if (!budgetBracket) { setSetupError("Please select a budget range."); return; }
-    if (!selectedStyle)  { setSetupError("Please select a design style."); return; }
+    if (!budgetBracket)   { setSetupError("Please select a budget range."); return; }
+    if (!selectedStyle)   { setSetupError("Please select a design style."); return; }
+    if (!selectedWallColor) { setSetupError("Please select a wall colour palette."); return; }
+    if (selectedWallColor === "custom" && !customWallColor.trim()) {
+      setSetupError("Please describe your custom wall colour."); return;
+    }
+    if (!selectedFlooring) { setSetupError("Please select a flooring type."); return; }
     setSetupError("");
     setSubmittingSetup(true);
     try {
@@ -142,6 +177,8 @@ export default function ProjectWorkspacePage() {
         budgetMax: budgetBracket.max,
         preferredRetailers: selectedShops,
         designStyle: selectedStyle,
+        wallColorPalette: selectedWallColor === "custom" ? customWallColor.trim() : selectedWallColor,
+        flooringType: selectedFlooring,
       };
       const { project: p } = await api.updateSetup(id, data);
       setProject(p);
@@ -224,9 +261,9 @@ export default function ProjectWorkspacePage() {
     });
   }
 
-  function toggleShop(id: string) {
+  function toggleShop(shopId: string) {
     setSelectedShops((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+      prev.includes(shopId) ? prev.filter((s) => s !== shopId) : [...prev, shopId]
     );
   }
 
@@ -235,7 +272,7 @@ export default function ProjectWorkspacePage() {
   if (loading || !project) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <div className="w-7 h-7 rounded-full border-2 border-stone-200 border-t-sage-600 animate-spin" />
+        <div className="w-7 h-7 rounded-full border-2 border-stone-200 border-t-mid-gold animate-spin" />
         <p className="text-sm text-stone-400">Loading your room…</p>
       </div>
     );
@@ -261,7 +298,7 @@ export default function ProjectWorkspacePage() {
             </svg>
             All rooms
           </button>
-          <h1 className="text-2xl font-semibold text-stone-900 tracking-tight">{project.name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#1B4965" }}>{project.name}</h1>
           <p className="text-stone-500 mt-1 text-sm">Let's set up your room so we can show you the right furniture.</p>
         </div>
 
@@ -271,19 +308,22 @@ export default function ProjectWorkspacePage() {
             <h2 className="font-semibold text-stone-900 mb-1">What's your budget for this room?</h2>
             <p className="text-xs text-stone-400 mb-4">We'll filter furniture to fit what you can afford.</p>
             <div className="grid grid-cols-2 gap-3">
-              {BUDGET_OPTIONS.map((opt) => (
-                <button
-                  key={opt.label}
-                  onClick={() => setBudgetBracket(opt)}
-                  className={`rounded-xl border-2 px-4 py-3 text-sm font-medium text-left transition-all ${
-                    budgetBracket?.label === opt.label
-                      ? "border-sage-500 bg-sage-50 text-sage-800"
-                      : "border-stone-200 text-stone-700 hover:border-stone-300 hover:bg-stone-50"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+              {BUDGET_OPTIONS.map((opt) => {
+                const active = budgetBracket?.label === opt.label;
+                return (
+                  <button
+                    key={opt.label}
+                    onClick={() => setBudgetBracket(opt)}
+                    className="rounded-xl border-2 px-4 py-3 text-sm font-medium text-left transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", background: "#e8f0f5", color: "#1B4965" }
+                      : undefined
+                    }
+                  >
+                    <span className={active ? "" : "text-stone-700"}>{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </section>
 
@@ -317,22 +357,28 @@ export default function ProjectWorkspacePage() {
                   <button
                     key={shop.id}
                     onClick={() => toggleShop(shop.id)}
-                    className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-medium text-left transition-all ${
-                      active
-                        ? "border-sage-400 bg-sage-50 text-sage-800"
-                        : "border-stone-200 text-stone-500 hover:border-stone-300 hover:bg-stone-50"
-                    }`}
+                    className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-medium text-left transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", background: "#e8f0f5", color: "#1B4965" }
+                      : undefined
+                    }
                   >
-                    <span className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-colors ${
-                      active ? "bg-sage-500 border-sage-500" : "border-stone-300"
-                    }`}>
-                      {active && (
-                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                      )}
+                    <span className="flex-shrink-0">
+                      <span
+                        className="w-4 h-4 rounded flex items-center justify-center border transition-colors inline-flex"
+                        style={active
+                          ? { background: "#1B4965", borderColor: "#1B4965" }
+                          : { borderColor: "#d6d3d1" }
+                        }
+                      >
+                        {active && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                        )}
+                      </span>
                     </span>
-                    {shop.label}
+                    <span className={active ? "" : "text-stone-500"}>{shop.label}</span>
                   </button>
                 );
               })}
@@ -344,26 +390,106 @@ export default function ProjectWorkspacePage() {
             <h2 className="font-semibold text-stone-900 mb-1">What's your design style?</h2>
             <p className="text-xs text-stone-400 mb-4">Choose the look that speaks to you most.</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {DESIGN_STYLES.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setSelectedStyle(s.id)}
-                  className={`text-left rounded-xl border-2 overflow-hidden transition-all ${
-                    selectedStyle === s.id
-                      ? "border-sage-500 ring-2 ring-sage-200"
-                      : "border-stone-200 hover:border-stone-300"
-                  }`}
-                >
-                  <div
-                    className="h-14"
-                    style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }}
-                  />
-                  <div className="p-2.5">
-                    <p className="font-semibold text-stone-900 text-xs leading-snug">{s.label}</p>
-                    <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{s.desc}</p>
-                  </div>
-                </button>
-              ))}
+              {DESIGN_STYLES.map((s) => {
+                const active = selectedStyle === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedStyle(s.id)}
+                    className="text-left rounded-xl border-2 overflow-hidden transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
+                      : { borderColor: "#e7e5e4" }
+                    }
+                  >
+                    <div
+                      className="h-14"
+                      style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }}
+                    />
+                    <div className="p-2.5">
+                      <p className="font-semibold text-stone-900 text-xs leading-snug">{s.label}</p>
+                      <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{s.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Wall colour */}
+          <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
+            <h2 className="font-semibold text-stone-900 mb-1">What colour would you like for the walls?</h2>
+            <p className="text-xs text-stone-400 mb-4">This will be included in your AI render.</p>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+              {WALL_COLORS.map((w) => {
+                const active = selectedWallColor === w.id;
+                return (
+                  <button
+                    key={w.id}
+                    onClick={() => setSelectedWallColor(w.id)}
+                    className="text-left rounded-xl border-2 overflow-hidden transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
+                      : { borderColor: "#e7e5e4" }
+                    }
+                  >
+                    {w.swatch ? (
+                      <div className="h-10" style={{ background: w.swatch, borderBottom: w.id === "neutral" ? "1px solid #e7e5e4" : undefined }} />
+                    ) : (
+                      <div className="h-10 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f9c0c0, #c0d4f9, #c0f9d4, #f9eec0)" }}>
+                        <svg className="w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="p-2">
+                      <p className="font-semibold text-stone-900 text-xs leading-snug">{w.label}</p>
+                      <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{w.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedWallColor === "custom" && (
+              <div className="mt-4">
+                <label className="block text-xs font-medium text-stone-500 mb-1.5">Describe your wall colour</label>
+                <input
+                  type="text"
+                  placeholder="e.g. sage green, dusty pink, deep navy…"
+                  value={customWallColor}
+                  onChange={(e) => setCustomWallColor(e.target.value)}
+                  className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
+                  autoFocus
+                />
+              </div>
+            )}
+          </section>
+
+          {/* Flooring */}
+          <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
+            <h2 className="font-semibold text-stone-900 mb-1">What type of flooring would you prefer?</h2>
+            <p className="text-xs text-stone-400 mb-4">Sets the floor finish in your AI render.</p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+              {FLOORING_TYPES.map((f) => {
+                const active = selectedFlooring === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => setSelectedFlooring(f.id)}
+                    className="text-left rounded-xl border-2 overflow-hidden transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
+                      : { borderColor: "#e7e5e4" }
+                    }
+                  >
+                    <div className="h-10" style={{ background: f.swatch }} />
+                    <div className="p-2">
+                      <p className="font-semibold text-stone-900 text-xs leading-snug">{f.label}</p>
+                      <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{f.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </section>
 
@@ -376,7 +502,8 @@ export default function ProjectWorkspacePage() {
           <button
             onClick={submitSetup}
             disabled={submittingSetup}
-            className="w-full bg-stone-900 hover:bg-stone-800 disabled:opacity-40 text-white rounded-xl py-3 font-medium transition-colors"
+            className="w-full disabled:opacity-40 rounded-xl py-3 font-semibold transition-all hover:bg-mid-gold-dark active:scale-95"
+            style={{ background: "#D4A574", color: "#1B4965" }}
           >
             {submittingSetup ? "Saving your preferences…" : "Let's start designing →"}
           </button>
@@ -402,6 +529,18 @@ export default function ProjectWorkspacePage() {
     (b) => b.min === project.budgetMin && b.max === project.budgetMax
   )?.label;
   const styleLabel = DESIGN_STYLES.find((s) => s.id === project.designStyle)?.label;
+  const wallLabel = project.wallColorPalette
+    ? (WALL_COLORS.find((w) => w.id === project.wallColorPalette)?.label ?? project.wallColorPalette)
+    : null;
+  const floorLabel = project.flooringType
+    ? (FLOORING_TYPES.find((f) => f.id === project.flooringType)?.label ?? project.flooringType)
+    : null;
+  const wallSwatch = project.wallColorPalette
+    ? (WALL_COLORS.find((w) => w.id === project.wallColorPalette)?.swatch ?? null)
+    : null;
+  const floorSwatch = project.flooringType
+    ? (FLOORING_TYPES.find((f) => f.id === project.flooringType)?.swatch ?? null)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -417,8 +556,7 @@ export default function ProjectWorkspacePage() {
           All rooms
         </button>
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <h1 className="text-2xl font-semibold text-stone-900 tracking-tight">{project.name}</h1>
-          {/* Preferences summary */}
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#1B4965" }}>{project.name}</h1>
           <div className="flex items-center gap-2 flex-wrap">
             {budgetLabel && (
               <span className="text-xs bg-stone-100 text-stone-600 px-2.5 py-1 rounded-full font-medium">
@@ -426,8 +564,23 @@ export default function ProjectWorkspacePage() {
               </span>
             )}
             {styleLabel && (
-              <span className="text-xs bg-sage-50 text-sage-700 px-2.5 py-1 rounded-full font-medium border border-sage-200">
+              <span
+                className="text-xs px-2.5 py-1 rounded-full font-medium border"
+                style={{ background: "#e8f0f5", color: "#1B4965", borderColor: "#AECFDB" }}
+              >
                 {styleLabel}
+              </span>
+            )}
+            {wallLabel && (
+              <span className="inline-flex items-center gap-1.5 text-xs bg-stone-100 text-stone-600 px-2.5 py-1 rounded-full font-medium">
+                {wallSwatch && <span className="w-3 h-3 rounded-full border border-stone-300 flex-shrink-0" style={{ background: wallSwatch }} />}
+                {wallLabel} walls
+              </span>
+            )}
+            {floorLabel && (
+              <span className="inline-flex items-center gap-1.5 text-xs bg-stone-100 text-stone-600 px-2.5 py-1 rounded-full font-medium">
+                {floorSwatch && <span className="w-3 h-3 rounded-full border border-stone-300 flex-shrink-0" style={{ background: floorSwatch }} />}
+                {floorLabel}
               </span>
             )}
             {!editingPrefs && (
@@ -453,6 +606,12 @@ export default function ProjectWorkspacePage() {
                 setBudgetBracket(match ?? null);
                 setSelectedShops(project.preferredRetailers.length ? project.preferredRetailers : SHOPS.map((s) => s.id));
                 setSelectedStyle(project.designStyle);
+                if (project.wallColorPalette) {
+                  const known = WALL_COLORS.find((w) => w.id === project.wallColorPalette);
+                  if (known) { setSelectedWallColor(project.wallColorPalette); setCustomWallColor(""); }
+                  else { setSelectedWallColor("custom"); setCustomWallColor(project.wallColorPalette); }
+                } else { setSelectedWallColor(null); setCustomWallColor(""); }
+                setSelectedFlooring(project.flooringType);
                 setSetupError("");
                 setEditingPrefs(false);
               }}
@@ -466,19 +625,22 @@ export default function ProjectWorkspacePage() {
           <div>
             <p className="text-sm font-semibold text-stone-700 mb-3">Budget</p>
             <div className="grid grid-cols-2 gap-2">
-              {BUDGET_OPTIONS.map((opt) => (
-                <button
-                  key={opt.label}
-                  onClick={() => setBudgetBracket(opt)}
-                  className={`rounded-xl border-2 px-4 py-2.5 text-sm font-medium text-left transition-all ${
-                    budgetBracket?.label === opt.label
-                      ? "border-sage-500 bg-sage-50 text-sage-800"
-                      : "border-stone-200 text-stone-700 hover:border-stone-300 hover:bg-stone-50"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+              {BUDGET_OPTIONS.map((opt) => {
+                const active = budgetBracket?.label === opt.label;
+                return (
+                  <button
+                    key={opt.label}
+                    onClick={() => setBudgetBracket(opt)}
+                    className="rounded-xl border-2 px-4 py-2.5 text-sm font-medium text-left transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", background: "#e8f0f5", color: "#1B4965" }
+                      : undefined
+                    }
+                  >
+                    <span className={active ? "" : "text-stone-700"}>{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -499,18 +661,26 @@ export default function ProjectWorkspacePage() {
                   <button
                     key={shop.id}
                     onClick={() => toggleShop(shop.id)}
-                    className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-medium text-left transition-all ${
-                      active ? "border-sage-400 bg-sage-50 text-sage-800" : "border-stone-200 text-stone-500 hover:border-stone-300 hover:bg-stone-50"
-                    }`}
+                    className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-medium text-left transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", background: "#e8f0f5", color: "#1B4965" }
+                      : undefined
+                    }
                   >
-                    <span className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-colors ${active ? "bg-sage-500 border-sage-500" : "border-stone-300"}`}>
+                    <span
+                      className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-colors"
+                      style={active
+                        ? { background: "#1B4965", borderColor: "#1B4965" }
+                        : { borderColor: "#d6d3d1" }
+                      }
+                    >
                       {active && (
                         <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                         </svg>
                       )}
                     </span>
-                    {shop.label}
+                    <span className={active ? "" : "text-stone-500"}>{shop.label}</span>
                   </button>
                 );
               })}
@@ -521,20 +691,94 @@ export default function ProjectWorkspacePage() {
           <div>
             <p className="text-sm font-semibold text-stone-700 mb-3">Design style</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {DESIGN_STYLES.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setSelectedStyle(s.id)}
-                  className={`text-left rounded-xl border-2 overflow-hidden transition-all ${
-                    selectedStyle === s.id ? "border-sage-500 ring-2 ring-sage-200" : "border-stone-200 hover:border-stone-300"
-                  }`}
-                >
-                  <div className="h-12" style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }} />
-                  <div className="p-2">
-                    <p className="font-semibold text-stone-900 text-xs leading-snug">{s.label}</p>
-                  </div>
-                </button>
-              ))}
+              {DESIGN_STYLES.map((s) => {
+                const active = selectedStyle === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedStyle(s.id)}
+                    className="text-left rounded-xl border-2 overflow-hidden transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
+                      : { borderColor: "#e7e5e4" }
+                    }
+                  >
+                    <div className="h-12" style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }} />
+                    <div className="p-2">
+                      <p className="font-semibold text-stone-900 text-xs leading-snug">{s.label}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Wall colour */}
+          <div>
+            <p className="text-sm font-semibold text-stone-700 mb-3">Wall colour</p>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {WALL_COLORS.map((w) => {
+                const active = selectedWallColor === w.id;
+                return (
+                  <button
+                    key={w.id}
+                    onClick={() => setSelectedWallColor(w.id)}
+                    className="text-left rounded-xl border-2 overflow-hidden transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
+                      : { borderColor: "#e7e5e4" }
+                    }
+                  >
+                    {w.swatch ? (
+                      <div className="h-8" style={{ background: w.swatch, borderBottom: w.id === "neutral" ? "1px solid #e7e5e4" : undefined }} />
+                    ) : (
+                      <div className="h-8 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f9c0c0, #c0d4f9, #c0f9d4, #f9eec0)" }}>
+                        <svg className="w-3 h-3 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="p-1.5">
+                      <p className="font-semibold text-stone-900 text-xs leading-snug">{w.label}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedWallColor === "custom" && (
+              <input
+                type="text"
+                placeholder="e.g. sage green, dusty pink…"
+                value={customWallColor}
+                onChange={(e) => setCustomWallColor(e.target.value)}
+                className="mt-3 w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
+              />
+            )}
+          </div>
+
+          {/* Flooring */}
+          <div>
+            <p className="text-sm font-semibold text-stone-700 mb-3">Flooring</p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {FLOORING_TYPES.map((f) => {
+                const active = selectedFlooring === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => setSelectedFlooring(f.id)}
+                    className="text-left rounded-xl border-2 overflow-hidden transition-all"
+                    style={active
+                      ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
+                      : { borderColor: "#e7e5e4" }
+                    }
+                  >
+                    <div className="h-8" style={{ background: f.swatch }} />
+                    <div className="p-1.5">
+                      <p className="font-semibold text-stone-900 text-xs leading-snug">{f.label}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -544,7 +788,8 @@ export default function ProjectWorkspacePage() {
           <button
             onClick={submitSetup}
             disabled={submittingSetup}
-            className="w-full bg-stone-900 hover:bg-stone-800 disabled:opacity-40 text-white rounded-xl py-2.5 font-medium text-sm transition-colors"
+            className="w-full disabled:opacity-40 rounded-xl py-2.5 font-semibold text-sm transition-all hover:bg-mid-gold-dark active:scale-95"
+            style={{ background: "#D4A574", color: "#1B4965" }}
           >
             {submittingSetup ? "Saving…" : "Save preferences"}
           </button>
@@ -558,13 +803,14 @@ export default function ProjectWorkspacePage() {
             <div key={step.n} className={`flex items-center ${i < steps.length - 1 ? "flex-1" : ""}`}>
               <div className="flex items-center gap-2">
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-colors ${
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-colors"
+                  style={
                     step.done
-                      ? "bg-sage-600 text-white"
+                      ? { background: "#D4A574", color: "#1B4965" }
                       : step.n === currentStep
-                      ? "bg-stone-900 text-white"
-                      : "bg-stone-100 text-stone-400"
-                  }`}
+                      ? { background: "#1B4965", color: "#ffffff" }
+                      : { background: "#f5f5f4", color: "#a8a29e" }
+                  }
                 >
                   {step.done ? (
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -572,14 +818,24 @@ export default function ProjectWorkspacePage() {
                     </svg>
                   ) : step.n}
                 </div>
-                <span className={`text-xs font-medium hidden sm:block whitespace-nowrap ${
-                  step.done ? "text-sage-700" : step.n === currentStep ? "text-stone-900" : "text-stone-400"
-                }`}>
+                <span
+                  className="text-xs font-medium hidden sm:block whitespace-nowrap"
+                  style={
+                    step.done
+                      ? { color: "#C4935F" }
+                      : step.n === currentStep
+                      ? { color: "#1B4965" }
+                      : { color: "#a8a29e" }
+                  }
+                >
                   {step.label}
                 </span>
               </div>
               {i < steps.length - 1 && (
-                <div className={`flex-1 h-px mx-3 ${step.done ? "bg-sage-300" : "bg-stone-200"}`} />
+                <div
+                  className="flex-1 h-px mx-3"
+                  style={{ background: step.done ? "#f0ddc4" : "#e7e5e4" }}
+                />
               )}
             </div>
           ))}
@@ -607,19 +863,20 @@ export default function ProjectWorkspacePage() {
                 type="number" step="0.01" min="0.1" required
                 value={val} placeholder={placeholder}
                 onChange={(e) => set(e.target.value)}
-                className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500 focus:border-transparent"
+                className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent"
               />
             </div>
           ))}
           <div className="sm:col-span-3 flex items-center gap-3 flex-wrap">
             <button
               type="submit" disabled={savingDims}
-              className="bg-stone-900 hover:bg-stone-800 disabled:opacity-40 text-white rounded-xl px-5 py-2.5 text-sm font-medium transition-colors"
+              className="disabled:opacity-40 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all hover:bg-mid-gold-dark active:scale-95"
+              style={{ background: "#D4A574", color: "#1B4965" }}
             >
               {savingDims ? "Saving…" : hasDimensions ? "Update dimensions" : "Save dimensions"}
             </button>
             {hasDimensions && !savingDims && (
-              <span className="text-xs text-sage-600 font-medium flex items-center gap-1">
+              <span className="text-xs font-medium flex items-center gap-1" style={{ color: "#C4935F" }}>
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
@@ -645,7 +902,7 @@ export default function ProjectWorkspacePage() {
         </div>
         {uploadingFloor ? (
           <div className="mb-4 border-2 border-dashed border-stone-200 rounded-xl p-8 text-center">
-            <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-sage-600 animate-spin mx-auto mb-3" />
+            <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-mid-gold animate-spin mx-auto mb-3" />
             <p className="text-sm text-stone-400">Uploading…</p>
           </div>
         ) : (project.floorPlanUrl || project.floorPlanKey) ? (
@@ -674,7 +931,7 @@ export default function ProjectWorkspacePage() {
                 />
                 {(uploadedFileName || project.floorPlanKey) && (
                   <p className="text-xs text-stone-400 mt-2 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5 text-sage-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: "#C4935F" }}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                     </svg>
                     {uploadedFileName ?? project.floorPlanKey?.split("/").pop() ?? "floor-plan.webp"}
@@ -719,7 +976,10 @@ export default function ProjectWorkspacePage() {
             </div>
           </div>
           {furnitureMode === "manual" && selectedProducts.size > 0 && (
-            <span className="text-xs font-medium bg-sage-50 text-sage-700 px-2.5 py-1 rounded-full border border-sage-200">
+            <span
+              className="text-xs font-medium px-2.5 py-1 rounded-full border"
+              style={{ background: "#e8f0f5", color: "#1B4965", borderColor: "#AECFDB" }}
+            >
               {selectedProducts.size}/12 selected
             </span>
           )}
@@ -789,7 +1049,7 @@ export default function ProjectWorkspacePage() {
               placeholder="Search sofas, tables, beds…"
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
-              className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-sage-500 focus:border-transparent placeholder:text-stone-400"
+              className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
             />
             {productsLoading ? (
               <div className="grid sm:grid-cols-2 gap-2">
@@ -812,16 +1072,16 @@ export default function ProjectWorkspacePage() {
                       <button
                         onClick={() => !atMax && toggleProduct(p.id)}
                         disabled={atMax}
-                        className={`w-full text-left rounded-xl border px-3 py-2.5 text-sm transition-all ${
-                          selected
-                            ? "border-sage-500 bg-sage-50 ring-1 ring-sage-400"
-                            : "border-stone-200 hover:border-stone-400 hover:bg-stone-50 disabled:opacity-40"
-                        }`}
+                        className="w-full text-left rounded-xl border px-3 py-2.5 text-sm transition-all disabled:opacity-40"
+                        style={selected
+                          ? { borderColor: "#1B4965", background: "#e8f0f5", outline: "1px solid #2A5F7F" }
+                          : undefined
+                        }
                       >
                         <div className="flex items-center justify-between gap-2">
                           <p className="font-medium text-stone-900 truncate">{p.title}</p>
                           {selected && (
-                            <svg className="w-4 h-4 text-sage-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: "#C4935F" }}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                             </svg>
                           )}
@@ -857,7 +1117,8 @@ export default function ProjectWorkspacePage() {
                             href={p.affiliateUrl ?? p.productUrl}
                             target="_blank" rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-xs text-sage-600 hover:text-sage-800 font-medium hover:underline"
+                            className="text-xs font-medium hover:underline transition-colors"
+                            style={{ color: "#1B4965" }}
                           >
                             Shop →
                           </a>
@@ -897,14 +1158,15 @@ export default function ProjectWorkspacePage() {
               placeholder={styleLabel ? `e.g. ${styleLabel} living room, warm afternoon light, cream walls` : "e.g. Scandi minimalist, warm afternoon light, cream walls and oak accents"}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              className="w-full border border-stone-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500 focus:border-transparent resize-none placeholder:text-stone-400"
+              className="w-full border border-stone-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent resize-none placeholder:text-stone-400"
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
               disabled={rendering || !project.floorPlanKey || !hasDimensions}
-              className="bg-stone-900 hover:bg-stone-800 disabled:opacity-40 text-white rounded-xl px-6 py-2.5 text-sm font-medium transition-colors"
+              className="disabled:opacity-40 rounded-xl px-6 py-2.5 text-sm font-semibold transition-all hover:bg-mid-gold-dark active:scale-95"
+              style={{ background: "#D4A574", color: "#1B4965" }}
             >
               {rendering ? "Generating your design…" : "Generate design →"}
             </button>
@@ -949,9 +1211,16 @@ export default function ProjectWorkspacePage() {
 
 function StepBadge({ n, done, current }: { n: number; done: boolean; current: boolean }) {
   return (
-    <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold flex-shrink-0 transition-colors ${
-      done ? "bg-sage-600 text-white" : current ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-400"
-    }`}>
+    <span
+      className="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold flex-shrink-0 transition-colors"
+      style={
+        done
+          ? { background: "#D4A574", color: "#1B4965" }
+          : current
+          ? { background: "#1B4965", color: "#ffffff" }
+          : { background: "#f5f5f4", color: "#a8a29e" }
+      }
+    >
       {done ? (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -983,15 +1252,20 @@ function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Prom
     ? render.imageUrl.startsWith("http") ? render.imageUrl : `${API_BASE}${render.imageUrl}`
     : null;
 
+  const products = render.products ?? [];
+  const hasProducts = render.status === "done" && products.length > 0;
+  const total = products.reduce((s, p) => s + (p.priceGbp ?? 0), 0);
+  const hasTotal = products.some((p) => p.priceGbp != null);
+
   return (
     <div id={`render-${render.id}`} className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
       {imgSrc && render.status === "done" && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imgSrc} alt="Room render" className="w-full h-72 object-cover" />
+        <img src={imgSrc} alt="Room design" className="w-full h-72 object-cover" />
       )}
       {render.status === "pending" && (
         <div className="w-full h-72 bg-stone-50 flex flex-col items-center justify-center gap-3">
-          <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-sage-600 animate-spin" />
+          <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-mid-gold animate-spin" />
           <p className="text-sm text-stone-400">Generating your design…</p>
         </div>
       )}
@@ -1017,7 +1291,7 @@ function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Prom
               </a>
             )}
             {render.status === "done" && (
-              <span className="text-xs text-sage-600 font-medium flex items-center gap-1">
+              <span className="text-xs font-medium flex items-center gap-1" style={{ color: "#C4935F" }}>
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
@@ -1044,7 +1318,59 @@ function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Prom
             </button>
           )}
         </div>
+
+        {hasProducts && (
+          <div className="mt-5 pt-5 border-t border-stone-100">
+            <h3 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#062C3D" }}>
+              Furniture &amp; Decor Selections
+            </h3>
+            <ul className="space-y-3">
+              {products.map((p) => (
+                <FurnitureRow key={p.id} product={p} />
+              ))}
+            </ul>
+            {hasTotal && (
+              <div className="mt-4 pt-4 border-t border-stone-100 flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Total</span>
+                <span className="text-base font-bold" style={{ color: "#D4A574" }}>
+                  £{total.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function FurnitureRow({ product: p }: { product: RenderProduct }) {
+  return (
+    <li className="flex items-center gap-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={p.imageUrl}
+        alt={p.title}
+        className="w-12 h-12 object-cover rounded-lg border border-stone-100 flex-shrink-0 bg-stone-50"
+      />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-stone-800 leading-snug line-clamp-2">{p.title}</p>
+        <p className="text-xs text-stone-400 mt-0.5 capitalize">{p.retailer.replace(/_/g, " ")}</p>
+      </div>
+      <div className="flex items-center gap-2.5 flex-shrink-0">
+        {p.priceGbp != null && (
+          <span className="text-sm font-semibold text-stone-700">£{p.priceGbp.toFixed(0)}</span>
+        )}
+        <a
+          href={p.affiliateUrl ?? p.productUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-medium hover:underline transition-colors"
+          style={{ color: "#062C3D" }}
+        >
+          Shop →
+        </a>
+      </div>
+    </li>
   );
 }

@@ -19,7 +19,7 @@ const RETAILER_LABELS: Record<string, string> = {
   made: "Made.com", dunelm: "Dunelm", amazon: "Amazon",
 };
 
-const CHART_COLORS = ["#428872", "#63a38e", "#94c4af", "#D4A847", "#B07D2E", "#7B4343", "#3D3D3D", "#346e5c"];
+const CHART_COLORS = ["#1B4965", "#2A5F7F", "#D4A574", "#C4935F", "#4A8FA8", "#E5C9A8", "#163d54", "#6BAFC7"];
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
@@ -33,9 +33,15 @@ function StatCard({ label, value, sub, accent = false }: {
   label: string; value: string | number; sub?: string; accent?: boolean;
 }) {
   return (
-    <div className={`rounded-2xl p-5 border ${accent ? "bg-sage-900/30 border-sage-700" : "bg-stone-900 border-stone-800"}`}>
+    <div
+      className="rounded-2xl p-5 border"
+      style={accent
+        ? { background: "rgba(27,73,101,0.4)", borderColor: "#2A5F7F" }
+        : { background: "#1a3044", borderColor: "#243d52" }
+      }
+    >
       <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-3xl font-bold tracking-tight ${accent ? "text-sage-300" : "text-white"}`}>{value}</p>
+      <p className="text-3xl font-bold tracking-tight" style={{ color: accent ? "#D4A574" : "#ffffff" }}>{value}</p>
       {sub && <p className="text-xs text-stone-500 mt-1">{sub}</p>}
     </div>
   );
@@ -51,8 +57,8 @@ function SectionHeader({ title }: { title: string }) {
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-stone-900 border border-stone-800 rounded-2xl p-5">
-      <p className="text-sm font-medium text-stone-300 mb-4">{title}</p>
+    <div className="rounded-2xl p-5" style={{ background: "#1a3044", border: "1px solid #243d52" }}>
+      <p className="text-sm font-medium mb-4" style={{ color: "#AECFDB" }}>{title}</p>
       {children}
     </div>
   );
@@ -62,9 +68,13 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 
 function TierBadge({ tier }: { tier: string }) {
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-      tier === "pro" ? "bg-sage-900 text-sage-300" : "bg-stone-800 text-stone-400"
-    }`}>
+    <span
+      className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={tier === "pro"
+        ? { background: "rgba(212,165,116,0.15)", color: "#D4A574" }
+        : { background: "#243d52", color: "#7a9db5" }
+      }
+    >
       {tier}
     </span>
   );
@@ -131,7 +141,7 @@ export default function AdminPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 rounded-full border-2 border-stone-700 border-t-sage-500 animate-spin" />
+        <div className="w-6 h-6 rounded-full border-2 border-mid-blue border-t-mid-gold animate-spin" />
       </div>
     );
   }
@@ -383,7 +393,7 @@ export default function AdminPage() {
                     </div>
                   )}
                   <span className={`absolute top-1.5 right-1.5 text-xs px-1.5 py-0.5 rounded font-medium ${
-                    r.status === "done" ? "bg-sage-800 text-sage-300" :
+                    r.status === "done" ? "bg-mid-blue text-mid-gold-light" :
                     r.status === "failed" ? "bg-red-900 text-red-300" : "bg-stone-700 text-stone-400"
                   }`}>
                     {r.status}
