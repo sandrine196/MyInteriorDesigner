@@ -5,7 +5,7 @@ const schema = z.object({
   JWT_SECRET: z.string().min(16),
   GEMINI_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default("gemini-3.1-flash-image-preview"),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash-image"),
   PORT: z.coerce.number().default(3000),
   FRONTEND_URL: z.string().default("http://localhost:3001"),
   FREE_RENDERS_PER_MONTH: z.coerce.number().default(5),
