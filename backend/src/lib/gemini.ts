@@ -99,6 +99,7 @@ export function buildPrompt(
 
   const lines: (string | null)[] = [
     `Professional interior design photograph of a ${styleLabel} ${roomType}.`,
+    "Shot from the doorframe entrance - the viewer is standing at the threshold looking into the room.",
     "",
     "ROOM SPECIFICATIONS:",
     `- Dimensions: ${lengthM}m × ${widthM}m with ${ceilingM}m ceiling height`,
@@ -134,6 +135,7 @@ export function buildPrompt(
     "- Lighting: Bright, neutral midday daylight — NOT sunset, NOT golden hour, NOT evening light",
     `- All furniture must be to scale, respecting the room's actual dimensions (${lengthM}m × ${widthM}m)`,
     "- Arrange furniture following feng shui principles to ensure optimal circulation and flow in the room",
+    "- Camera perspective: Photographer is standing IN THE DOORFRAME at the room entrance, looking INTO the room. This is the primary viewpoint - as if you just opened the door and are looking inside. The door frame should be visible at the edges or implied by the angle. Show the ENTIRE room layout from this entrance perspective.",
     "- No text overlays, watermarks, labels, or visible floor plan lines",
   );
 
