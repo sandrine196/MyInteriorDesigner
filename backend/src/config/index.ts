@@ -31,6 +31,7 @@ export const config = {
     region: process.env.STORAGE_REGION ?? "WEUR",
     endpoint: process.env.R2_ENDPOINT ?? process.env.S3_ENDPOINT,
     bucket: process.env.R2_BUCKET_NAME ?? process.env.S3_BUCKET_NAME,
+    accountId: process.env.R2_ACCOUNT_ID,
     accessKeyId: process.env.R2_ACCESS_KEY_ID ?? process.env.S3_ACCESS_KEY_ID,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? process.env.S3_SECRET_ACCESS_KEY,
     // Base URL for public file access (e.g. https://cdn.myinteriordesigner.co.uk).
@@ -43,7 +44,7 @@ export const config = {
     provider: (process.env.AI_PROVIDER ?? "gemini") as "gemini" | "openai" | "stability" | "mock",
     apiKey: env.GEMINI_API_KEY,
     openaiKey: env.OPENAI_API_KEY,
-    model: env.GEMINI_IMAGE_MODEL,
+    model: env.GEMINI_MODEL,
     // AI_REGION can route to an EU endpoint when Google makes one available.
     region: process.env.AI_REGION ?? "global",
     useMock: env.USE_MOCK_RENDER,

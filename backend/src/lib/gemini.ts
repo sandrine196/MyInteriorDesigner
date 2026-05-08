@@ -146,6 +146,7 @@ export async function generateRoomImage(
   opts: { userPrompt: string; products: ProductForPrompt[]; room: RoomDimensionsMm } & PromptMeta
 ): Promise<{ buffer: Buffer; mock: boolean }> {
   if (!cfg.apiKey) {
+    console.log("[Gemini] No API key — returning placeholder (mock mode)");
     return { buffer: await placeholderBuffer(), mock: true };
   }
 
@@ -155,6 +156,8 @@ export async function generateRoomImage(
       ? "https://eu-generativelanguage.googleapis.com"
       : "https://generativelanguage.googleapis.com";
 
+  console.log(`[Gemini] Generating image — model: ${cfg.model}, region: ${cfg.region ?? "global"}`);
+
   const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl } });
   const prompt = buildPrompt(opts.userPrompt, opts.products, opts.room, {
     projectName:      opts.projectName,
@@ -162,6 +165,8 @@ export async function generateRoomImage(
     wallColorPalette: opts.wallColorPalette,
     flooringType:     opts.flooringType,
   });
+
+  console.log("[Gemini] Prompt:\n" + prompt);
 
   const response = await ai.models.generateContent({
     model: cfg.model,
@@ -179,13 +184,18 @@ export async function generateRoomImage(
   }
 
   if (!imageBase64) {
+    console.error("[Gemini] Response contained no image data:", JSON.stringify(response.candidates?.[0]));
     throw new Error("Model returned no image. Check model name and API access.");
   }
+
+  console.log(`[Gemini] Image received (${imageBase64.length} base64 chars) — resizing to ${RENDER_WIDTH}×${RENDER_HEIGHT}`);
 
   const buffer = await sharp(Buffer.from(imageBase64, "base64"))
     .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
     .png()
     .toBuffer();
+
+  console.log(`[Gemini] Done — PNG buffer size: ${buffer.length} bytes`);
 
   return { buffer, mock: false };
 }
