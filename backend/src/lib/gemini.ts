@@ -110,7 +110,7 @@ export function buildPrompt(
   if (products.length > 0) {
     lines.push(
       "",
-      "FURNITURE (all items must be accurately scaled to room dimensions):",
+      "FURNITURE (curated mix from UK retailers — all items must be accurately scaled to room dimensions):",
       ...productLines,
     );
   }
@@ -133,7 +133,8 @@ export function buildPrompt(
     "- This is a PHOTOGRAPH, not a 3D render or illustration — photorealistic, as seen in high-end interior design magazines",
     "- Bright, neutral daylight (midday sun), evenly lit, professional interior photography lighting with soft natural shadows",
     "- Lighting: Bright, neutral midday daylight — NOT sunset, NOT golden hour, NOT evening light",
-    `- All furniture must be to scale, respecting the room's actual dimensions (${lengthM}m × ${widthM}m)`,
+    `- All furniture must be to scale, respecting the room's actual dimensions (${lengthM}m × ${widthM}m × ${ceilingM}m high) — verify each item physically fits before placing it`,
+    "- Furniture is a curated mix from different UK retailers; render each piece accurately as specified",
     "- Arrange furniture following feng shui principles to ensure optimal circulation and flow in the room",
     "- Camera perspective: Photographer is standing IN THE DOORFRAME at the room entrance, looking INTO the room. This is the primary viewpoint - as if you just opened the door and are looking inside. The door frame should be visible at the edges or implied by the angle. Show the ENTIRE room layout from this entrance perspective.",
     "- No text overlays, watermarks, labels, or visible floor plan lines",
