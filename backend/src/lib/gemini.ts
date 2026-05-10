@@ -150,7 +150,7 @@ export function buildPrompt(
 /** Generate a room image using the Gemini API. Returns a PNG buffer. */
 export async function generateRoomImage(
   cfg: { apiKey?: string; model: string; region?: string },
-  opts: { userPrompt: string; products: ProductForPrompt[]; room: RoomDimensionsMm } & PromptMeta
+  opts: { userPrompt: string; products: ProductForPrompt[]; room: RoomDimensionsMm; floorPlan?: { data: string; mimeType: string } | null } & PromptMeta
 ): Promise<{ buffer: Buffer; mock: boolean }> {
   if (!cfg.apiKey) {
     console.log("[Gemini] No API key — returning placeholder (mock mode)");
@@ -171,13 +171,27 @@ export async function generateRoomImage(
     designStyle:      opts.designStyle,
     wallColorPalette: opts.wallColorPalette,
     flooringType:     opts.flooringType,
+    floorPlanAnalysis: opts.floorPlanAnalysis,
   });
 
   console.log("[Gemini] Prompt:\n" + prompt);
 
+  // Include the floor plan image directly when available — Gemini reads the
+  // spatial layout (doors, windows, features) from the image itself.
+  const contents = opts.floorPlan
+    ? [
+        { text: prompt },
+        { inlineData: { mimeType: opts.floorPlan.mimeType, data: opts.floorPlan.data } },
+      ]
+    : prompt;
+
+  if (opts.floorPlan) {
+    console.log(`[Gemini] Floor plan image included in request (${opts.floorPlan.mimeType})`);
+  }
+
   const response = await ai.models.generateContent({
     model: cfg.model,
-    contents: prompt,
+    contents,
     config: { responseModalities: ["IMAGE"] },
   });
 

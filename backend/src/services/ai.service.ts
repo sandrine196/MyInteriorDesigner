@@ -81,25 +81,26 @@ async function analyzeFloorPlanWithVision(client: OpenAI, key: string, tag: stri
   }
 }
 
-// ── Google Gemini + GPT-4o Vision (hybrid) ────────────────────────────────────
+// ── Google Gemini (with direct floor plan image injection) ────────────────────
 
 class GeminiAIService implements AIService {
-  private openai: OpenAI | null = config.ai.openaiKey
-    ? new OpenAI({ apiKey: config.ai.openaiKey })
-    : null;
-
   async generateRoomImage(opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }> {
-    let floorPlanAnalysis: string | null = null;
+    // Pass the floor plan image directly in the Gemini request — the model reads
+    // spatial layout, window/door positions, and architectural features itself.
+    let floorPlan: { data: string; mimeType: string } | null = null;
     if (opts.floorPlanKey) {
-      if (this.openai) {
-        floorPlanAnalysis = await analyzeFloorPlanWithVision(this.openai, opts.floorPlanKey, "Gemini");
-      } else {
-        console.log("[Gemini] Floor plan present but OPENAI_API_KEY not set — skipping Vision analysis");
+      try {
+        const imageBuffer = await storage.download(opts.floorPlanKey);
+        const mimeType = opts.floorPlanKey.endsWith(".webp") ? "image/webp" : "image/jpeg";
+        floorPlan = { data: imageBuffer.toString("base64"), mimeType };
+        console.log(`[Gemini] Floor plan loaded for direct injection: ${opts.floorPlanKey}`);
+      } catch (err) {
+        console.error("[Gemini] Failed to load floor plan — proceeding without it:", err);
       }
     }
     return geminiGenerateRoomImage(
       { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region },
-      { ...opts, floorPlanAnalysis },
+      { ...opts, floorPlan },
     );
   }
 }
