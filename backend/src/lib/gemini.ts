@@ -118,9 +118,13 @@ export function buildPrompt(
   if (floorPlanAnalysis) {
     lines.push(
       "",
-      "FLOOR PLAN ANALYSIS:",
+      "SPATIAL LAYOUT (CRITICAL):",
       floorPlanAnalysis,
-      "The photograph must respect this exact floor plan layout.",
+      "When generating this photograph:",
+      "- You are standing IN THE DOORFRAME looking into the room",
+      "- Respect the exact door and window positions described above",
+      "- Include any architectural features (fireplace, alcoves, etc.) in their correct positions",
+      "- The camera perspective must match someone standing at the door entrance",
     );
   }
 

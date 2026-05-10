@@ -55,9 +55,21 @@ function parseRetailers(raw: string | null): string[] {
   try { return JSON.parse(raw) as string[]; } catch { return []; }
 }
 
-const CATEGORY_PRIORITY = ["sofa", "armchair", "coffee_table", "dining_table", "bed", "storage"];
+const ROOM_CATEGORIES: Record<string, string[]> = {
+  living_room: ["sofa", "armchair", "coffee_table", "storage", "lighting"],
+  bedroom:     ["bed", "storage", "lighting"],
+  dining_room: ["dining_table", "storage", "lighting"],
+};
+
+function inferRoomType(name: string): keyof typeof ROOM_CATEGORIES {
+  const n = name.toLowerCase();
+  if (/bed|master|guest\s*room|sleep/.test(n)) return "bedroom";
+  if (/dining|kitchen|eat/.test(n)) return "dining_room";
+  return "living_room";
+}
 
 async function autoSelectProducts(project: {
+  name: string;
   preferredRetailers: string | null;
   budgetMax: number | null;
   designStyle: string | null;
@@ -81,7 +93,10 @@ async function autoSelectProducts(project: {
     if (styled.length > 0) pool = styled;
   }
 
-  // Pick one per category in priority order (up to 6 items)
+  // Pick one per category using room-type-appropriate priorities
+  const roomType = inferRoomType(project.name);
+  const categoryPriority = ROOM_CATEGORIES[roomType];
+
   const byCategory = new Map<string, typeof pool>();
   for (const p of pool) {
     if (p.category) {
@@ -90,7 +105,7 @@ async function autoSelectProducts(project: {
     }
   }
   const picked: typeof pool = [];
-  for (const cat of CATEGORY_PRIORITY) {
+  for (const cat of categoryPriority) {
     const options = byCategory.get(cat);
     if (options?.length) picked.push(options[Math.floor(Math.random() * options.length)]);
   }

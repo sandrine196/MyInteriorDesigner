@@ -65,12 +65,18 @@ class OpenAIService implements AIService {
               {
                 type: "text",
                 text:
-                  "Analyze this floor plan image. Describe concisely:\n" +
-                  "1. The overall room shape\n" +
-                  "2. Door and window positions\n" +
-                  "3. Any fixed features (fireplace, alcoves, structural elements)\n" +
-                  "4. Recommended furniture placement zones that respect circulation flow\n\n" +
-                  "Be specific about spatial relationships. Avoid decorative suggestions.",
+                  "Analyze this floor plan in detail. Describe:\n" +
+                  "1. Overall room shape and dimensions\n" +
+                  "2. Door location and which wall it's on\n" +
+                  "3. Window location(s) and which wall they're on\n" +
+                  "4. RELATIVE POSITIONING: When standing in the doorway looking into the room, describe where the windows are (left side, right side, straight ahead, etc.)\n" +
+                  "5. Any architectural features: fireplaces (including covered/obfuscated ones — shown as thicker wall sections), alcoves, bay windows, built-in features\n" +
+                  "6. Recommended furniture placement zones that:\n" +
+                  "   - Respect the door and window positions\n" +
+                  "   - Account for natural light from windows\n" +
+                  "   - Leave the fireplace wall clear if one exists\n" +
+                  "   - Ensure good circulation flow from the door\n\n" +
+                  "Be VERY specific about spatial relationships — the AI needs to understand the exact layout.",
               },
               {
                 type: "image_url",
