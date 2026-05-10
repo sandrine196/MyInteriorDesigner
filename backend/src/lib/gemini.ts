@@ -118,13 +118,15 @@ export function buildPrompt(
   if (floorPlanAnalysis) {
     lines.push(
       "",
-      "SPATIAL LAYOUT (CRITICAL):",
+      "SPATIAL LAYOUT (EXACT — NON-NEGOTIABLE):",
       floorPlanAnalysis,
-      "When generating this photograph:",
-      "- You are standing IN THE DOORFRAME looking into the room",
-      "- Respect the exact door and window positions described above",
-      "- Include any architectural features (fireplace, alcoves, etc.) in their correct positions",
-      "- The camera perspective must match someone standing at the door entrance",
+      "",
+      "You are standing IN THE DOORFRAME looking into the room. ENFORCE these positions exactly:",
+      "- If the analysis says a feature is on the RIGHT → it MUST appear on the RIGHT side of the photograph",
+      "- If the analysis says a feature is STRAIGHT AHEAD → it MUST be on the wall facing the camera",
+      "- If the analysis says a feature is on the LEFT → it MUST appear on the LEFT side of the photograph",
+      "- If the analysis says a feature is BEHIND YOU → it is on the same wall as the entrance, partially visible at the frame edges",
+      "Do NOT reinterpret or rearrange these positions. The photograph must match this exact spatial layout.",
     );
   }
 

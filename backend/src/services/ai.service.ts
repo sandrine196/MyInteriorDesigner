@@ -49,32 +49,30 @@ async function analyzeFloorPlanWithVision(client: OpenAI, key: string, tag: stri
             {
               type: "text",
               text:
-                "Analyze this floor plan with extreme precision.\n\n" +
-                "STEP 1 — ORIENT YOURSELF:\n" +
-                "Look at any text labels or room names to determine the top of the plan. Note if a compass is shown.\n\n" +
-                "STEP 2 — IDENTIFY THE ENTRANCE/DOOR:\n" +
-                "- Look specifically for: curved door swing arcs, arrows pointing INTO the room, door threshold symbols\n" +
-                "- The main entrance often has a curved quarter-circle arc showing the door swing\n" +
-                "- State EXACTLY which wall it is on (top/bottom/left/right) and where on that wall (left side / centre / right side)\n" +
-                "- Double-check: do NOT confuse interior doors with the main entrance\n\n" +
-                "STEP 3 — IDENTIFY ALL WINDOWS:\n" +
-                "- Distinguish regular windows from bay windows (bay windows project outward from the wall)\n" +
-                "- State which wall each window is on and its position along that wall\n" +
-                "- IMPORTANT: If a window is on the SAME wall as the door, say so explicitly and describe their relative positions (e.g. 'bay window is on the same wall as the door, to the right of it')\n\n" +
-                "STEP 4 — IDENTIFY ARCHITECTURAL FEATURES:\n" +
-                "- Fireplaces: often marked 'CH' (chimney), shown as a rectangular recess or thicker wall section\n" +
-                "- Alcoves, built-in shelving, structural columns\n" +
-                "- Kitchen or bathroom areas (different wall hatching or fixtures shown)\n\n" +
-                "STEP 5 — RELATIVE POSITIONING FROM THE DOORWAY:\n" +
-                "Imagine standing AT THE DOOR looking INTO the room. Describe:\n" +
-                "- What is straight ahead\n" +
-                "- What is on the left wall\n" +
-                "- What is on the right wall\n" +
-                "- What is on the far wall\n" +
-                "- What is behind you or beside you on the same wall as the door\n\n" +
-                "STEP 6 — FURNITURE PLACEMENT:\n" +
-                "Recommend placement zones that respect circulation from the door, natural light from windows, and keep fireplace walls clear.\n\n" +
-                "Be extremely accurate. Double-check door position before finalising your answer.",
+                "Analyze this floor plan and describe the spatial layout from the doorway perspective.\n\n" +
+                "STEP 1 — FIND THE ENTRANCE DOOR:\n" +
+                "Look for a curved door swing arc (quarter-circle line), an inward-pointing arrow, or a threshold gap in the wall. " +
+                "This is the main entrance. Do NOT use interior doors. Note where it sits on its wall.\n\n" +
+                "STEP 2 — STAND IN THE DOORWAY:\n" +
+                "Mentally place yourself IN that doorway, facing INTO the room. " +
+                "Now describe exactly what is in each direction using LEFT/RIGHT/AHEAD/BEHIND — NOT wall names like 'bottom wall':\n" +
+                "- On your LEFT: [what is there]\n" +
+                "- On your RIGHT: [what is there]\n" +
+                "- STRAIGHT AHEAD (opposite wall): [what is there]\n" +
+                "- BEHIND YOU / same wall as door: [what is there beside the entrance]\n\n" +
+                "STEP 3 — LABEL EVERY FEATURE WITH A DIRECTION:\n" +
+                "For each window, bay window, fireplace, alcove or feature write it as:\n" +
+                "  'Bay window on the RIGHT when entering'\n" +
+                "  'Fireplace on the wall STRAIGHT AHEAD'\n" +
+                "  'Window on the LEFT wall, mid-point'\n" +
+                "Never use vague terms like 'bottom wall' or 'top-left' — always use LEFT / RIGHT / AHEAD / BEHIND.\n\n" +
+                "STEP 4 — ARCHITECTURAL FEATURES:\n" +
+                "- Fireplaces: marked 'CH', rectangular recess, or noticeably thicker wall section\n" +
+                "- Bay windows: project outward beyond the wall line\n" +
+                "- Alcoves, built-ins, kitchen or bathroom fixtures\n\n" +
+                "STEP 5 — FURNITURE PLACEMENT:\n" +
+                "Recommend zones using the same LEFT/RIGHT/AHEAD language, respecting the door swing, window light, and any fireplace wall.\n\n" +
+                "Double-check your LEFT and RIGHT before finalising — they depend entirely on which direction the door faces.",
             },
             {
               type: "image_url",
