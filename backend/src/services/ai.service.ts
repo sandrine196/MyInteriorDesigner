@@ -19,7 +19,7 @@ export type GenerateRoomImageOpts = {
   userPrompt: string;
   products: ProductForPrompt[];
   room: RoomDimensionsMm;
-  /** Storage key of the uploaded floor plan. Used by OpenAI provider for Vision pre-analysis. */
+  /** Storage key of the uploaded floor plan. Analysed via GPT-4o Vision before generation (requires OPENAI_API_KEY). */
   floorPlanKey?: string | null;
 } & PromptMeta;
 
@@ -28,11 +28,79 @@ export interface AIService {
   generateRoomImage(opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }>;
 }
 
-// ── Google Gemini (current) ────────────────────────────────────────────────────
+// ── Shared: GPT-4o Vision floor plan analysis ─────────────────────────────────
+// Returns null if the OpenAI key is absent or the call fails — never blocks generation.
+
+async function analyzeFloorPlanWithVision(client: OpenAI, key: string, tag: string): Promise<string | null> {
+  try {
+    const imageBuffer = await storage.download(key);
+    const base64 = imageBuffer.toString("base64");
+    const mime = key.endsWith(".webp") ? "image/webp" : "image/jpeg";
+
+    console.log(`[${tag}] Analyzing floor plan with GPT-4o Vision: ${key}`);
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 500,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text:
+                "Analyze this floor plan in detail. Describe:\n" +
+                "1. Overall room shape and dimensions\n" +
+                "2. Door location and which wall it's on\n" +
+                "3. Window location(s) and which wall they're on\n" +
+                "4. RELATIVE POSITIONING: When standing in the doorway looking into the room, describe where the windows are (left side, right side, straight ahead, etc.)\n" +
+                "5. Any architectural features: fireplaces (including covered/obfuscated ones — shown as thicker wall sections), alcoves, bay windows, built-in features\n" +
+                "6. Recommended furniture placement zones that:\n" +
+                "   - Respect the door and window positions\n" +
+                "   - Account for natural light from windows\n" +
+                "   - Leave the fireplace wall clear if one exists\n" +
+                "   - Ensure good circulation flow from the door\n\n" +
+                "Be VERY specific about spatial relationships — the AI needs to understand the exact layout.",
+            },
+            {
+              type: "image_url",
+              image_url: { url: `data:${mime};base64,${base64}` },
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = response.choices[0]?.message?.content?.trim() ?? null;
+    console.log(`[${tag}] Floor plan analysis ${result ? "succeeded" : "returned empty"}:`);
+    if (result) console.log(result);
+    return result;
+  } catch (err) {
+    console.error(`[${tag}] Floor plan analysis failed — proceeding without it:`, err);
+    return null;
+  }
+}
+
+// ── Google Gemini + GPT-4o Vision (hybrid) ────────────────────────────────────
 
 class GeminiAIService implements AIService {
+  private openai: OpenAI | null = config.ai.openaiKey
+    ? new OpenAI({ apiKey: config.ai.openaiKey })
+    : null;
+
   async generateRoomImage(opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }> {
-    return geminiGenerateRoomImage({ apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region }, opts);
+    let floorPlanAnalysis: string | null = null;
+    if (opts.floorPlanKey) {
+      if (this.openai) {
+        floorPlanAnalysis = await analyzeFloorPlanWithVision(this.openai, opts.floorPlanKey, "Gemini");
+      } else {
+        console.log("[Gemini] Floor plan present but OPENAI_API_KEY not set — skipping Vision analysis");
+      }
+    }
+    return geminiGenerateRoomImage(
+      { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region },
+      { ...opts, floorPlanAnalysis },
+    );
   }
 }
 
@@ -46,64 +114,10 @@ class OpenAIService implements AIService {
     this.client = new OpenAI({ apiKey: config.ai.openaiKey });
   }
 
-  // Step 1 — GPT-4o Vision: read the floor plan and describe the spatial layout.
-  // Returns null on any failure so the render can still proceed without analysis.
-  private async analyzeFloorPlan(key: string): Promise<string | null> {
-    try {
-      const imageBuffer = await storage.download(key);
-      const base64 = imageBuffer.toString("base64");
-      // Floor plans are stored as WebP; fall back to jpeg label if ever changed.
-      const mime = key.endsWith(".webp") ? "image/webp" : "image/jpeg";
-
-      const response = await this.client.chat.completions.create({
-        model: "gpt-4o",
-        max_tokens: 500,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text:
-                  "Analyze this floor plan in detail. Describe:\n" +
-                  "1. Overall room shape and dimensions\n" +
-                  "2. Door location and which wall it's on\n" +
-                  "3. Window location(s) and which wall they're on\n" +
-                  "4. RELATIVE POSITIONING: When standing in the doorway looking into the room, describe where the windows are (left side, right side, straight ahead, etc.)\n" +
-                  "5. Any architectural features: fireplaces (including covered/obfuscated ones — shown as thicker wall sections), alcoves, bay windows, built-in features\n" +
-                  "6. Recommended furniture placement zones that:\n" +
-                  "   - Respect the door and window positions\n" +
-                  "   - Account for natural light from windows\n" +
-                  "   - Leave the fireplace wall clear if one exists\n" +
-                  "   - Ensure good circulation flow from the door\n\n" +
-                  "Be VERY specific about spatial relationships — the AI needs to understand the exact layout.",
-              },
-              {
-                type: "image_url",
-                image_url: { url: `data:${mime};base64,${base64}` },
-              },
-            ],
-          },
-        ],
-      });
-
-      return response.choices[0]?.message?.content?.trim() ?? null;
-    } catch (err) {
-      // Vision failure must not block image generation
-      console.error("Floor plan analysis failed — proceeding without it:", err);
-      return null;
-    }
-  }
-
-  // Step 2 — DALL-E 3: generate the room image using the enriched prompt.
   async generateRoomImage(opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }> {
-    // Step 1: floor plan analysis
     let floorPlanAnalysis: string | null = null;
     if (opts.floorPlanKey) {
-      console.log(`[OpenAI] Analyzing floor plan: ${opts.floorPlanKey}`);
-      floorPlanAnalysis = await this.analyzeFloorPlan(opts.floorPlanKey);
-      console.log(`[OpenAI] Floor plan analysis ${floorPlanAnalysis ? "succeeded" : "failed/skipped"}:`);
-      if (floorPlanAnalysis) console.log(floorPlanAnalysis);
+      floorPlanAnalysis = await analyzeFloorPlanWithVision(this.client, opts.floorPlanKey, "OpenAI");
     } else {
       console.log("[OpenAI] No floor plan key — skipping Vision analysis");
     }
