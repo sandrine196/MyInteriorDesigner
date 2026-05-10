@@ -81,26 +81,45 @@ async function analyzeFloorPlanWithVision(client: OpenAI, key: string, tag: stri
   }
 }
 
-// ── Google Gemini (with direct floor plan image injection) ────────────────────
+// ── Google Gemini (GPT-4o Vision pre-analysis + direct floor plan injection) ───
 
 class GeminiAIService implements AIService {
+  private openai: OpenAI | null = config.ai.openaiKey
+    ? new OpenAI({ apiKey: config.ai.openaiKey })
+    : null;
+
   async generateRoomImage(opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }> {
-    // Pass the floor plan image directly in the Gemini request — the model reads
-    // spatial layout, window/door positions, and architectural features itself.
     let floorPlan: { data: string; mimeType: string } | null = null;
+    let floorPlanAnalysis: string | null = null;
+
     if (opts.floorPlanKey) {
-      try {
-        const imageBuffer = await storage.download(opts.floorPlanKey);
-        const mimeType = opts.floorPlanKey.endsWith(".webp") ? "image/webp" : "image/jpeg";
+      const mimeType = opts.floorPlanKey.endsWith(".webp") ? "image/webp" : "image/jpeg";
+
+      if (!this.openai) {
+        console.log("[Gemini] OPENAI_API_KEY not set — skipping Vision pre-analysis");
+      }
+
+      // Download the floor plan image and run GPT-4o Vision analysis in parallel.
+      const [imageBuffer, analysis] = await Promise.all([
+        storage.download(opts.floorPlanKey).catch((err) => {
+          console.error("[Gemini] Failed to load floor plan image:", err);
+          return null;
+        }),
+        this.openai
+          ? analyzeFloorPlanWithVision(this.openai, opts.floorPlanKey, "Gemini")
+          : Promise.resolve(null),
+      ]);
+
+      if (imageBuffer) {
         floorPlan = { data: imageBuffer.toString("base64"), mimeType };
         console.log(`[Gemini] Floor plan loaded for direct injection: ${opts.floorPlanKey}`);
-      } catch (err) {
-        console.error("[Gemini] Failed to load floor plan — proceeding without it:", err);
       }
+      floorPlanAnalysis = analysis;
     }
+
     return geminiGenerateRoomImage(
       { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region },
-      { ...opts, floorPlan },
+      { ...opts, floorPlan, floorPlanAnalysis },
     );
   }
 }
