@@ -41,7 +41,7 @@ async function analyzeFloorPlanWithVision(client: OpenAI, key: string, tag: stri
 
     const response = await client.chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 500,
+      max_tokens: 800,
       messages: [
         {
           role: "user",
@@ -49,18 +49,32 @@ async function analyzeFloorPlanWithVision(client: OpenAI, key: string, tag: stri
             {
               type: "text",
               text:
-                "Analyze this floor plan in detail. Describe:\n" +
-                "1. Overall room shape and dimensions\n" +
-                "2. Door location and which wall it's on\n" +
-                "3. Window location(s) and which wall they're on\n" +
-                "4. RELATIVE POSITIONING: When standing in the doorway looking into the room, describe where the windows are (left side, right side, straight ahead, etc.)\n" +
-                "5. Any architectural features: fireplaces (including covered/obfuscated ones — shown as thicker wall sections), alcoves, bay windows, built-in features\n" +
-                "6. Recommended furniture placement zones that:\n" +
-                "   - Respect the door and window positions\n" +
-                "   - Account for natural light from windows\n" +
-                "   - Leave the fireplace wall clear if one exists\n" +
-                "   - Ensure good circulation flow from the door\n\n" +
-                "Be VERY specific about spatial relationships — the AI needs to understand the exact layout.",
+                "Analyze this floor plan with extreme precision.\n\n" +
+                "STEP 1 — ORIENT YOURSELF:\n" +
+                "Look at any text labels or room names to determine the top of the plan. Note if a compass is shown.\n\n" +
+                "STEP 2 — IDENTIFY THE ENTRANCE/DOOR:\n" +
+                "- Look specifically for: curved door swing arcs, arrows pointing INTO the room, door threshold symbols\n" +
+                "- The main entrance often has a curved quarter-circle arc showing the door swing\n" +
+                "- State EXACTLY which wall it is on (top/bottom/left/right) and where on that wall (left side / centre / right side)\n" +
+                "- Double-check: do NOT confuse interior doors with the main entrance\n\n" +
+                "STEP 3 — IDENTIFY ALL WINDOWS:\n" +
+                "- Distinguish regular windows from bay windows (bay windows project outward from the wall)\n" +
+                "- State which wall each window is on and its position along that wall\n" +
+                "- IMPORTANT: If a window is on the SAME wall as the door, say so explicitly and describe their relative positions (e.g. 'bay window is on the same wall as the door, to the right of it')\n\n" +
+                "STEP 4 — IDENTIFY ARCHITECTURAL FEATURES:\n" +
+                "- Fireplaces: often marked 'CH' (chimney), shown as a rectangular recess or thicker wall section\n" +
+                "- Alcoves, built-in shelving, structural columns\n" +
+                "- Kitchen or bathroom areas (different wall hatching or fixtures shown)\n\n" +
+                "STEP 5 — RELATIVE POSITIONING FROM THE DOORWAY:\n" +
+                "Imagine standing AT THE DOOR looking INTO the room. Describe:\n" +
+                "- What is straight ahead\n" +
+                "- What is on the left wall\n" +
+                "- What is on the right wall\n" +
+                "- What is on the far wall\n" +
+                "- What is behind you or beside you on the same wall as the door\n\n" +
+                "STEP 6 — FURNITURE PLACEMENT:\n" +
+                "Recommend placement zones that respect circulation from the door, natural light from windows, and keep fireplace walls clear.\n\n" +
+                "Be extremely accurate. Double-check door position before finalising your answer.",
             },
             {
               type: "image_url",
