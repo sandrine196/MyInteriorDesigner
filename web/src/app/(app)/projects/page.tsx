@@ -2,8 +2,9 @@
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { projects as api, ApiError, type Project } from "@/lib/api";
+import { config } from "@/config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE = config.apiUrl;
 
 export default function ProjectsPage() {
   const router = useRouter();

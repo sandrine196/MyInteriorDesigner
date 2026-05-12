@@ -11,8 +11,9 @@ import {
   type RenderProduct,
   type ProjectSetup,
 } from "@/lib/api";
+import { config } from "@/config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE = config.apiUrl;
 
 function mmToM(mm: number | null) {
   return mm != null ? (mm / 1000).toFixed(2) : "";

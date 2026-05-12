@@ -5,6 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { admin, type AdminMetrics } from "@/lib/api";
+import { config } from "@/config";
 
 // ── Label maps ────────────────────────────────────────────────────────────────
 
@@ -82,7 +83,7 @@ function TierBadge({ tier }: { tier: string }) {
 
 // ── Export button ─────────────────────────────────────────────────────────────
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE = config.apiUrl;
 
 function ExportButton({ label, path, filename }: { label: string; path: string; filename: string }) {
   const [busy, setBusy] = useState(false);
