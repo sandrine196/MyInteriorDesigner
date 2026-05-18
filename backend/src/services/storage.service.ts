@@ -1,5 +1,6 @@
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { config } from "../config/index.js";
 
 const UPLOADS_ROOT = join(process.cwd(), "uploads");
@@ -42,32 +43,57 @@ class LocalStorageService implements StorageService {
 }
 
 // ── Cloudflare R2 ──────────────────────────────────────────────────────────────
-// Install: npm install @aws-sdk/client-s3
-// Required env: R2_ENDPOINT, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, STORAGE_PUBLIC_URL
+// Required env: R2_ENDPOINT, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ACCOUNT_ID
+// Optional: STORAGE_PUBLIC_URL overrides the default pub-{accountId}.r2.dev base URL
 
 class R2StorageService implements StorageService {
-  async upload(_key: string, _data: Buffer, _contentType?: string): Promise<void> {
-    // TODO: import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
-    // const client = new S3Client({ endpoint: config.storage.endpoint, region: "auto", credentials: { ... } })
-    // await client.send(new PutObjectCommand({ Bucket: config.storage.bucket, Key: _key, Body: _data, ContentType: _contentType }))
-    throw new Error(
-      "R2 storage not yet wired up. Set STORAGE_PROVIDER=local or configure R2 credentials and uncomment the S3Client code."
-    );
+  private client: S3Client;
+  private bucket: string;
+
+  constructor() {
+    this.bucket = config.storage.bucket!;
+    this.client = new S3Client({
+      region: "auto",
+      endpoint: config.storage.endpoint,
+      credentials: {
+        accessKeyId: config.storage.accessKeyId!,
+        secretAccessKey: config.storage.secretAccessKey!,
+      },
+    });
   }
 
-  async delete(_key: string): Promise<void> {
-    // TODO: new S3Client(...).send(new DeleteObjectCommand({ Bucket, Key }))
-    throw new Error("R2 storage not yet wired up.");
+  async upload(key: string, data: Buffer, contentType?: string): Promise<void> {
+    await this.client.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: data,
+      ContentType: contentType,
+    }));
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    }));
   }
 
   getUrl(key: string): string {
-    return `${config.storage.publicUrl ?? ""}/${key}`;
+    const base = config.storage.publicUrl
+      ?? `https://pub-${config.storage.accountId}.r2.dev`;
+    return `${base}/${key}`;
   }
 
   async download(key: string): Promise<Buffer> {
-    const res = await fetch(this.getUrl(key));
-    if (!res.ok) throw new Error(`R2 download failed for key "${key}": ${res.status}`);
-    return Buffer.from(await res.arrayBuffer());
+    const response = await this.client.send(new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    }));
+    const chunks: Buffer[] = [];
+    for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+      chunks.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 }
 
