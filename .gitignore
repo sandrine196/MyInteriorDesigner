@@ -19,6 +19,12 @@ build/
 .env
 .env.local
 .env.*.local
+.env.save
+backend/.env.save
+
+# Credential files
+*.rtf
+GitHubToken.rtf
 
 # Database
 *.db
