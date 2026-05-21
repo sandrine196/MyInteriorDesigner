@@ -29,7 +29,10 @@ export const config = {
     // "local" = uploads/ on disk (current), "r2" | "s3" | "scaleway" for production.
     provider: (process.env.STORAGE_PROVIDER ?? "local") as "local" | "r2" | "s3" | "scaleway",
     region: process.env.STORAGE_REGION ?? "WEUR",
-    endpoint: process.env.R2_ENDPOINT ?? process.env.S3_ENDPOINT,
+    endpoint: process.env.R2_ENDPOINT
+      ?? (process.env.R2_ACCOUNT_ID
+        ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+        : process.env.S3_ENDPOINT),
     bucket: process.env.R2_BUCKET_NAME ?? process.env.S3_BUCKET_NAME,
     accountId: process.env.R2_ACCOUNT_ID,
     accessKeyId: process.env.R2_ACCESS_KEY_ID ?? process.env.S3_ACCESS_KEY_ID,
