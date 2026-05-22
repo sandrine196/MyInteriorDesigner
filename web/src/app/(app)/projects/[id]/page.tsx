@@ -4,12 +4,14 @@ import { useParams, useRouter } from "next/navigation";
 import {
   projects as api,
   products as productsApi,
+  usage as usageApi,
   ApiError,
   type Project,
   type Product,
   type Render,
   type RenderProduct,
   type ProjectSetup,
+  type Usage,
 } from "@/lib/api";
 import { config } from "@/config";
 
@@ -32,9 +34,9 @@ const SHOPS = [
   { id: "john_lewis", label: "John Lewis" },
   { id: "wayfair",    label: "Wayfair" },
   { id: "habitat",    label: "Habitat" },
-  { id: "made",       label: "Made.com" },
+  { id: "dunelm",      label: "Dunelm" },
+  { id: "la_redoute", label: "La Redoute" },
   { id: "muji",       label: "Muji" },
-  { id: "amazon",     label: "Amazon" },
 ];
 
 const WALL_COLORS = [
@@ -99,6 +101,7 @@ export default function ProjectWorkspacePage() {
   const [prompt, setPrompt] = useState("");
   const [rendering, setRendering] = useState(false);
   const [renderError, setRenderError] = useState("");
+  const [usageData, setUsageData] = useState<Usage | null>(null);
 
   // Onboarding
   const [budgetBracket, setBudgetBracket] = useState<typeof BUDGET_OPTIONS[number] | null>(null);
@@ -117,6 +120,7 @@ export default function ProjectWorkspacePage() {
   const [editingPrefs, setEditingPrefs] = useState(false);
 
   useEffect(() => {
+    usageApi.get().then(setUsageData).catch(() => {});
     api.get(id)
       .then(({ project: p }) => {
         setProject(p);
@@ -232,16 +236,17 @@ export default function ProjectWorkspacePage() {
     try {
       const productIds = furnitureMode === "manual" ? [...selectedProducts] : [];
       const { render } = await api.createRender(id, prompt, productIds);
-      const { project: p } = await api.get(id);
+      const [{ project: p }, freshUsage] = await Promise.all([api.get(id), usageApi.get()]);
       setProject(p);
+      setUsageData(freshUsage);
       setPrompt("");
       document.getElementById(`render-${render.id}`)?.scrollIntoView({ behavior: "smooth" });
     } catch (err) {
-      setRenderError(
-        err instanceof ApiError
-          ? err.status === 402 ? "Free render limit reached for this month." : err.message
-          : "Render failed"
-      );
+      if (err instanceof ApiError && err.status === 402) {
+        setRenderError("FREE_LIMIT_REACHED");
+      } else {
+        setRenderError(err instanceof ApiError ? err.message : "Render failed");
+      }
     } finally {
       setRendering(false);
     }
@@ -1165,7 +1170,7 @@ export default function ProjectWorkspacePage() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
-              disabled={rendering || !project.floorPlanKey || !hasDimensions}
+              disabled={rendering || !project.floorPlanKey || !hasDimensions || renderError === "FREE_LIMIT_REACHED"}
               className="disabled:opacity-40 rounded-xl px-6 py-2.5 text-sm font-semibold transition-all hover:bg-mid-gold-dark active:scale-95"
               style={{ background: "#D4A574", color: "#1B4965" }}
             >
@@ -1174,8 +1179,43 @@ export default function ProjectWorkspacePage() {
             {(!project.floorPlanKey || !hasDimensions) && (
               <p className="text-xs text-stone-400">Complete steps 1 & 2 first</p>
             )}
-            {renderError && <p className="text-sm text-red-600">{renderError}</p>}
+            {renderError && renderError !== "FREE_LIMIT_REACHED" && (
+              <p className="text-sm text-red-600">{renderError}</p>
+            )}
           </div>
+
+          {renderError === "FREE_LIMIT_REACHED" ? (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-medium text-amber-800">You&apos;ve reached your monthly render limit.</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Premium tier coming soon —{" "}
+                <a href="mailto:hello@myinteriordesigner.co.uk?subject=Premium waitlist" className="underline font-medium">
+                  join the waitlist
+                </a>{" "}
+                to be first to know.
+              </p>
+            </div>
+          ) : usageData && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-stone-400">
+                  {usageData.usedThisMonth} of {usageData.freeLimit} renders used this month
+                </span>
+                {usageData.remaining !== null && usageData.remaining <= 10 && (
+                  <span className="text-xs font-medium text-amber-600">{usageData.remaining} remaining</span>
+                )}
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-stone-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, (usageData.usedThisMonth / usageData.freeLimit) * 100)}%`,
+                    background: usageData.remaining !== null && usageData.remaining <= 10 ? "#D97706" : "#D4A574",
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </form>
       </section>
 
