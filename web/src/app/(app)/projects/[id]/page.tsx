@@ -37,6 +37,7 @@ const SHOPS = [
   { id: "dunelm",      label: "Dunelm" },
   { id: "la_redoute", label: "La Redoute" },
   { id: "muji",       label: "Muji" },
+  { id: "amazon",     label: "Amazon" },
 ];
 
 const WALL_COLORS = [
