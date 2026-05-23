@@ -263,6 +263,30 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
     }
   );
 
+  // ── Save room features ───────────────────────────────────────────────────
+
+  app.patch(
+    "/projects/:projectId/features",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const u = request.user as { sub: string };
+      const { projectId } = request.params as { projectId: string };
+      const body = request.body as { roomFeatures: unknown };
+      if (!body?.roomFeatures || typeof body.roomFeatures !== "object") {
+        return reply.status(400).send({ error: "roomFeatures is required" });
+      }
+      const existing = await prisma.project.findFirst({ where: { id: projectId, userId: u.sub } });
+      if (!existing) return reply.status(404).send({ error: "Project not found" });
+      const project = await prisma.project.update({
+        where: { id: projectId },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data: { roomFeatures: body.roomFeatures as any },
+        include: { renders: { orderBy: { createdAt: "desc" }, take: 5 } },
+      });
+      return { project: serializeProject(project) };
+    }
+  );
+
   // ── Delete project ────────────────────────────────────────────────────────
 
   app.delete(

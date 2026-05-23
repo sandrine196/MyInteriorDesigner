@@ -12,7 +12,10 @@ import {
   type RenderProduct,
   type ProjectSetup,
   type Usage,
+  type RoomFeatures,
+  type WallRole,
 } from "@/lib/api";
+import FloorPlanMapper from "@/components/FloorPlanMapper";
 import { config } from "@/config";
 
 const API_BASE = config.apiUrl;
@@ -97,6 +100,9 @@ export default function ProjectWorkspacePage() {
   const [selectedProductsData, setSelectedProductsData] = useState<Map<string, Product>>(new Map());
   const [productSearch, setProductSearch] = useState("");
   const [productsLoading, setProductsLoading] = useState(false);
+
+  // Room features
+  const [savingFeatures, setSavingFeatures] = useState(false);
 
   // Render
   const [prompt, setPrompt] = useState("");
@@ -289,6 +295,28 @@ export default function ProjectWorkspacePage() {
     project.roomLengthMm != null &&
     project.roomWidthMm != null &&
     project.ceilingHeightMm != null;
+
+  const hasWallMapping = !project.floorPlanKey || (() => {
+    const rf = project.roomFeatures as RoomFeatures | null;
+    if (!rf) return false;
+    const roles: WallRole[] = ["entrance", "far", "left", "right"];
+    return (
+      rf.walls.entrance.features.some((f) => f.type === "door") &&
+      roles.some((r) => rf.walls[r].features.some((f) => f.type === "window"))
+    );
+  })();
+
+  async function saveFeatures(features: RoomFeatures) {
+    setSavingFeatures(true);
+    try {
+      const { project: p } = await api.saveFeatures(id, features);
+      setProject(p);
+    } catch {
+      // mapper UI shows its own completion state
+    } finally {
+      setSavingFeatures(false);
+    }
+  }
 
   // ── Onboarding questionnaire ───────────────────────────────────────────────
 
@@ -522,10 +550,11 @@ export default function ProjectWorkspacePage() {
   // ── Normal workflow ────────────────────────────────────────────────────────
 
   const steps = [
-    { n: 1, label: "Room size",  done: hasDimensions },
-    { n: 2, label: "Floor plan", done: hasDimensions },
-    { n: 3, label: "Furniture",  done: furnitureMode === "auto" || selectedProducts.size > 0 },
-    { n: 4, label: "Generate",   done: project.renders.length > 0 },
+    { n: 1, label: "Room size",    done: hasDimensions },
+    { n: 2, label: "Floor plan",   done: hasDimensions },
+    { n: 3, label: "Wall mapping", done: hasWallMapping },
+    { n: 4, label: "Furniture",    done: furnitureMode === "auto" || selectedProducts.size > 0 },
+    { n: 5, label: "Generate",     done: project.renders.length > 0 },
   ];
   const currentStep = steps.find((s) => !s.done)?.n ?? 5;
 
@@ -894,7 +923,7 @@ export default function ProjectWorkspacePage() {
           </div>
         </form>
         {hasDimensions && currentStep === 2 && (
-          <p className="text-xs text-stone-400 mt-4">Next: optionally upload your floor plan, then choose furniture ↓</p>
+          <p className="text-xs text-stone-400 mt-4">Next: optionally upload your floor plan ↓</p>
         )}
       </section>
 
@@ -968,17 +997,49 @@ export default function ProjectWorkspacePage() {
         </button>
         {floorError && <p className="text-sm text-red-600 mt-2">{floorError}</p>}
         {currentStep === 3 && (
+          <p className="text-xs text-stone-400 mt-4">Next: map your room walls below ↓</p>
+        )}
+      </section>
+
+      {/* ── Step 3: Wall mapping ── */}
+      <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 3 ? "border-stone-300" : "border-stone-200"}`}>
+        <div className="flex items-center gap-3 mb-5">
+          <StepBadge n={3} done={hasWallMapping} current={currentStep === 3} />
+          <div>
+            <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 3 of 5</p>
+            <h2 className="font-semibold text-stone-900">
+              Map your walls{" "}
+              <span className="text-stone-400 font-normal text-sm">
+                {!project.floorPlanKey ? "(upload floor plan first)" : "(optional)"}
+              </span>
+            </h2>
+          </div>
+        </div>
+        {!project.floorPlanKey ? (
+          <p className="text-sm text-stone-400">
+            Upload your floor plan in Step 2 to mark wall features — door position, windows, and fireplace.
+            This helps us position furniture correctly and choose the best camera angle.
+          </p>
+        ) : (
+          <FloorPlanMapper
+            floorPlanUrl={project.floorPlanUrl ?? ""}
+            initialFeatures={project.roomFeatures}
+            saving={savingFeatures}
+            onSave={saveFeatures}
+          />
+        )}
+        {hasWallMapping && currentStep === 4 && (
           <p className="text-xs text-stone-400 mt-4">Next: choose your furniture below ↓</p>
         )}
       </section>
 
-      {/* ── Step 3: Furniture ── */}
-      <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 3 ? "border-stone-300" : "border-stone-200"}`}>
+      {/* ── Step 4: Furniture ── */}
+      <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 4 ? "border-stone-300" : "border-stone-200"}`}>
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <StepBadge n={3} done={furnitureMode === "auto" || selectedProducts.size > 0} current={currentStep === 3} />
+            <StepBadge n={4} done={furnitureMode === "auto" || selectedProducts.size > 0} current={currentStep === 4} />
             <div>
-              <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 3 of 4</p>
+              <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 4 of 5</p>
               <h2 className="font-semibold text-stone-900">Furniture</h2>
             </div>
           </div>
@@ -1143,17 +1204,17 @@ export default function ProjectWorkspacePage() {
           </div>
         )}
 
-        {(furnitureMode === "auto" || selectedProducts.size > 0) && currentStep === 4 && (
+        {(furnitureMode === "auto" || selectedProducts.size > 0) && currentStep === 5 && (
           <p className="text-xs text-stone-400 mt-4">Next: describe your style and generate your design below ↓</p>
         )}
       </section>
 
-      {/* ── Step 4: Generate render ── */}
-      <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 4 ? "border-stone-300" : "border-stone-200"}`}>
+      {/* ── Step 5: Generate render ── */}
+      <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 5 ? "border-stone-300" : "border-stone-200"}`}>
         <div className="flex items-center gap-3 mb-5">
-          <StepBadge n={4} done={project.renders.length > 0} current={currentStep === 4} />
+          <StepBadge n={5} done={project.renders.length > 0} current={currentStep === 5} />
           <div>
-            <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 4 of 4</p>
+            <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 5 of 5</p>
             <h2 className="font-semibold text-stone-900">Generate your design</h2>
           </div>
         </div>

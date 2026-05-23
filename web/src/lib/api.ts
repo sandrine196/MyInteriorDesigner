@@ -140,6 +140,44 @@ export type Render = {
   products: RenderProduct[];
 };
 
+export type WallRole = "entrance" | "far" | "left" | "right";
+
+export type DoorFeature = {
+  type: "door";
+  subtype: "single" | "double" | "sliding" | "bifold";
+  widthCm: number;
+  opensInward: boolean;
+  hingeSide: "left" | "right";
+};
+
+export type WindowFeature = {
+  type: "window";
+  subtype: "single" | "double" | "triple" | "bay_angular" | "bow" | "box_bay";
+  widthCm: number;
+  heightCm: number;
+  heightFromFloorCm: number;
+  hasRadiatorBelow: boolean;
+  projectionCm?: number;
+  hasWindowSeat?: boolean;
+};
+
+export type FireplaceFeature = {
+  type: "fireplace";
+  subtype: "traditional" | "inset" | "freestanding" | "electric";
+  chimneyBreastWidthCm?: number;
+};
+
+export type NothingFeature = { type: "nothing" };
+
+export type WallFeature = DoorFeature | WindowFeature | FireplaceFeature | NothingFeature;
+
+export type WallData = { features: WallFeature[] };
+
+export type RoomFeatures = {
+  walls: Record<WallRole, WallData>;
+  roomShape: "rectangular";
+};
+
 export type Project = {
   id: string;
   name: string;
@@ -154,6 +192,7 @@ export type Project = {
   designStyle: string | null;
   wallColorPalette: string | null;
   flooringType: string | null;
+  roomFeatures: RoomFeatures | null;
   createdAt: string;
   renders: Render[];
 };
@@ -200,6 +239,11 @@ export const projects = {
     request<{ render: Render }>(`/projects/${id}/renders`, {
       method: "POST",
       body: JSON.stringify({ prompt, productIds }),
+    }),
+  saveFeatures: (id: string, roomFeatures: RoomFeatures) =>
+    request<{ project: Project }>(`/projects/${id}/features`, {
+      method: "PATCH",
+      body: JSON.stringify({ roomFeatures }),
     }),
   deleteRender: (projectId: string, renderId: string) =>
     request<{ ok: boolean }>(`/projects/${projectId}/renders/${renderId}`, {

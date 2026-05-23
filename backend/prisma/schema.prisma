@@ -65,6 +65,8 @@ model Project {
   wallColorPalette String?
   /// Flooring type e.g. "pale_wood", "dark_wood", "carpet".
   flooringType    String?
+  /// Structured wall features captured via the interactive floor plan mapper.
+  roomFeatures    Json?
   createdAt       DateTime @default(now())
   renders         Render[]
 
