@@ -203,36 +203,6 @@ function buildFeaturesSection(rf: RoomFeatures): string {
     lines.push(`- ${rule}`);
   }
 
-  // Dedicated bay window callout — Gemini needs this emphasised
-  const bayEntries: Array<{ role: WallRole; w: WindowFeature }> = [];
-  for (const role of ["entrance", "far", "left", "right"] as WallRole[]) {
-    for (const f of rf.walls[role].features) {
-      if (f.type === "window") {
-        const w = f as WindowFeature;
-        if (["bay_angular", "bow", "box_bay"].includes(w.subtype)) {
-          bayEntries.push({ role, w });
-        }
-      }
-    }
-  }
-  if (bayEntries.length > 0) {
-    const { role, w } = bayEntries[0];
-    const bayTypeLabel = { bay_angular: "Angular 3-panel bay", bow: "Curved bow", box_bay: "Box bay" }[w.subtype as "bay_angular"|"bow"|"box_bay"];
-    const bayLines = [
-      "",
-      "BAY WINDOW (KEY ARCHITECTURAL FEATURE — MUST BE PROMINENT):",
-      `- Type: ${bayTypeLabel} window`,
-      `- Location: ${role} wall`,
-      `- Width: ${w.widthCm}cm, projects ${w.projectionCm ?? "~40"}cm into the room`,
-      `- Height: ${w.heightCm}cm tall, sill at ${w.heightFromFloorCm}cm from floor`,
-      w.hasWindowSeat ? "- INCLUDE a padded window seat cushion in the bay alcove" : null,
-      w.hasRadiatorBelow ? "- Radiator panel visible below window sill" : null,
-      "- This bay window is the FOCAL POINT — photograph it beautifully with strong natural daylight streaming through",
-      "- The three-dimensional bay recess must be clearly visible in the photograph",
-    ].filter((l): l is string => l !== null);
-    lines.push(...bayLines);
-  }
-
   // Spatial narrative — summarises the holistic room logic for the model
   lines.push("", spatial.promptNarrative);
 
@@ -247,6 +217,18 @@ export type PromptMeta = {
   floorPlanAnalysis?: string | null;
   roomFeatures?: RoomFeatures | null;
 };
+
+function extractBayWindow(rf: RoomFeatures): { role: WallRole; w: WindowFeature } | null {
+  for (const role of ["far", "left", "right", "entrance"] as WallRole[]) {
+    for (const f of rf.walls[role].features) {
+      if (f.type === "window") {
+        const w = f as WindowFeature;
+        if (["bay_angular", "bow", "box_bay"].includes(w.subtype)) return { role, w };
+      }
+    }
+  }
+  return null;
+}
 
 export function buildPrompt(
   userPrompt: string,
@@ -300,9 +282,43 @@ export function buildPrompt(
       : `nearly square (${longer.toFixed(1)}m × ${shorter.toFixed(1)}m)`;
   const ceilingFeel = parseFloat(ceilingM) < 2.4 ? "low, intimate ceiling" : parseFloat(ceilingM) > 2.7 ? "lofty, generous ceiling" : "standard ceiling height";
 
+  // Extract bay/bow window early so we can lead the prompt with it if present
+  const bayEntry = roomFeatures ? extractBayWindow(roomFeatures) : null;
+  const bayTypeLabel = bayEntry
+    ? ({ bay_angular: "angular bay window", bow: "curved bow window", box_bay: "box bay window" } as const)[bayEntry.w.subtype as "bay_angular" | "bow" | "box_bay"]
+    : null;
+
+  // Camera description adapts to where the focal feature is
+  const cameraLine = (() => {
+    if (!bayEntry && !roomFeatures) {
+      return "Camera in the doorframe, looking straight into the room toward the far wall.";
+    }
+    if (bayEntry?.role === "far") {
+      return `Camera in the doorframe, looking straight ahead toward the far wall where the ${bayTypeLabel} is — it fills the view directly ahead.`;
+    }
+    if (bayEntry?.role === "left") {
+      return `Camera in the doorframe, angled slightly left to feature the ${bayTypeLabel} on the left wall — the window should be prominently visible on the left side of the photograph, flooding the room with natural light.`;
+    }
+    if (bayEntry?.role === "right") {
+      return `Camera in the doorframe, angled slightly right to feature the ${bayTypeLabel} on the right wall — the window should be prominently visible on the right side of the photograph, flooding the room with natural light.`;
+    }
+    return "Camera in the doorframe, looking straight into the room toward the far wall.";
+  })();
+
+  // If there's a bay/bow window, it leads the entire prompt — image models weight early tokens most
+  const leadingCallout: string[] = bayEntry ? [
+    `⚠️ THIS IMAGE MUST CONTAIN A ${(bayTypeLabel ?? "bay window").toUpperCase()} — THIS IS THE MOST IMPORTANT ELEMENT.`,
+    `A ${bayTypeLabel} (${bayEntry.w.widthCm}cm wide, ${bayEntry.w.heightCm}cm tall) is on the ${bayEntry.role === "far" ? "FAR WALL — straight ahead of the camera" : bayEntry.role === "left" ? "LEFT WALL — visible on the left side of the photograph" : "RIGHT WALL — visible on the right side of the photograph"}.`,
+    `This is a ${bayTypeLabel}: curved/angled window with multiple panes that projects outward from the wall face, creating a bay recess inside the room. It MUST be clearly visible and architecturally prominent in the finished image.`,
+    bayEntry.w.hasWindowSeat ? `The bay has a padded window seat — include it.` : "",
+    `Do NOT render this room without the ${bayTypeLabel}. A render without it is incorrect.`,
+    "",
+  ].filter(Boolean) : [];
+
   const lines: (string | null)[] = [
+    ...leadingCallout,
     `Professional interior design photograph of a ${styleLabel} ${roomType}.`,
-    "Shot from the doorframe entrance — the viewer is standing at the threshold, camera looking straight into the room.",
+    cameraLine,
     "",
     "ROOM PROPORTIONS (MUST BE VISUALLY ACCURATE):",
     `- Floor plan: ${lengthM}m × ${widthM}m — ${shapeDesc}`,
