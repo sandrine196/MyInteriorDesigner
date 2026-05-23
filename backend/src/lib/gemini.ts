@@ -237,6 +237,10 @@ export function buildPrompt(
   // Establish the viewpoint before placing any features.
   lines.push("", "=== 2. ENTRANCE & CAMERA ===");
 
+  // Describe what the camera sees straight ahead — seeds the far wall early.
+  const farWallFireplace = fireplaces.find(f => f.role === "far");
+  const farWallBay       = bayEntry?.role === "far" ? bayEntry : null;
+
   if (bayEntry?.role === "left") {
     lines.push(`Camera in the doorframe, angled slightly LEFT toward the ${bayLabel} on the left wall.`);
   } else if (bayEntry?.role === "right") {
@@ -245,6 +249,19 @@ export function buildPrompt(
     lines.push("Camera in the doorframe, looking straight ahead toward the far wall.");
   }
   lines.push("First-person viewpoint — as if you just opened the door and are looking into the room.");
+
+  // Immediately state what dominates the far wall so Gemini constructs it correctly from the start.
+  if (farWallFireplace) {
+    lines.push(
+      `The far wall — straight ahead in the photograph — has a ${FIREPLACE_LABELS[farWallFireplace.fp.subtype]} as its centrepiece.` +
+      (farWallFireplace.fp.chimneyBreastWidthCm ? ` The chimney breast is ${farWallFireplace.fp.chimneyBreastWidthCm}cm wide.` : "") +
+      ` This is the focal point of the room and must be clearly visible in the image.`,
+    );
+  } else if (farWallBay) {
+    lines.push(
+      `The far wall — straight ahead — has a ${bayLabel} as its centrepiece.`,
+    );
+  }
 
   if (door) {
     const swingSide = door.hingeSide === "left" ? "right" : "left";
