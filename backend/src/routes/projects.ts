@@ -362,10 +362,6 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       });
       if (!project) return reply.status(404).send({ error: "Project not found" });
 
-      if (!project.floorPlanKey) {
-        return reply.status(400).send({ error: "Upload a floor plan first" });
-      }
-
       const missingDims: string[] = [];
       if (project.roomLengthMm == null) missingDims.push("roomLengthMm");
       if (project.roomWidthMm == null) missingDims.push("roomWidthMm");

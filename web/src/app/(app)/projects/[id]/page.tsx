@@ -523,7 +523,7 @@ export default function ProjectWorkspacePage() {
 
   const steps = [
     { n: 1, label: "Room size",  done: hasDimensions },
-    { n: 2, label: "Floor plan", done: !!project.floorPlanKey },
+    { n: 2, label: "Floor plan", done: hasDimensions },
     { n: 3, label: "Furniture",  done: furnitureMode === "auto" || selectedProducts.size > 0 },
     { n: 4, label: "Generate",   done: project.renders.length > 0 },
   ];
@@ -894,7 +894,7 @@ export default function ProjectWorkspacePage() {
           </div>
         </form>
         {hasDimensions && currentStep === 2 && (
-          <p className="text-xs text-stone-400 mt-4">Next: upload your floor plan below ↓</p>
+          <p className="text-xs text-stone-400 mt-4">Next: optionally upload your floor plan, then choose furniture ↓</p>
         )}
       </section>
 
@@ -904,7 +904,7 @@ export default function ProjectWorkspacePage() {
           <StepBadge n={2} done={!!project.floorPlanKey} current={currentStep === 2} />
           <div>
             <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 2 of 4</p>
-            <h2 className="font-semibold text-stone-900">Floor plan</h2>
+            <h2 className="font-semibold text-stone-900">Floor plan <span className="text-stone-400 font-normal text-sm">(optional)</span></h2>
           </div>
         </div>
         {uploadingFloor ? (
@@ -952,7 +952,7 @@ export default function ProjectWorkspacePage() {
             <svg className="w-8 h-8 text-stone-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
             </svg>
-            <p className="text-sm text-stone-500 mb-1">Upload your floor plan</p>
+            <p className="text-sm text-stone-500 mb-1">Upload your floor plan for a more personalised design</p>
             <p className="text-xs text-stone-400">JPEG, PNG or WebP — a photo of a hand-drawn plan works great</p>
           </div>
         )}
@@ -964,10 +964,10 @@ export default function ProjectWorkspacePage() {
           onClick={() => fileRef.current?.click()} disabled={uploadingFloor}
           className="bg-white border border-stone-200 hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50 text-stone-700 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors"
         >
-          {project.floorPlanKey ? "Change image" : "Upload floor plan"}
+          {project.floorPlanKey ? "Change image" : "Upload floor plan (optional)"}
         </button>
         {floorError && <p className="text-sm text-red-600 mt-2">{floorError}</p>}
-        {project.floorPlanKey && currentStep === 3 && (
+        {currentStep === 3 && (
           <p className="text-xs text-stone-400 mt-4">Next: choose your furniture below ↓</p>
         )}
       </section>
@@ -1171,14 +1171,14 @@ export default function ProjectWorkspacePage() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
-              disabled={rendering || !project.floorPlanKey || !hasDimensions || renderError === "FREE_LIMIT_REACHED"}
+              disabled={rendering || !hasDimensions || renderError === "FREE_LIMIT_REACHED"}
               className="disabled:opacity-40 rounded-xl px-6 py-2.5 text-sm font-semibold transition-all hover:bg-mid-gold-dark active:scale-95"
               style={{ background: "#D4A574", color: "#1B4965" }}
             >
               {rendering ? "Generating your design…" : "Generate design →"}
             </button>
-            {(!project.floorPlanKey || !hasDimensions) && (
-              <p className="text-xs text-stone-400">Complete steps 1 & 2 first</p>
+            {!hasDimensions && (
+              <p className="text-xs text-stone-400">Set your room dimensions first</p>
             )}
             {renderError && renderError !== "FREE_LIMIT_REACHED" && (
               <p className="text-sm text-red-600">{renderError}</p>
