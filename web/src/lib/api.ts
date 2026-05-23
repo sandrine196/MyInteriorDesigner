@@ -81,6 +81,13 @@ export const auth = {
 
 // ── Products ─────────────────────────────────────────────────────────────────
 
+export type FitResult = {
+  fits: "perfect" | "tight" | "too_large";
+  clearanceCm: number;
+  message: string;
+  recommendation: string;
+};
+
 export type Product = {
   id: string;
   retailer: string;
@@ -95,6 +102,7 @@ export type Product = {
   priceGbp: number | null;
   category: string | null;
   styleTags: string[];
+  fitResult: FitResult | null;
 };
 
 export type ProductsParams = {
@@ -104,6 +112,7 @@ export type ProductsParams = {
   category?: string;
   maxPrice?: number;
   limit?: number;
+  projectId?: string;
 };
 
 export const products = {
@@ -115,6 +124,7 @@ export const products = {
     if (params.category) qs.set("category", params.category);
     if (params.maxPrice != null) qs.set("maxPrice", String(params.maxPrice));
     if (params.limit) qs.set("limit", String(params.limit));
+    if (params.projectId) qs.set("projectId", params.projectId);
     return request<{ items: Product[] }>(`/products?${qs}`);
   },
 };

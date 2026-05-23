@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { checkFurnitureFit, fitSortOrder } from "../services/fitChecker.service.js";
 
 const querySchema = z.object({
   q: z.string().optional(),
@@ -9,6 +10,7 @@ const querySchema = z.object({
   category: z.string().optional(),
   maxPrice: z.coerce.number().positive().optional(),
   limit: z.coerce.number().min(1).max(50).optional().default(30),
+  projectId: z.string().optional(), // when provided, attach furniture fit data
 });
 
 function parseStyleTags(raw: string | null): string[] {
@@ -54,14 +56,34 @@ export async function productRoutes(app: FastifyInstance) {
         }
       }
 
-      const items = await prisma.product.findMany({
+      // Look up room dimensions for fit checking (only if projectId provided and user owns it)
+      let roomLengthMm: number | null = null;
+      let roomWidthMm: number | null = null;
+      if (q.projectId) {
+        const u = request.user as { sub: string };
+        const project = await prisma.project.findFirst({
+          where: { id: q.projectId, userId: u.sub },
+          select: { roomLengthMm: true, roomWidthMm: true },
+        });
+        if (project) {
+          roomLengthMm = project.roomLengthMm;
+          roomWidthMm = project.roomWidthMm;
+        }
+      }
+
+      const hasDimensions = roomLengthMm != null && roomWidthMm != null;
+
+      const rawItems = await prisma.product.findMany({
         where,
-        take: q.limit,
+        take: hasDimensions ? 100 : q.limit, // fetch more so we can sort by fit
         orderBy: { title: "asc" },
       });
 
-      return {
-        items: items.map((p) => ({
+      const mapped = rawItems.map((p) => {
+        const fitResult = hasDimensions
+          ? checkFurnitureFit(roomLengthMm!, roomWidthMm!, p)
+          : null;
+        return {
           id: p.id,
           retailer: p.retailer,
           title: p.title,
@@ -75,8 +97,21 @@ export async function productRoutes(app: FastifyInstance) {
           priceGbp: p.priceGbp,
           category: p.category,
           styleTags: parseStyleTags(p.styleTags),
-        })),
-      };
+          fitResult,
+        };
+      });
+
+      // Sort: perfect → tight → too_large, then by price within each group
+      if (hasDimensions) {
+        mapped.sort((a, b) => {
+          const fitA = fitSortOrder(a.fitResult!.fits);
+          const fitB = fitSortOrder(b.fitResult!.fits);
+          if (fitA !== fitB) return fitA - fitB;
+          return (a.priceGbp ?? 9999) - (b.priceGbp ?? 9999);
+        });
+      }
+
+      return { items: mapped.slice(0, q.limit) };
     }
   );
 }

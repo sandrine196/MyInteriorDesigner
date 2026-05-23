@@ -16,6 +16,7 @@ import {
   type WallRole,
 } from "@/lib/api";
 import FloorPlanMapper from "@/components/FloorPlanMapper";
+import RoomSummary from "@/components/RoomSummary";
 import { config } from "@/config";
 
 const API_BASE = config.apiUrl;
@@ -103,6 +104,7 @@ export default function ProjectWorkspacePage() {
 
   // Room features
   const [savingFeatures, setSavingFeatures] = useState(false);
+  const [editingFeatures, setEditingFeatures] = useState(false);
 
   // Render
   const [prompt, setPrompt] = useState("");
@@ -165,6 +167,7 @@ export default function ProjectWorkspacePage() {
     const params: Parameters<typeof productsApi.list>[0] = {
       q: productSearch || undefined,
       limit: 30,
+      projectId: id,
     };
     if (retailersKey) params.retailers = retailersKey.split(",");
     if (maxBudget != null) params.maxPrice = maxBudget;
@@ -1020,12 +1023,23 @@ export default function ProjectWorkspacePage() {
             Upload your floor plan in Step 2 to mark wall features — door position, windows, and fireplace.
             This helps us position furniture correctly and choose the best camera angle.
           </p>
+        ) : hasWallMapping && !editingFeatures ? (
+          <RoomSummary
+            features={project.roomFeatures as RoomFeatures}
+            roomLengthMm={project.roomLengthMm}
+            roomWidthMm={project.roomWidthMm}
+            onEdit={() => setEditingFeatures(true)}
+            onContinue={() => document.getElementById("step-furniture")?.scrollIntoView({ behavior: "smooth" })}
+          />
         ) : (
           <FloorPlanMapper
             floorPlanUrl={project.floorPlanUrl ?? ""}
             initialFeatures={project.roomFeatures}
             saving={savingFeatures}
-            onSave={saveFeatures}
+            onSave={async (features) => {
+              await saveFeatures(features);
+              setEditingFeatures(false);
+            }}
           />
         )}
         {hasWallMapping && currentStep === 4 && (
@@ -1034,7 +1048,7 @@ export default function ProjectWorkspacePage() {
       </section>
 
       {/* ── Step 4: Furniture ── */}
-      <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 4 ? "border-stone-300" : "border-stone-200"}`}>
+      <section id="step-furniture" className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 4 ? "border-stone-300" : "border-stone-200"}`}>
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <StepBadge n={4} done={furnitureMode === "auto" || selectedProducts.size > 0} current={currentStep === 4} />
@@ -1161,6 +1175,16 @@ export default function ProjectWorkspacePage() {
                           )}
                           {p.dimensionsRaw ? ` · ${p.dimensionsRaw}` : ""}
                         </p>
+                        {p.fitResult && p.fitResult.fits !== "perfect" && (
+                          <p className={`text-xs mt-1 font-medium ${
+                            p.fitResult.fits === "tight" ? "text-amber-600" : "text-red-500"
+                          }`}>
+                            {p.fitResult.fits === "tight" ? "⚠️" : "❌"} {p.fitResult.message}
+                          </p>
+                        )}
+                        {p.fitResult?.fits === "perfect" && p.fitResult.clearanceCm > 0 && (
+                          <p className="text-xs mt-1 text-green-600 font-medium">✅ {p.fitResult.message}</p>
+                        )}
                       </button>
                     </li>
                   );

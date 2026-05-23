@@ -56,12 +56,202 @@ const DESIGN_STYLE_LABELS: Record<string, string> = {
   coastal:      "Coastal",
 };
 
+// ── Room features types (mirrors frontend api.ts) ─────────────────────────────
+
+type WallRole = "entrance" | "far" | "left" | "right";
+
+interface DoorFeature {
+  type: "door";
+  subtype: "single" | "double" | "sliding" | "bifold";
+  widthCm: number;
+  opensInward: boolean;
+  hingeSide: "left" | "right";
+}
+
+interface WindowFeature {
+  type: "window";
+  subtype: "single" | "double" | "triple" | "bay_angular" | "bow" | "box_bay";
+  widthCm: number;
+  heightCm: number;
+  heightFromFloorCm: number;
+  hasRadiatorBelow: boolean;
+  projectionCm?: number;
+  hasWindowSeat?: boolean;
+}
+
+interface FireplaceFeature {
+  type: "fireplace";
+  subtype: "traditional" | "inset" | "freestanding" | "electric";
+  chimneyBreastWidthCm?: number;
+}
+
+type WallFeature = DoorFeature | WindowFeature | FireplaceFeature | { type: "nothing" };
+
+interface RoomFeatures {
+  walls: Record<WallRole, { features: WallFeature[] }>;
+  roomShape: "rectangular";
+}
+
+// ── Room features → prompt text ────────────────────────────────────────────────
+
+function describeFeature(f: WallFeature): string {
+  if (f.type === "nothing") return "No notable features";
+
+  if (f.type === "door") {
+    const d = f as DoorFeature;
+    const typeLabel = { single: "Single door", double: "Double / French doors", sliding: "Sliding door", bifold: "Bi-fold door" }[d.subtype];
+    return `${typeLabel} (${d.widthCm}cm wide, opens ${d.opensInward ? "inward" : "outward"}, ${d.hingeSide} hinge)`;
+  }
+
+  if (f.type === "window") {
+    const w = f as WindowFeature;
+    const isBay = w.subtype === "bay_angular" || w.subtype === "bow" || w.subtype === "box_bay";
+    const bayLabel = { bay_angular: "Bay window — angular 3-panel", bow: "Bow window — curved 4-5 panels", box_bay: "Box bay window" }[w.subtype as "bay_angular"|"bow"|"box_bay"];
+    const stdLabel = { single: "Window", double: "Two windows", triple: "Three or more windows" }[w.subtype as "single"|"double"|"triple"] ?? "Window";
+    const dims = `${w.widthCm}cm wide × ${w.heightCm}cm tall, ${w.heightFromFloorCm}cm from floor`;
+    if (isBay) {
+      const extras = [
+        w.projectionCm ? `projects ${w.projectionCm}cm into room` : null,
+        w.hasWindowSeat ? "HAS WINDOW SEAT" : null,
+        w.hasRadiatorBelow ? "radiator below" : null,
+      ].filter(Boolean).join(", ");
+      return `${bayLabel} — ${dims}${extras ? `, ${extras}` : ""}`;
+    }
+    return `${stdLabel} — ${dims}${w.hasRadiatorBelow ? ", radiator below" : ""}`;
+  }
+
+  if (f.type === "fireplace") {
+    const fp = f as FireplaceFeature;
+    const label = { traditional: "Traditional fireplace with chimney breast", inset: "Inset fireplace (flush with wall)", freestanding: "Freestanding fireplace", electric: "Electric fireplace" }[fp.subtype];
+    return fp.chimneyBreastWidthCm ? `${label} (${fp.chimneyBreastWidthCm}cm wide)` : label;
+  }
+
+  return "";
+}
+
+function buildFeaturesSection(rf: RoomFeatures): string {
+  const ROLE_LABELS: Record<WallRole, string> = {
+    entrance: "Entrance wall (camera looking FROM this wall)",
+    far:      "Far wall (camera looking TOWARDS this wall)",
+    left:     "Left wall (on your left as you enter)",
+    right:    "Right wall (on your right as you enter)",
+  };
+
+  const lines: string[] = ["ARCHITECTURAL FEATURES (NON-NEGOTIABLE POSITIONS):"];
+
+  for (const role of ["entrance", "far", "left", "right"] as WallRole[]) {
+    const wall = rf.walls[role];
+    lines.push(`\n${ROLE_LABELS[role]}:`);
+    if (!wall.features.length) {
+      lines.push("- No notable features");
+    } else {
+      for (const f of wall.features) {
+        lines.push(`- ${describeFeature(f)}`);
+      }
+    }
+  }
+
+  // Camera setup
+  const farFeatures = rf.walls.far.features;
+  const hasBayOnFar = farFeatures.some(f => f.type === "window" && ["bay_angular", "bow", "box_bay"].includes((f as WindowFeature).subtype));
+  const hasFireplaceOnFar = farFeatures.some(f => f.type === "fireplace");
+  const fireplaceWall = (["far", "left", "right"] as WallRole[]).find(r =>
+    rf.walls[r].features.some(f => f.type === "fireplace")
+  );
+
+  lines.push("\nCAMERA SETUP:");
+  lines.push("- Camera positioned at the ENTRANCE WALL — photographer standing IN THE DOORFRAME looking INTO the room");
+  if (hasBayOnFar) {
+    lines.push("- The FAR WALL has a bay window directly ahead — this is the DOMINANT FOCAL POINT of the shot");
+    lines.push("- Bay window must be clearly visible and beautifully lit with natural daylight");
+  } else if (hasFireplaceOnFar) {
+    lines.push("- Fireplace on the far wall is the focal point ahead");
+  }
+  if (fireplaceWall && fireplaceWall !== "far") {
+    lines.push(`- Fireplace is on the ${fireplaceWall} wall — arrange seating to face it`);
+  }
+
+  // Placement rules
+  lines.push("\nFURNITURE PLACEMENT RULES (MANDATORY):");
+
+  const door = rf.walls.entrance.features.find(f => f.type === "door") as DoorFeature | undefined;
+  if (door) {
+    const clearance = door.opensInward ? 90 : 30;
+    lines.push(`- Keep ${clearance}cm clear of door swing (${door.subtype}, opens ${door.opensInward ? "inward" : "outward"})`);
+    lines.push("- Clear path from door to main seating or focal point");
+  }
+
+  for (const role of ["entrance", "far", "left", "right"] as WallRole[]) {
+    for (const f of rf.walls[role].features) {
+      if (f.type === "window") {
+        const w = f as WindowFeature;
+        const isBay = ["bay_angular", "bow", "box_bay"].includes(w.subtype);
+        if (isBay) {
+          lines.push(`- Bay window on ${role} wall — do NOT block with furniture`);
+          if (w.hasWindowSeat) lines.push("- Window seat in bay can hold cushions, a throw, or a small side table");
+          if (w.hasRadiatorBelow) lines.push(`- Radiator below bay window — keep 30cm clearance`);
+        } else {
+          lines.push(`- Do NOT place tall furniture blocking the window on the ${role} wall`);
+          if (w.hasRadiatorBelow) lines.push(`- Radiator below window on ${role} wall — keep 30cm clearance`);
+        }
+      }
+      if (f.type === "fireplace") {
+        const fp = f as FireplaceFeature;
+        lines.push("- Keep 100cm clearance in front of fireplace");
+        if (fp.subtype === "traditional") {
+          lines.push("- Alcoves either side of chimney breast are ideal for shelving or built-ins");
+        }
+      }
+    }
+  }
+
+  // Natural light direction
+  const windowWalls = (["entrance", "far", "left", "right"] as WallRole[]).filter(r =>
+    rf.walls[r].features.some(f => f.type === "window")
+  );
+  if (windowWalls.length) {
+    lines.push(`- Natural light enters from: ${windowWalls.join(", ")} wall(s)`);
+  }
+
+  // Dedicated bay window callout — Gemini needs this emphasised
+  const bayEntries: Array<{ role: WallRole; w: WindowFeature }> = [];
+  for (const role of ["entrance", "far", "left", "right"] as WallRole[]) {
+    for (const f of rf.walls[role].features) {
+      if (f.type === "window") {
+        const w = f as WindowFeature;
+        if (["bay_angular", "bow", "box_bay"].includes(w.subtype)) {
+          bayEntries.push({ role, w });
+        }
+      }
+    }
+  }
+  if (bayEntries.length > 0) {
+    const { role, w } = bayEntries[0];
+    const bayTypeLabel = { bay_angular: "Angular 3-panel bay", bow: "Curved bow", box_bay: "Box bay" }[w.subtype as "bay_angular"|"bow"|"box_bay"];
+    lines.push(
+      "",
+      "BAY WINDOW (KEY ARCHITECTURAL FEATURE — MUST BE PROMINENT):",
+      `- Type: ${bayTypeLabel} window`,
+      `- Location: ${role} wall`,
+      `- Width: ${w.widthCm}cm, projects ${w.projectionCm ?? "~40"}cm into the room`,
+      `- Height: ${w.heightCm}cm tall, sill at ${w.heightFromFloorCm}cm from floor`,
+      w.hasWindowSeat ? "- INCLUDE a padded window seat cushion in the bay alcove" : "",
+      w.hasRadiatorBelow ? "- Radiator panel visible below window sill" : "",
+      "- This bay window is the FOCAL POINT — photograph it beautifully with strong natural daylight streaming through",
+      "- The three-dimensional bay recess must be clearly visible in the photograph",
+    ).filter(Boolean as unknown as <T>(x: T | "") => x is T);
+  }
+
+  return lines.join("\n");
+}
+
 export type PromptMeta = {
   projectName?: string | null;
   designStyle?: string | null;
   wallColorPalette?: string | null;
   flooringType?: string | null;
   floorPlanAnalysis?: string | null;
+  roomFeatures?: RoomFeatures | null;
 };
 
 export function buildPrompt(
@@ -70,7 +260,7 @@ export function buildPrompt(
   room: RoomDimensionsMm,
   meta: PromptMeta = {},
 ): string {
-  const { projectName, designStyle, wallColorPalette, flooringType, floorPlanAnalysis } = meta;
+  const { projectName, designStyle, wallColorPalette, flooringType, floorPlanAnalysis, roomFeatures } = meta;
 
   const styleLabel = designStyle ? (DESIGN_STYLE_LABELS[designStyle] ?? designStyle) : "interior";
   const roomType   = projectName ?? "room";
@@ -97,12 +287,16 @@ export function buildPrompt(
     return `- ${p.title} from ${p.retailer}${price}${desc ? `\n  ${desc}` : ""}`;
   });
 
+  const areaM2 = (room.length / 1000) * (room.width / 1000);
+  const roomFeel = areaM2 < 12 ? "small and cosy" : areaM2 < 20 ? "medium sized" : "spacious and generous";
+
   const lines: (string | null)[] = [
     `Professional interior design photograph of a ${styleLabel} ${roomType}.`,
     "Shot from the doorframe entrance - the viewer is standing at the threshold looking into the room.",
     "",
     "ROOM SPECIFICATIONS:",
     `- Dimensions: ${lengthM}m × ${widthM}m with ${ceilingM}m ceiling height`,
+    `- Floor area: ${areaM2.toFixed(1)}m² — room feels ${roomFeel}`,
     wallDesc  ? `- Walls: ${wallDesc}`     : null,
     floorDesc ? `- Flooring: ${floorDesc}` : null,
   ];
@@ -115,7 +309,10 @@ export function buildPrompt(
     );
   }
 
-  if (floorPlanAnalysis) {
+  // Structured room features take priority over legacy GPT-4o Vision analysis
+  if (roomFeatures) {
+    lines.push("", buildFeaturesSection(roomFeatures));
+  } else if (floorPlanAnalysis) {
     lines.push(
       "",
       "SPATIAL LAYOUT (EXACT — NON-NEGOTIABLE):",
