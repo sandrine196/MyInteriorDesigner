@@ -60,6 +60,7 @@ export interface SpatialAnalysis {
     hingeSide: "left" | "right";
     clearanceSide: "left" | "right";
     clearanceCm: number;
+    swingZoneCm: number; // door width + swing clearance = total zone to keep clear
     pathNote: string;
   } | null;
   crossLightNote: string | null;
@@ -215,14 +216,16 @@ export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
     // The side that needs clearing is the hinge opposite (the swing arc side)
     // If hinged on left: door swings to the right → clear space on right
     const clearanceSide = door.hingeSide === "left" ? "right" : "left";
+    const swingZoneCm = door.widthCm + clearanceCm;
     const pathNote = door.opensInward
-      ? `Door opens inward — keep ${clearanceCm}cm clear on the ${clearanceSide} as you enter`
-      : `Door opens outward — ${clearanceCm}cm clearance only needed at threshold`;
+      ? `Keep ${swingZoneCm}cm clear on the ${clearanceSide} of the entrance (door swing arc — ${door.widthCm}cm door + ${clearanceCm}cm clearance). The remaining entrance wall space CAN have furniture.`
+      : `Door opens outward — only ${clearanceCm}cm clearance needed at the threshold itself. The full entrance wall on either side CAN have furniture.`;
     doorRelationship = {
       opensInward: door.opensInward,
       hingeSide: door.hingeSide,
       clearanceSide,
       clearanceCm,
+      swingZoneCm,
       pathNote,
     };
   }
@@ -251,10 +254,16 @@ export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
 
   const placementRules: string[] = [];
 
-  // Door clearance
+  // Door clearance — swing arc only, NOT the whole entrance wall
   if (doorRelationship) {
     placementRules.push(doorRelationship.pathNote);
-    placementRules.push(`Clear sightline from entrance door to the ${focalPoint?.wall ?? "far"} wall — the path into the room should be open and inviting`);
+    if (doorRelationship.opensInward) {
+      placementRules.push(
+        `Entrance wall: the ${doorRelationship.clearanceSide} side needs ${doorRelationship.swingZoneCm}cm kept clear for the door swing. ` +
+        `The opposite side of the entrance wall is fair game — a bookcase, chest of drawers, or console table works well there.`
+      );
+    }
+    placementRules.push(`Clear sightline from entrance door to the ${focalPoint?.wall ?? "far"} wall — the path into the room should feel open`);
   }
 
   // Focal point rules
@@ -311,7 +320,9 @@ export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
 
   const focalDesc = focalPoint ? focalPoint.description : "an open, well-proportioned far wall as the backdrop";
   const doorDesc = doorRelationship
-    ? `The ${doorRelationship.opensInward ? "inward-opening" : "outward-opening"} entrance door (hinged ${doorRelationship.hingeSide}) defines a ${doorRelationship.clearanceSide}-side clearance zone at the threshold.`
+    ? doorRelationship.opensInward
+      ? `Entrance door (hinged ${doorRelationship.hingeSide}, opens inward): keep ${doorRelationship.swingZoneCm}cm clear on the ${doorRelationship.clearanceSide} side for the swing arc — this is NOT an avoidance of the whole entrance wall. The ${doorRelationship.clearanceSide === "left" ? "right" : "left"} portion of the entrance wall can hold furniture such as a bookcase, chest of drawers, or console table.`
+      : `Entrance door (hinged ${doorRelationship.hingeSide}, opens outward): minimal threshold clearance only — the full entrance wall on both sides CAN have furniture placed against it.`
     : "";
 
   const crossDesc = crossLightNote ? ` ${crossLightNote}` : "";

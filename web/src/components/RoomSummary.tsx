@@ -366,11 +366,13 @@ function analyzeSpatially(features: RoomFeatures): SpatialSummary {
   const door = walls.entrance.features.find(f => f.type === "door") as DoorFeature | undefined;
   let doorFlow: string | null = null;
   if (door) {
-    const clearance = door.opensInward ? 90 : 30;
-    const side = door.hingeSide === "left" ? "right" : "left";
+    const swingCm = door.opensInward ? 90 : 30;
+    const swingZoneCm = door.widthCm + swingCm;
+    const swingSide = door.hingeSide === "left" ? "right" : "left";
+    const freeSide = swingSide === "left" ? "right" : "left";
     doorFlow = door.opensInward
-      ? `Door opens inward — keep ${clearance}cm clear on the ${side}`
-      : "Door opens outward — minimal threshold clearance needed";
+      ? `Keep ${swingZoneCm}cm clear on the ${swingSide} (door swing only) — ${freeSide} side of entrance wall is free for furniture`
+      : `Door opens outward — full entrance wall on both sides can have furniture`;
   }
 
   return {
