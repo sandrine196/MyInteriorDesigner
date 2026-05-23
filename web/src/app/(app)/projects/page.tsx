@@ -1,18 +1,45 @@
 "use client";
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { projects as api, ApiError, type Project } from "@/lib/api";
+import { projects as api, ApiError, type Project, type RoomType } from "@/lib/api";
+import { RoomTypeSelector } from "@/components/RoomTypeSelector";
 import { config } from "@/config";
 
 const API_BASE = config.apiUrl;
 
+const ROOM_TYPE_META: Record<RoomType, { label: string; icon: string }> = {
+  living_room:       { label: "Living Room",              icon: "🛋️" },
+  dining_room:       { label: "Dining Room",              icon: "🍽️" },
+  living_dining:     { label: "Living / Dining",          icon: "🛋️🍽️" },
+  bedroom_primary:   { label: "Primary Bedroom",          icon: "🛏️" },
+  bedroom_secondary: { label: "Guest Bedroom",            icon: "🛏️" },
+  home_office:       { label: "Home Office",              icon: "💼" },
+};
+
+const DEFAULT_NAMES: Record<RoomType, string> = {
+  living_room:       "Living Room",
+  dining_room:       "Dining Room",
+  living_dining:     "Living / Dining",
+  bedroom_primary:   "Primary Bedroom",
+  bedroom_secondary: "Guest Bedroom",
+  home_office:       "Home Office",
+};
+
+type CreateStep = "type" | "name";
+
 export default function ProjectsPage() {
   const router = useRouter();
   const [list, setList] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Creation flow
+  const [createStep, setCreateStep] = useState<CreateStep>("type");
+  const [roomType, setRoomType] = useState<RoomType | null>(null);
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [createError, setCreateError] = useState("");
+
+  // Delete flow
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -23,16 +50,27 @@ export default function ProjectsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  function handleTypeSelect(type: RoomType) {
+    setRoomType(type);
+    setName(DEFAULT_NAMES[type]);
+    setTimeout(() => setCreateStep("name"), 280);
+  }
+
+  function handleBack() {
+    setCreateStep("type");
+    setCreateError("");
+  }
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!roomType || !name.trim()) return;
     setCreating(true);
-    setError("");
+    setCreateError("");
     try {
-      const { project } = await api.create(name.trim());
+      const { project } = await api.create(name.trim(), roomType);
       router.push(`/projects/${project.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to create project");
+      setCreateError(err instanceof ApiError ? err.message : "Failed to create project");
       setCreating(false);
     }
   }
@@ -58,28 +96,58 @@ export default function ProjectsPage() {
         <p className="text-stone-500 mt-1 text-sm">Design each room in your new home, one at a time.</p>
       </div>
 
+      {/* ── Creation panel ───────────────────────────────────────────────── */}
       <div className="bg-white border border-stone-200 rounded-2xl p-6 mb-8 shadow-sm">
-        <h2 className="text-sm font-semibold text-stone-700 mb-3">Start a new room</h2>
-        <form onSubmit={handleCreate} className="flex gap-3">
-          <input
-            type="text"
-            placeholder="e.g. Living room, Main bedroom, Kitchen…"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="flex-1 border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
-          />
-          <button
-            type="submit"
-            disabled={creating || !name.trim()}
-            className="disabled:opacity-40 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all hover:bg-mid-gold-dark active:scale-95 whitespace-nowrap"
-            style={{ background: "#D4A574", color: "#1B4965" }}
-          >
-            {creating ? "Creating…" : "Create room →"}
-          </button>
-        </form>
-        {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+        {createStep === "type" ? (
+          <>
+            <p className="text-sm font-semibold text-stone-700 mb-4">Start a new room</p>
+            <RoomTypeSelector selected={roomType} onSelect={handleTypeSelect} />
+          </>
+        ) : (
+          <form onSubmit={handleCreate}>
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="text-stone-400 hover:text-stone-700 transition-colors text-sm"
+              >
+                ← Back
+              </button>
+              {roomType && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full border border-stone-200 text-stone-600">
+                  <span>{ROOM_TYPE_META[roomType].icon}</span>
+                  <span>{ROOM_TYPE_META[roomType].label}</span>
+                </span>
+              )}
+            </div>
+
+            <label className="block text-sm font-semibold text-stone-700 mb-2">
+              Name this room
+            </label>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                placeholder="e.g. Living Room, Master Bedroom…"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                className="flex-1 border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
+              />
+              <button
+                type="submit"
+                disabled={creating || !name.trim()}
+                className="disabled:opacity-40 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all hover:opacity-90 active:scale-95 whitespace-nowrap"
+                style={{ background: "#D4A574", color: "#1B4965" }}
+              >
+                {creating ? "Creating…" : "Create room →"}
+              </button>
+            </div>
+            {createError && <p className="text-sm text-red-600 mt-3">{createError}</p>}
+          </form>
+        )}
       </div>
 
+      {/* ── Room list ────────────────────────────────────────────────────── */}
       {loading ? (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -99,7 +167,7 @@ export default function ProjectsPage() {
           </div>
           <h3 className="font-bold text-lg mb-2" style={{ color: "#1B4965" }}>Ready to design your first room?</h3>
           <p className="text-stone-500 text-sm max-w-sm mx-auto mb-5">
-            Give your room a name above — like "Living room" or "Main bedroom" — and we'll walk you through designing it step by step.
+            Choose a room type above — like Living Room or Primary Bedroom — and we&apos;ll walk you through designing it step by step.
           </p>
           <p className="text-xs text-stone-400">Upload your floor plan · Pick furniture · Generate a photorealistic render</p>
         </div>
@@ -156,15 +224,28 @@ export default function ProjectsPage() {
                     className="w-full h-36 object-cover rounded-xl mb-4"
                   />
                 ) : (
-                  <div className="w-full h-36 rounded-xl mb-4 flex items-center justify-center" style={{ background: "#e8f0f5" }}>
-                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1} style={{ color: "#2A5F7F" }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                    </svg>
+                  <div className="w-full h-36 rounded-xl mb-4 flex items-center justify-center text-4xl" style={{ background: "#e8f0f5" }}>
+                    {p.roomType ? ROOM_TYPE_META[p.roomType]?.icon : (
+                      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1} style={{ color: "#2A5F7F" }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                      </svg>
+                    )}
                   </div>
                 )}
-                <p className="font-semibold text-stone-900 mb-1 truncate pr-6 group-hover:text-mid-blue transition-colors">
-                  {p.name}
-                </p>
+
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className="font-semibold text-stone-900 truncate pr-6 group-hover:text-mid-blue transition-colors">
+                    {p.name}
+                  </p>
+                </div>
+
+                {p.roomType && (
+                  <span className="inline-flex items-center gap-1 text-xs text-stone-500 bg-stone-100 rounded-full px-2.5 py-0.5 mb-2">
+                    <span>{ROOM_TYPE_META[p.roomType].icon}</span>
+                    <span>{ROOM_TYPE_META[p.roomType].label}</span>
+                  </span>
+                )}
+
                 <p className="text-xs text-stone-400">
                   {p.renders.length === 0 ? "No renders yet" : `${p.renders.length} render${p.renders.length !== 1 ? "s" : ""}`}
                   {" · "}

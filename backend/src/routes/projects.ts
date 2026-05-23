@@ -20,8 +20,18 @@ import type { Env } from "../env.js";
 
 const FLOOR_PLAN_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+const VALID_ROOM_TYPES = [
+  "living_room",
+  "dining_room",
+  "living_dining",
+  "bedroom_primary",
+  "bedroom_secondary",
+  "home_office",
+] as const;
+
 const createBody = z.object({
   name: z.string().min(1).max(120),
+  roomType: z.enum(VALID_ROOM_TYPES),
 });
 
 const setupBody = z.object({
@@ -56,20 +66,16 @@ function parseRetailers(raw: string | null): string[] {
 }
 
 const ROOM_CATEGORIES: Record<string, string[]> = {
-  living_room: ["sofa", "armchair", "coffee_table", "storage", "lighting"],
-  bedroom:     ["bed", "storage", "lighting"],
-  dining_room: ["dining_table", "storage", "lighting"],
+  living_room:       ["sofa", "sofas", "armchair", "armchairs", "coffee_table", "side_table", "tv_unit", "lighting"],
+  living_dining:     ["sofa", "sofas", "armchair", "armchairs", "coffee_table", "dining_table", "dining_chair", "dining_chairs", "lighting"],
+  dining_room:       ["dining_table", "dining_chair", "dining_chairs", "lighting"],
+  bedroom_primary:   ["bed", "beds", "wardrobe", "wardrobes", "bedside_table", "lighting"],
+  bedroom_secondary: ["bed", "beds", "wardrobe", "wardrobes", "bedside_table", "chest_of_drawers", "lighting"],
+  home_office:       ["desk", "office_chair", "bookcase", "shelving", "lighting"],
 };
 
-function inferRoomType(name: string): keyof typeof ROOM_CATEGORIES {
-  const n = name.toLowerCase();
-  if (/bed|master|guest\s*room|sleep/.test(n)) return "bedroom";
-  if (/dining|kitchen|eat/.test(n)) return "dining_room";
-  return "living_room";
-}
-
 async function autoSelectProducts(project: {
-  name: string;
+  roomType: string | null;
   preferredRetailers: string | null;
   budgetMax: number | null;
   designStyle: string | null;
@@ -93,9 +99,9 @@ async function autoSelectProducts(project: {
     if (styled.length > 0) pool = styled;
   }
 
-  // Pick one per category using room-type-appropriate priorities
-  const roomType = inferRoomType(project.name);
-  const categoryPriority = ROOM_CATEGORIES[roomType];
+  // Pick one per category using the explicit room type
+  const roomKey = project.roomType ?? "living_room";
+  const categoryPriority = ROOM_CATEGORIES[roomKey] ?? ROOM_CATEGORIES["living_room"];
 
   const byCategory = new Map<string, typeof pool>();
   for (const p of pool) {
@@ -156,9 +162,9 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       }
 
       const project = await prisma.project.create({
-        data: { userId: u.sub, name: body.name },
+        data: { userId: u.sub, name: body.name, roomType: body.roomType },
       });
-      track("project_created", u.sub, { projectId: project.id });
+      track("project_created", u.sub, { projectId: project.id, roomType: body.roomType });
       return { project: serializeProject(project) };
     }
   );

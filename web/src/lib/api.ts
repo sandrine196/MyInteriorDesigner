@@ -188,9 +188,18 @@ export type RoomFeatures = {
   roomShape: "rectangular";
 };
 
+export type RoomType =
+  | "living_room"
+  | "dining_room"
+  | "living_dining"
+  | "bedroom_primary"
+  | "bedroom_secondary"
+  | "home_office";
+
 export type Project = {
   id: string;
   name: string;
+  roomType: RoomType | null;
   floorPlanKey: string | null;
   floorPlanUrl: string | null;
   roomLengthMm: number | null;
@@ -219,10 +228,10 @@ export type ProjectSetup = {
 export const projects = {
   list: () => request<{ projects: Project[] }>("/projects"),
   get: (id: string) => request<{ project: Project }>(`/projects/${id}`),
-  create: (name: string) =>
+  create: (name: string, roomType: RoomType) =>
     request<{ project: Project }>("/projects", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, roomType }),
     }),
   updateSetup: (id: string, data: ProjectSetup) =>
     request<{ project: Project }>(`/projects/${id}/setup`, {
