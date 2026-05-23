@@ -21,7 +21,7 @@ async function request<T>(
 ): Promise<T> {
   const { auth = true, ...rest } = opts;
   const headers = new Headers(rest.headers);
-  if (!(rest.body instanceof FormData)) {
+  if (rest.body != null && !(rest.body instanceof FormData)) {
     headers.set("Content-Type", headers.get("Content-Type") ?? "application/json");
   }
   if (auth) {
