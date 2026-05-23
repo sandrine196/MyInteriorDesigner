@@ -304,6 +304,83 @@ function RoomDiagram({ features, roomLengthMm, roomWidthMm }: {
   );
 }
 
+// ── Client-side spatial analysis (mirrors spatialReasoning.service.ts) ────────
+
+interface SpatialSummary {
+  camera: string;
+  light: string;
+  focalPoint: string;
+  doorFlow: string | null;
+}
+
+function analyzeSpatially(features: RoomFeatures): SpatialSummary {
+  const walls = features.walls;
+  const roles: WallRole[] = ["entrance", "far", "left", "right"];
+
+  const hasWindow = (r: WallRole) => walls[r].features.some(f => f.type === "window");
+  const hasFireplace = (r: WallRole) => walls[r].features.some(f => f.type === "fireplace");
+  const hasBay = (r: WallRole) => walls[r].features.some(
+    f => f.type === "window" && ["bay_angular","bow","box_bay"].includes((f as WindowFeature).subtype)
+  );
+
+  // Focal point
+  let focalPoint = "Far wall as backdrop";
+  if (hasBay("far")) {
+    const w = walls.far.features.find(f => f.type === "window") as WindowFeature;
+    const lbl = { bay_angular: "Angular bay window", bow: "Bow window", box_bay: "Box bay" }[w.subtype as "bay_angular"|"bow"|"box_bay"];
+    focalPoint = `${lbl} on the far wall`;
+  } else if (hasFireplace("far")) {
+    focalPoint = "Fireplace on the far wall";
+  } else if (hasFireplace("left")) {
+    focalPoint = "Fireplace on the left wall";
+  } else if (hasFireplace("right")) {
+    focalPoint = "Fireplace on the right wall";
+  } else if (hasBay("left")) {
+    focalPoint = "Bay window on the left wall";
+  } else if (hasBay("right")) {
+    focalPoint = "Bay window on the right wall";
+  } else if (hasWindow("far")) {
+    focalPoint = "Bright window wall ahead";
+  }
+
+  // Light
+  const windowWalls = roles.filter(r => hasWindow(r));
+  let light = "No windows mapped";
+  if (windowWalls.length > 0) {
+    const dirMap: Record<WallRole, string> = {
+      entrance: "behind the camera (front-lit)",
+      far: "straight ahead (backlit glow)",
+      left: "from the left",
+      right: "from the right",
+    };
+    if (windowWalls.length === 1) {
+      light = `Natural light ${dirMap[windowWalls[0]]}`;
+    } else if (windowWalls.includes("left") && windowWalls.includes("right")) {
+      light = "Cross-lit from both sides";
+    } else {
+      light = `Light from ${windowWalls.map(r => ({ entrance: "entrance", far: "far wall", left: "left", right: "right" }[r])).join(" & ")}`;
+    }
+  }
+
+  // Door flow
+  const door = walls.entrance.features.find(f => f.type === "door") as DoorFeature | undefined;
+  let doorFlow: string | null = null;
+  if (door) {
+    const clearance = door.opensInward ? 90 : 30;
+    const side = door.hingeSide === "left" ? "right" : "left";
+    doorFlow = door.opensInward
+      ? `Door opens inward — keep ${clearance}cm clear on the ${side}`
+      : "Door opens outward — minimal threshold clearance needed";
+  }
+
+  return {
+    camera: "Camera at entrance doorframe, looking into the room",
+    light,
+    focalPoint,
+    doorFlow,
+  };
+}
+
 // ── Feature text descriptions ──────────────────────────────────────────────────
 
 function describeWall(features: WallFeature[]): string {
@@ -372,6 +449,7 @@ export default function RoomSummary({ features, roomLengthMm, roomWidthMm, onEdi
     : null;
 
   const roles: WallRole[] = ["entrance", "far", "left", "right"];
+  const spatial = analyzeSpatially(features);
 
   return (
     <div className="space-y-4">
@@ -413,6 +491,43 @@ export default function RoomSummary({ features, roomLengthMm, roomWidthMm, onEdi
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Spatial analysis panel */}
+      <div className="bg-white rounded-xl border border-stone-200 p-4">
+        <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">How we&apos;ll design your room</p>
+        <div className="space-y-2.5">
+          <div className="flex items-start gap-2.5">
+            <span className="text-base flex-shrink-0">📸</span>
+            <div>
+              <span className="text-xs font-medium text-stone-600">Camera angle: </span>
+              <span className="text-xs text-stone-500">{spatial.camera}</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <span className="text-base flex-shrink-0">🎯</span>
+            <div>
+              <span className="text-xs font-medium text-stone-600">Focal point: </span>
+              <span className="text-xs text-stone-500">{spatial.focalPoint}</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <span className="text-base flex-shrink-0">☀️</span>
+            <div>
+              <span className="text-xs font-medium text-stone-600">Natural light: </span>
+              <span className="text-xs text-stone-500">{spatial.light}</span>
+            </div>
+          </div>
+          {spatial.doorFlow && (
+            <div className="flex items-start gap-2.5">
+              <span className="text-base flex-shrink-0">🚪</span>
+              <div>
+                <span className="text-xs font-medium text-stone-600">Door clearance: </span>
+                <span className="text-xs text-stone-500">{spatial.doorFlow}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

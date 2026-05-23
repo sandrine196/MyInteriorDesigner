@@ -1,0 +1,359 @@
+// Spatial reasoning for room layout — uses entrance/far/left/right wall roles
+// (NOT compass directions — all positions are from the doorway perspective)
+
+type WallRole = "entrance" | "far" | "left" | "right";
+
+interface DoorFeature {
+  type: "door";
+  subtype: "single" | "double" | "sliding" | "bifold";
+  widthCm: number;
+  opensInward: boolean;
+  hingeSide: "left" | "right";
+}
+
+interface WindowFeature {
+  type: "window";
+  subtype: "single" | "double" | "triple" | "bay_angular" | "bow" | "box_bay";
+  widthCm: number;
+  heightCm: number;
+  heightFromFloorCm: number;
+  hasRadiatorBelow: boolean;
+  projectionCm?: number;
+  hasWindowSeat?: boolean;
+}
+
+interface FireplaceFeature {
+  type: "fireplace";
+  subtype: "traditional" | "inset" | "freestanding" | "electric";
+  chimneyBreastWidthCm?: number;
+}
+
+type WallFeature = DoorFeature | WindowFeature | FireplaceFeature | { type: "nothing" };
+
+interface RoomFeatures {
+  walls: Record<WallRole, { features: WallFeature[] }>;
+  roomShape: "rectangular";
+}
+
+// ── Output types ───────────────────────────────────────────────────────────────
+
+export type FocalPointType = "bay_window" | "fireplace" | "window_wall" | "plain";
+
+export interface LightSource {
+  wall: WallRole;
+  // How this wall's light appears in the photograph
+  inPhotoAs: "from_left" | "from_right" | "backlit" | "front_lit";
+  quality: "ideal" | "dramatic" | "good" | "challenging";
+  description: string;
+}
+
+export interface SpatialAnalysis {
+  focalPoint: {
+    wall: WallRole;
+    type: FocalPointType;
+    label: string;
+    description: string;
+  } | null;
+  lightSources: LightSource[];
+  doorRelationship: {
+    opensInward: boolean;
+    hingeSide: "left" | "right";
+    clearanceSide: "left" | "right";
+    clearanceCm: number;
+    pathNote: string;
+  } | null;
+  crossLightNote: string | null;
+  placementRules: string[];
+  promptNarrative: string;
+  // Human-readable summaries for UI display
+  uiSummary: {
+    camera: string;
+    light: string;
+    focalPoint: string;
+    doorFlow: string | null;
+  };
+}
+
+// ── Internal helpers ───────────────────────────────────────────────────────────
+
+function getFeatures<T extends WallFeature>(wall: { features: WallFeature[] }, type: T["type"]): T[] {
+  return wall.features.filter((f) => f.type === type) as T[];
+}
+
+function hasBayWindow(wall: { features: WallFeature[] }): boolean {
+  return wall.features.some(
+    (f) => f.type === "window" && ["bay_angular", "bow", "box_bay"].includes((f as WindowFeature).subtype)
+  );
+}
+
+function hasWindow(wall: { features: WallFeature[] }): boolean {
+  return wall.features.some((f) => f.type === "window");
+}
+
+function hasFireplace(wall: { features: WallFeature[] }): boolean {
+  return wall.features.some((f) => f.type === "fireplace");
+}
+
+function getBayWindow(wall: { features: WallFeature[] }): WindowFeature | null {
+  return (
+    (wall.features.find(
+      (f) => f.type === "window" && ["bay_angular", "bow", "box_bay"].includes((f as WindowFeature).subtype)
+    ) as WindowFeature) ?? null
+  );
+}
+
+function bayLabel(subtype: WindowFeature["subtype"]): string {
+  return { bay_angular: "angular bay window", bow: "bow window", box_bay: "box bay window" }[subtype as "bay_angular" | "bow" | "box_bay"] ?? "bay window";
+}
+
+function lightQuality(role: WallRole): { inPhotoAs: LightSource["inPhotoAs"]; quality: LightSource["quality"]; description: string } {
+  switch (role) {
+    case "entrance":
+      return {
+        inPhotoAs: "front_lit",
+        quality: "ideal",
+        description: "Light enters from behind the camera — perfect front-lighting for the interior photograph",
+      };
+    case "far":
+      return {
+        inPhotoAs: "backlit",
+        quality: "dramatic",
+        description: "Light enters from the wall directly ahead — creates a dramatic backlit glow, silhouetting furniture",
+      };
+    case "left":
+      return {
+        inPhotoAs: "from_left",
+        quality: "good",
+        description: "Natural light enters from the left — casts gentle directional shadows across the room",
+      };
+    case "right":
+      return {
+        inPhotoAs: "from_right",
+        quality: "good",
+        description: "Natural light enters from the right — casts gentle directional shadows across the room",
+      };
+  }
+}
+
+// ── Main analysis function ─────────────────────────────────────────────────────
+
+export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
+  const walls = rf.walls;
+  const allRoles: WallRole[] = ["entrance", "far", "left", "right"];
+
+  // ── Focal point ───────────────────────────────────────────────────────────────
+  // Priority: bay window on far > fireplace on far > fireplace on side >
+  //           bay on side > window on far > plain far wall
+
+  let focalPoint: SpatialAnalysis["focalPoint"] = null;
+
+  if (hasBayWindow(walls.far)) {
+    const bay = getBayWindow(walls.far)!;
+    focalPoint = {
+      wall: "far",
+      type: "bay_window",
+      label: `${bayLabel(bay.subtype)} on the far wall`,
+      description: `A ${bayLabel(bay.subtype)} fills the far wall directly ahead of the camera. This is the dominant architectural feature — it should be the star of the photograph, beautifully lit by natural daylight streaming through its panes.`,
+    };
+  } else if (hasFireplace(walls.far)) {
+    const fp = getFeatures<FireplaceFeature>(walls.far, "fireplace")[0];
+    const typeLabel = { traditional: "traditional fireplace", inset: "inset fireplace", freestanding: "freestanding stove", electric: "electric fireplace" }[fp.subtype];
+    focalPoint = {
+      wall: "far",
+      type: "fireplace",
+      label: `${typeLabel} on the far wall`,
+      description: `A ${typeLabel} anchors the far wall straight ahead. It becomes the natural focal point — arrange seating symmetrically facing it and keep the hearth clear and beautifully styled.`,
+    };
+  } else {
+    // Check side walls for fireplace or bay
+    for (const role of ["left", "right"] as WallRole[]) {
+      if (hasFireplace(walls[role]) && !focalPoint) {
+        const fp = getFeatures<FireplaceFeature>(walls[role], "fireplace")[0];
+        const typeLabel = { traditional: "traditional fireplace", inset: "inset fireplace", freestanding: "freestanding stove", electric: "electric fireplace" }[fp.subtype];
+        focalPoint = {
+          wall: role,
+          type: "fireplace",
+          label: `${typeLabel} on the ${role} wall`,
+          description: `A ${typeLabel} sits on the ${role} wall — angled seating should face it, creating a cosy conversation zone while the camera captures it as a natural side focal point.`,
+        };
+      }
+    }
+    for (const role of ["left", "right"] as WallRole[]) {
+      if (hasBayWindow(walls[role]) && !focalPoint) {
+        const bay = getBayWindow(walls[role])!;
+        focalPoint = {
+          wall: role,
+          type: "bay_window",
+          label: `${bayLabel(bay.subtype)} on the ${role} wall`,
+          description: `A ${bayLabel(bay.subtype)} projects from the ${role} wall — it will appear as a beautifully lit alcove to the ${role} side of the photograph, flooding the room with natural light.`,
+        };
+      }
+    }
+    if (!focalPoint && hasWindow(walls.far)) {
+      focalPoint = {
+        wall: "far",
+        type: "window_wall",
+        label: "windows on the far wall",
+        description: "The far wall carries windows that will glow with natural daylight — a bright, airy backdrop that draws the eye across the room.",
+      };
+    }
+  }
+
+  // ── Light sources ─────────────────────────────────────────────────────────────
+
+  const lightSources: LightSource[] = allRoles
+    .filter((r) => hasWindow(walls[r]))
+    .map((r) => ({ wall: r, ...lightQuality(r) }));
+
+  // ── Door relationship ──────────────────────────────────────────────────────────
+
+  let doorRelationship: SpatialAnalysis["doorRelationship"] = null;
+  const doors = getFeatures<DoorFeature>(walls.entrance, "door");
+  if (doors.length > 0) {
+    const door = doors[0];
+    const clearanceCm = door.opensInward ? 90 : 30;
+    // The side that needs clearing is the hinge opposite (the swing arc side)
+    // If hinged on left: door swings to the right → clear space on right
+    const clearanceSide = door.hingeSide === "left" ? "right" : "left";
+    const pathNote = door.opensInward
+      ? `Door opens inward — keep ${clearanceCm}cm clear on the ${clearanceSide} as you enter`
+      : `Door opens outward — ${clearanceCm}cm clearance only needed at threshold`;
+    doorRelationship = {
+      opensInward: door.opensInward,
+      hingeSide: door.hingeSide,
+      clearanceSide,
+      clearanceCm,
+      pathNote,
+    };
+  }
+
+  // ── Cross-light note ───────────────────────────────────────────────────────────
+
+  let crossLightNote: string | null = null;
+  const windowWalls = allRoles.filter((r) => hasWindow(walls[r]));
+
+  if (windowWalls.includes("left") && windowWalls.includes("right")) {
+    crossLightNote = "Cross-lighting from both left and right walls — the room will be evenly bathed in daylight with no harsh shadows.";
+  } else if (windowWalls.includes("left") && windowWalls.includes("far")) {
+    crossLightNote = "Windows on the far and left walls create a wrap-around light effect — the far wall glows while the left side receives directional light.";
+  } else if (windowWalls.includes("right") && windowWalls.includes("far")) {
+    crossLightNote = "Windows on the far and right walls create a wrap-around light effect — the far wall glows while the right side receives directional light.";
+  } else if (windowWalls.includes("entrance") && (windowWalls.includes("left") || windowWalls.includes("right"))) {
+    const side = windowWalls.includes("left") ? "left" : "right";
+    crossLightNote = `Front-lit from the entrance and ${side} walls — excellent photography conditions, the room will be bright and evenly exposed.`;
+  } else if (windowWalls.length === 1) {
+    const sole = windowWalls[0];
+    const dir = { entrance: "from behind the camera", far: "straight ahead (backlit)", left: "from the left", right: "from the right" }[sole];
+    crossLightNote = `Single light source ${dir} — expect strong directional shadows that add depth and drama to the photograph.`;
+  }
+
+  // ── Placement rules ────────────────────────────────────────────────────────────
+
+  const placementRules: string[] = [];
+
+  // Door clearance
+  if (doorRelationship) {
+    placementRules.push(doorRelationship.pathNote);
+    placementRules.push(`Clear sightline from entrance door to the ${focalPoint?.wall ?? "far"} wall — the path into the room should be open and inviting`);
+  }
+
+  // Focal point rules
+  if (focalPoint?.type === "fireplace") {
+    placementRules.push(`Primary seating group faces the ${focalPoint.wall === "far" ? "far" : focalPoint.wall} wall fireplace`);
+    placementRules.push("100cm minimum clearance in front of the hearth");
+    const fp = getFeatures<FireplaceFeature>(walls[focalPoint.wall], "fireplace")[0];
+    if (fp.subtype === "traditional") {
+      placementRules.push("Alcoves either side of the chimney breast suit shelving or built-in storage");
+    }
+  }
+  if (focalPoint?.type === "bay_window") {
+    placementRules.push(`Do not block the ${focalPoint.label} with furniture — it is the architectural hero of the room`);
+    const bay = getBayWindow(walls[focalPoint.wall])!;
+    if (bay.hasWindowSeat) {
+      placementRules.push("The window seat in the bay can hold a throw, cushions, or a small side table");
+    }
+    if (bay.hasRadiatorBelow) {
+      placementRules.push("30cm clearance from any furniture to the radiator below the bay window");
+    }
+  }
+
+  // Window clearance rules for all windows
+  for (const role of allRoles) {
+    for (const f of walls[role].features) {
+      if (f.type === "window") {
+        const w = f as WindowFeature;
+        const isBay = ["bay_angular", "bow", "box_bay"].includes(w.subtype);
+        if (!isBay) {
+          placementRules.push(`No tall furniture blocking the window on the ${role} wall`);
+          if (w.hasRadiatorBelow) {
+            placementRules.push(`30cm clearance from any furniture to the radiator below the ${role} wall window`);
+          }
+        }
+      }
+    }
+  }
+
+  // Avoid blocking light sources with back of sofa
+  if (lightSources.some(ls => ls.inPhotoAs === "from_left")) {
+    placementRules.push("Position sofa so its back does not block the left wall windows — allow light to wash across the room");
+  }
+  if (lightSources.some(ls => ls.inPhotoAs === "from_right")) {
+    placementRules.push("Position sofa so its back does not block the right wall windows — allow light to wash across the room");
+  }
+
+  // ── Prompt narrative ──────────────────────────────────────────────────────────
+
+  const lightDesc = lightSources.length === 0
+    ? "an artificially lit room"
+    : lightSources.length === 1
+      ? `natural light ${lightQuality(lightSources[0].wall).description.split("—")[0].trim()}`
+      : `natural light from ${lightSources.map(ls => ls.wall).join(" and ")} walls`;
+
+  const focalDesc = focalPoint ? focalPoint.description : "an open, well-proportioned far wall as the backdrop";
+  const doorDesc = doorRelationship
+    ? `The ${doorRelationship.opensInward ? "inward-opening" : "outward-opening"} entrance door (hinged ${doorRelationship.hingeSide}) defines a ${doorRelationship.clearanceSide}-side clearance zone at the threshold.`
+    : "";
+
+  const crossDesc = crossLightNote ? ` ${crossLightNote}` : "";
+
+  const promptNarrative = [
+    `SPATIAL REASONING — HOW THIS ROOM WORKS:`,
+    `The camera sits at the entrance wall, looking into the room. ${focalDesc}`,
+    lightSources.length > 0 ? `Natural light: ${lightSources.map(ls => ls.description).join(". ")}.${crossDesc}` : "",
+    doorDesc,
+    placementRules.length > 0 ? `KEY PLACEMENT CONSTRAINTS: ${placementRules.join("; ")}.` : "",
+  ].filter(Boolean).join("\n");
+
+  // ── UI summaries ──────────────────────────────────────────────────────────────
+
+  const uiCamera = "Camera at the entrance doorframe, looking straight into the room";
+
+  const uiLight = lightSources.length === 0
+    ? "No windows mapped — artificial lighting will be used"
+    : lightSources.length === 1
+      ? { from_left: "Natural light from the left", from_right: "Natural light from the right", backlit: "Backlit — windows behind the furniture ahead", front_lit: "Front-lit — light comes from behind the camera" }[lightSources[0].inPhotoAs]
+      : `Light from ${lightSources.map(ls => ({ from_left: "left", from_right: "right", backlit: "ahead (far wall)", front_lit: "behind (entrance)" })[ls.inPhotoAs]).join(" & ")}`;
+
+  const uiFocalPoint = focalPoint
+    ? `Focal point: ${focalPoint.label}`
+    : "Focal point: the open far wall";
+
+  const uiDoorFlow = doorRelationship
+    ? doorRelationship.pathNote
+    : null;
+
+  return {
+    focalPoint,
+    lightSources,
+    doorRelationship,
+    crossLightNote,
+    placementRules,
+    promptNarrative,
+    uiSummary: {
+      camera: uiCamera,
+      light: uiLight,
+      focalPoint: uiFocalPoint,
+      doorFlow: uiDoorFlow,
+    },
+  };
+}

@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
+import { analyzeRoomSpatially } from "../services/spatialReasoning.service.js";
 
 export const RENDER_WIDTH = 1024;
 export const RENDER_HEIGHT = 768;
@@ -130,6 +131,8 @@ function describeFeature(f: WallFeature): string {
 }
 
 function buildFeaturesSection(rf: RoomFeatures): string {
+  const spatial = analyzeRoomSpatially(rf);
+
   const ROLE_LABELS: Record<WallRole, string> = {
     entrance: "Entrance wall (camera looking FROM this wall)",
     far:      "Far wall (camera looking TOWARDS this wall)",
@@ -151,66 +154,29 @@ function buildFeaturesSection(rf: RoomFeatures): string {
     }
   }
 
-  // Camera setup
-  const farFeatures = rf.walls.far.features;
-  const hasBayOnFar = farFeatures.some(f => f.type === "window" && ["bay_angular", "bow", "box_bay"].includes((f as WindowFeature).subtype));
-  const hasFireplaceOnFar = farFeatures.some(f => f.type === "fireplace");
-  const fireplaceWall = (["far", "left", "right"] as WallRole[]).find(r =>
-    rf.walls[r].features.some(f => f.type === "fireplace")
-  );
-
+  // Camera and focal point (from spatial reasoning)
   lines.push("\nCAMERA SETUP:");
   lines.push("- Camera positioned at the ENTRANCE WALL — photographer standing IN THE DOORFRAME looking INTO the room");
-  if (hasBayOnFar) {
-    lines.push("- The FAR WALL has a bay window directly ahead — this is the DOMINANT FOCAL POINT of the shot");
-    lines.push("- Bay window must be clearly visible and beautifully lit with natural daylight");
-  } else if (hasFireplaceOnFar) {
-    lines.push("- Fireplace on the far wall is the focal point ahead");
-  }
-  if (fireplaceWall && fireplaceWall !== "far") {
-    lines.push(`- Fireplace is on the ${fireplaceWall} wall — arrange seating to face it`);
+  if (spatial.focalPoint) {
+    lines.push(`- FOCAL POINT: ${spatial.focalPoint.label}`);
+    lines.push(`- ${spatial.focalPoint.description}`);
   }
 
-  // Placement rules
-  lines.push("\nFURNITURE PLACEMENT RULES (MANDATORY):");
-
-  const door = rf.walls.entrance.features.find(f => f.type === "door") as DoorFeature | undefined;
-  if (door) {
-    const clearance = door.opensInward ? 90 : 30;
-    lines.push(`- Keep ${clearance}cm clear of door swing (${door.subtype}, opens ${door.opensInward ? "inward" : "outward"})`);
-    lines.push("- Clear path from door to main seating or focal point");
-  }
-
-  for (const role of ["entrance", "far", "left", "right"] as WallRole[]) {
-    for (const f of rf.walls[role].features) {
-      if (f.type === "window") {
-        const w = f as WindowFeature;
-        const isBay = ["bay_angular", "bow", "box_bay"].includes(w.subtype);
-        if (isBay) {
-          lines.push(`- Bay window on ${role} wall — do NOT block with furniture`);
-          if (w.hasWindowSeat) lines.push("- Window seat in bay can hold cushions, a throw, or a small side table");
-          if (w.hasRadiatorBelow) lines.push(`- Radiator below bay window — keep 30cm clearance`);
-        } else {
-          lines.push(`- Do NOT place tall furniture blocking the window on the ${role} wall`);
-          if (w.hasRadiatorBelow) lines.push(`- Radiator below window on ${role} wall — keep 30cm clearance`);
-        }
-      }
-      if (f.type === "fireplace") {
-        const fp = f as FireplaceFeature;
-        lines.push("- Keep 100cm clearance in front of fireplace");
-        if (fp.subtype === "traditional") {
-          lines.push("- Alcoves either side of chimney breast are ideal for shelving or built-ins");
-        }
-      }
+  // Light sources
+  if (spatial.lightSources.length > 0) {
+    lines.push("\nNATURAL LIGHT:");
+    for (const ls of spatial.lightSources) {
+      lines.push(`- ${ls.description}`);
+    }
+    if (spatial.crossLightNote) {
+      lines.push(`- ${spatial.crossLightNote}`);
     }
   }
 
-  // Natural light direction
-  const windowWalls = (["entrance", "far", "left", "right"] as WallRole[]).filter(r =>
-    rf.walls[r].features.some(f => f.type === "window")
-  );
-  if (windowWalls.length) {
-    lines.push(`- Natural light enters from: ${windowWalls.join(", ")} wall(s)`);
+  // Placement rules (from spatial reasoning)
+  lines.push("\nFURNITURE PLACEMENT RULES (MANDATORY):");
+  for (const rule of spatial.placementRules) {
+    lines.push(`- ${rule}`);
   }
 
   // Dedicated bay window callout — Gemini needs this emphasised
@@ -228,19 +194,23 @@ function buildFeaturesSection(rf: RoomFeatures): string {
   if (bayEntries.length > 0) {
     const { role, w } = bayEntries[0];
     const bayTypeLabel = { bay_angular: "Angular 3-panel bay", bow: "Curved bow", box_bay: "Box bay" }[w.subtype as "bay_angular"|"bow"|"box_bay"];
-    lines.push(
+    const bayLines = [
       "",
       "BAY WINDOW (KEY ARCHITECTURAL FEATURE — MUST BE PROMINENT):",
       `- Type: ${bayTypeLabel} window`,
       `- Location: ${role} wall`,
       `- Width: ${w.widthCm}cm, projects ${w.projectionCm ?? "~40"}cm into the room`,
       `- Height: ${w.heightCm}cm tall, sill at ${w.heightFromFloorCm}cm from floor`,
-      w.hasWindowSeat ? "- INCLUDE a padded window seat cushion in the bay alcove" : "",
-      w.hasRadiatorBelow ? "- Radiator panel visible below window sill" : "",
+      w.hasWindowSeat ? "- INCLUDE a padded window seat cushion in the bay alcove" : null,
+      w.hasRadiatorBelow ? "- Radiator panel visible below window sill" : null,
       "- This bay window is the FOCAL POINT — photograph it beautifully with strong natural daylight streaming through",
       "- The three-dimensional bay recess must be clearly visible in the photograph",
-    ).filter(Boolean as unknown as <T>(x: T | "") => x is T);
+    ].filter((l): l is string => l !== null);
+    lines.push(...bayLines);
   }
+
+  // Spatial narrative — summarises the holistic room logic for the model
+  lines.push("", spatial.promptNarrative);
 
   return lines.join("\n");
 }
@@ -366,11 +336,12 @@ export async function generateRoomImage(
 
   const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl } });
   const prompt = buildPrompt(opts.userPrompt, opts.products, opts.room, {
-    projectName:      opts.projectName,
-    designStyle:      opts.designStyle,
-    wallColorPalette: opts.wallColorPalette,
-    flooringType:     opts.flooringType,
+    projectName:       opts.projectName,
+    designStyle:       opts.designStyle,
+    wallColorPalette:  opts.wallColorPalette,
+    flooringType:      opts.flooringType,
     floorPlanAnalysis: opts.floorPlanAnalysis,
+    roomFeatures:      opts.roomFeatures,
   });
 
   console.log("[Gemini] Prompt:\n" + prompt);

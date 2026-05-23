@@ -514,6 +514,8 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           designStyle:      project.designStyle,
           wallColorPalette: project.wallColorPalette,
           flooringType:     project.flooringType,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          roomFeatures:     (project.roomFeatures as any) ?? null,
           products: products.map((p) => ({
             title:        p.title,
             retailer:     p.retailer,
