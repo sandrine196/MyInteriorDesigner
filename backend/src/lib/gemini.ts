@@ -288,7 +288,7 @@ export function buildPrompt(
         }. Natural daylight streams through it and illuminates the room.`,
       w.hasWindowSeat ? "  Window seat: padded bench fills the bay recess — include it." : "",
       w.hasRadiatorBelow ? "  Radiator panel is visible below the window sill." : "",
-      `  This window MUST be clearly visible in the final image. Do not omit it.`,
+      `  This window MUST be clearly visible in the final image. Do not omit it or hide it behind curtains.`,
     ].filter(Boolean);
     lines.push(...bayLines);
   }
@@ -310,10 +310,15 @@ export function buildPrompt(
   if (fireplaces.length > 0) {
     lines.push("", "=== 4. FIXED FEATURES ===");
     for (const { role, fp } of fireplaces) {
+      const isFarWall = role === "far";
       const fpLines = [
-        `${FIREPLACE_LABELS[fp.subtype]} — ${PHOTO_POS[role]}${fp.chimneyBreastWidthCm ? ` (${fp.chimneyBreastWidthCm}cm wide)` : ""}.`,
-        "100cm clear zone in front of the fireplace — no furniture placed here.",
-        fp.subtype === "traditional" ? "Alcoves either side of the chimney breast suit shelving or built-ins." : "",
+        `⚠️ MANDATORY ARCHITECTURAL FEATURE: ${FIREPLACE_LABELS[fp.subtype].toUpperCase()} — ${PHOTO_POS[role].toUpperCase()}${fp.chimneyBreastWidthCm ? ` (${fp.chimneyBreastWidthCm}cm wide)` : ""}.`,
+        isFarWall
+          ? "  This fireplace is the focal point of the room — it must dominate the far wall and be fully visible in the image."
+          : "  This fireplace must be clearly visible in the image.",
+        "  Keep a 100cm clear zone directly in front of the fireplace — no furniture placed there.",
+        fp.subtype === "traditional" ? "  Alcoves either side of the chimney breast suit shelving or built-ins." : "",
+        `  This fireplace MUST appear in the final image. Do not omit it.`,
       ].filter(Boolean);
       lines.push(...fpLines);
     }
@@ -369,6 +374,8 @@ export function buildPrompt(
     "- Photorealistic interior design photograph — not a 3D render or illustration",
     "- Bright neutral midday daylight — not golden hour, not evening light",
     "- No text, watermarks, or labels in the image",
+    "- Windows are bare or have sheer curtains fully open and tied back — the window frame, shape, and type must be clearly visible",
+    "- All mandatory features (fireplace, bay window, etc.) must be present and unobstructed in the final image",
   );
 
   return lines.join("\n");
