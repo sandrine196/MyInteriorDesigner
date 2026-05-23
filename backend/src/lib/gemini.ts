@@ -10,6 +10,7 @@ export type ProductForPrompt = {
   retailer: string;
   priceGbp: number | null;
   category: string | null;
+  styleTags: string[];
   widthMm: number | null;
   depthMm: number | null;
   heightMm: number | null;
@@ -133,20 +134,43 @@ function describeFeature(f: WallFeature): string {
 function buildFeaturesSection(rf: RoomFeatures): string {
   const spatial = analyzeRoomSpatially(rf);
 
-  const ROLE_LABELS: Record<WallRole, string> = {
-    entrance: "Entrance wall (camera looking FROM this wall)",
-    far:      "Far wall (camera looking TOWARDS this wall)",
-    left:     "Left wall (on your left as you enter)",
-    right:    "Right wall (on your right as you enter)",
+  // Photo-space positions — unambiguous for the image model
+  const PHOTO_POS: Record<WallRole, string> = {
+    entrance: "BEHIND THE CAMERA / entrance (only partially visible at frame edges)",
+    far:      "STRAIGHT AHEAD — the back wall the camera is pointing at",
+    left:     "LEFT SIDE OF THE PHOTOGRAPH (viewer's left)",
+    right:    "RIGHT SIDE OF THE PHOTOGRAPH (viewer's right)",
   };
 
-  const lines: string[] = ["ARCHITECTURAL FEATURES (NON-NEGOTIABLE POSITIONS):"];
+  const lines: string[] = [
+    "ROOM LAYOUT — MANDATORY SPATIAL POSITIONS:",
+    "The photograph is taken standing IN THE DOORFRAME looking INTO the room.",
+    "Orientation diagram (top-down view, camera at bottom):",
+    "  ┌──────────────────────┐",
+    "  │      FAR WALL        │  ← straight ahead in photo",
+    "  │   (back of room)     │",
+    "  │                      │",
+    "LEFT                  RIGHT",
+    "WALL                   WALL",
+    "  │                      │",
+    "  └──────────────────────┘",
+    "     📷 CAMERA HERE",
+    "  (entrance — doorframe)",
+    "",
+    "CRITICAL RULE: LEFT wall features appear on the LEFT side of the photo.",
+    "CRITICAL RULE: RIGHT wall features appear on the RIGHT side of the photo.",
+    "CRITICAL RULE: Do NOT mirror, flip, or reinterpret these positions.",
+    "",
+    "ARCHITECTURAL FEATURES:",
+  ];
 
-  for (const role of ["entrance", "far", "left", "right"] as WallRole[]) {
+  for (const role of ["far", "left", "right", "entrance"] as WallRole[]) {
     const wall = rf.walls[role];
-    lines.push(`\n${ROLE_LABELS[role]}:`);
-    if (!wall.features.length) {
-      lines.push("- No notable features");
+    const hasReal = wall.features.some(f => f.type !== "nothing");
+    if (!hasReal && role === "entrance") continue; // entrance with no features is implicit
+    lines.push(`\n${PHOTO_POS[role]}:`);
+    if (!wall.features.length || !hasReal) {
+      lines.push("- No notable architectural features");
     } else {
       for (const f of wall.features) {
         lines.push(`- ${describeFeature(f)}`);
@@ -247,26 +271,44 @@ export function buildPrompt(
     : null;
 
   const productLines = products.map((p) => {
-    const price    = p.priceGbp != null ? ` - £${p.priceGbp.toFixed(0)}` : "";
+    const price    = p.priceGbp != null ? ` (£${p.priceGbp.toFixed(0)})` : "";
     const category = p.category ? p.category.replace(/_/g, " ") : null;
     const dims     =
       p.widthMm && p.depthMm && p.heightMm
-        ? `${(p.widthMm / 1000).toFixed(2)}m × ${(p.depthMm / 1000).toFixed(2)}m × ${(p.heightMm / 1000).toFixed(2)}m (W×D×H)`
+        ? `${(p.widthMm / 1000).toFixed(2)}m wide × ${(p.depthMm / 1000).toFixed(2)}m deep × ${(p.heightMm / 1000).toFixed(2)}m tall`
         : p.dimensionsRaw ?? null;
-    const desc = [category, dims].filter(Boolean).join(", ");
-    return `- ${p.title} from ${p.retailer}${price}${desc ? `\n  ${desc}` : ""}`;
+    const styleStr = p.styleTags.length > 0 ? p.styleTags.join(", ") : null;
+    const details = [
+      category ? `type: ${category}` : null,
+      dims ? `exact size: ${dims}` : null,
+      styleStr ? `style: ${styleStr}` : null,
+    ].filter(Boolean).join(" | ");
+    return `- "${p.title}" by ${p.retailer}${price}${details ? `\n  [${details}]` : ""}`;
   });
 
   const areaM2 = (room.length / 1000) * (room.width / 1000);
   const roomFeel = areaM2 < 12 ? "small and cosy" : areaM2 < 20 ? "medium sized" : "spacious and generous";
 
+  // Aspect ratio for visual proportion guidance
+  const longer = Math.max(room.length, room.width) / 1000;
+  const shorter = Math.min(room.length, room.width) / 1000;
+  const ratio = longer / shorter;
+  const shapeDesc = ratio >= 1.6
+    ? `strongly elongated (${longer.toFixed(1)}m long, ${shorter.toFixed(1)}m wide — about ${ratio.toFixed(1)}× longer than wide)`
+    : ratio >= 1.25
+      ? `moderately elongated (${longer.toFixed(1)}m × ${shorter.toFixed(1)}m)`
+      : `nearly square (${longer.toFixed(1)}m × ${shorter.toFixed(1)}m)`;
+  const ceilingFeel = parseFloat(ceilingM) < 2.4 ? "low, intimate ceiling" : parseFloat(ceilingM) > 2.7 ? "lofty, generous ceiling" : "standard ceiling height";
+
   const lines: (string | null)[] = [
     `Professional interior design photograph of a ${styleLabel} ${roomType}.`,
-    "Shot from the doorframe entrance - the viewer is standing at the threshold looking into the room.",
+    "Shot from the doorframe entrance — the viewer is standing at the threshold, camera looking straight into the room.",
     "",
-    "ROOM SPECIFICATIONS:",
-    `- Dimensions: ${lengthM}m × ${widthM}m with ${ceilingM}m ceiling height`,
-    `- Floor area: ${areaM2.toFixed(1)}m² — room feels ${roomFeel}`,
+    "ROOM PROPORTIONS (MUST BE VISUALLY ACCURATE):",
+    `- Floor plan: ${lengthM}m × ${widthM}m — ${shapeDesc}`,
+    `- Floor area: ${areaM2.toFixed(1)}m² — ${roomFeel}`,
+    `- Ceiling: ${ceilingM}m — ${ceilingFeel}`,
+    `- The room shape in the photograph MUST reflect these proportions. Do not make a ${shapeDesc.split(" ")[0]} room look square, and do not make a square room look like a corridor.`,
     wallDesc  ? `- Walls: ${wallDesc}`     : null,
     floorDesc ? `- Flooring: ${floorDesc}` : null,
   ];
@@ -274,7 +316,8 @@ export function buildPrompt(
   if (products.length > 0) {
     lines.push(
       "",
-      "FURNITURE (curated mix from UK retailers — all items must be accurately scaled to room dimensions):",
+      "FURNITURE — THESE EXACT PIECES MUST APPEAR IN THE IMAGE:",
+      "Each item below is a real product with specific dimensions. Render each piece to match its listed size and style. Do not substitute or invent alternative furniture.",
       ...productLines,
     );
   }
@@ -304,13 +347,11 @@ export function buildPrompt(
     "",
     "CRITICAL REQUIREMENTS:",
     "- This is a PHOTOGRAPH, not a 3D render or illustration — photorealistic, as seen in high-end interior design magazines",
-    "- Bright, neutral daylight (midday sun), evenly lit, professional interior photography lighting with soft natural shadows",
-    "- Lighting: Bright, neutral midday daylight — NOT sunset, NOT golden hour, NOT evening light",
-    `- All furniture must be to scale, respecting the room's actual dimensions (${lengthM}m × ${widthM}m × ${ceilingM}m high) — verify each item physically fits before placing it`,
-    "- Furniture is a curated mix from different UK retailers; render each piece accurately as specified",
-    "- Arrange furniture following feng shui principles to ensure optimal circulation and flow in the room",
-    "- Camera perspective: Photographer is standing IN THE DOORFRAME at the room entrance, looking INTO the room. This is the primary viewpoint - as if you just opened the door and are looking inside. The door frame should be visible at the edges or implied by the angle. Show the ENTIRE room layout from this entrance perspective.",
-    "- No text overlays, watermarks, labels, or visible floor plan lines",
+    "- Lighting: bright neutral midday daylight — NOT golden hour, NOT evening, NOT sunset",
+    `- Every piece of furniture listed MUST be present and sized correctly: the room is ${lengthM}m × ${widthM}m × ${ceilingM}m — items that are 2m wide should look 2m wide relative to the walls`,
+    "- Camera: photographer standing IN THE DOORFRAME looking straight into the room — show the full room depth from entrance to far wall",
+    "- LEFT wall features appear on the LEFT of the image. RIGHT wall features appear on the RIGHT. Do not mirror.",
+    "- No text, watermarks, floor-plan overlays, or labels in the image",
   );
 
   return lines.filter((l) => l !== null).join("\n");

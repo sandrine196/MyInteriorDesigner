@@ -523,13 +523,14 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           roomFeatures:     (project.roomFeatures as any) ?? null,
           products: products.map((p) => ({
-            title:        p.title,
-            retailer:     p.retailer,
-            priceGbp:     p.priceGbp,
-            category:     p.category,
-            widthMm:      p.widthMm,
-            depthMm:      p.depthMm,
-            heightMm:     p.heightMm,
+            title:         p.title,
+            retailer:      p.retailer,
+            priceGbp:      p.priceGbp,
+            category:      p.category,
+            styleTags:     (() => { try { return JSON.parse(p.styleTags ?? "[]") as string[]; } catch { return []; } })(),
+            widthMm:       p.widthMm,
+            depthMm:       p.depthMm,
+            heightMm:      p.heightMm,
             dimensionsRaw: p.dimensionsRaw,
           })),
           room: {
