@@ -94,120 +94,7 @@ interface RoomFeatures {
   roomShape: "rectangular";
 }
 
-// ── Room features → prompt text ────────────────────────────────────────────────
-
-function describeFeature(f: WallFeature): string {
-  if (f.type === "nothing") return "No notable features";
-
-  if (f.type === "door") {
-    const d = f as DoorFeature;
-    const typeLabel = { single: "Single door", double: "Double / French doors", sliding: "Sliding door", bifold: "Bi-fold door" }[d.subtype];
-    return `${typeLabel} (${d.widthCm}cm wide, opens ${d.opensInward ? "inward" : "outward"}, ${d.hingeSide} hinge)`;
-  }
-
-  if (f.type === "window") {
-    const w = f as WindowFeature;
-    const isBay = w.subtype === "bay_angular" || w.subtype === "bow" || w.subtype === "box_bay";
-    const bayLabel = { bay_angular: "Bay window — angular 3-panel", bow: "Bow window — curved 4-5 panels", box_bay: "Box bay window" }[w.subtype as "bay_angular"|"bow"|"box_bay"];
-    const stdLabel = { single: "Window", double: "Two windows", triple: "Three or more windows" }[w.subtype as "single"|"double"|"triple"] ?? "Window";
-    const dims = `${w.widthCm}cm wide × ${w.heightCm}cm tall, ${w.heightFromFloorCm}cm from floor`;
-    if (isBay) {
-      const extras = [
-        w.projectionCm ? `projects ${w.projectionCm}cm into room` : null,
-        w.hasWindowSeat ? "HAS WINDOW SEAT" : null,
-        w.hasRadiatorBelow ? "radiator below" : null,
-      ].filter(Boolean).join(", ");
-      return `${bayLabel} — ${dims}${extras ? `, ${extras}` : ""}`;
-    }
-    return `${stdLabel} — ${dims}${w.hasRadiatorBelow ? ", radiator below" : ""}`;
-  }
-
-  if (f.type === "fireplace") {
-    const fp = f as FireplaceFeature;
-    const label = { traditional: "Traditional fireplace with chimney breast", inset: "Inset fireplace (flush with wall)", freestanding: "Freestanding fireplace", electric: "Electric fireplace" }[fp.subtype];
-    return fp.chimneyBreastWidthCm ? `${label} (${fp.chimneyBreastWidthCm}cm wide)` : label;
-  }
-
-  return "";
-}
-
-function buildFeaturesSection(rf: RoomFeatures): string {
-  const spatial = analyzeRoomSpatially(rf);
-
-  // Photo-space positions — unambiguous for the image model
-  const PHOTO_POS: Record<WallRole, string> = {
-    entrance: "BEHIND THE CAMERA / entrance (only partially visible at frame edges)",
-    far:      "STRAIGHT AHEAD — the back wall the camera is pointing at",
-    left:     "LEFT SIDE OF THE PHOTOGRAPH (viewer's left)",
-    right:    "RIGHT SIDE OF THE PHOTOGRAPH (viewer's right)",
-  };
-
-  const lines: string[] = [
-    "ROOM LAYOUT — MANDATORY SPATIAL POSITIONS:",
-    "The photograph is taken standing IN THE DOORFRAME looking INTO the room.",
-    "Orientation diagram (top-down view, camera at bottom):",
-    "  ┌──────────────────────┐",
-    "  │      FAR WALL        │  ← straight ahead in photo",
-    "  │   (back of room)     │",
-    "  │                      │",
-    "LEFT                  RIGHT",
-    "WALL                   WALL",
-    "  │                      │",
-    "  └──────────────────────┘",
-    "     📷 CAMERA HERE",
-    "  (entrance — doorframe)",
-    "",
-    "CRITICAL RULE: LEFT wall features appear on the LEFT side of the photo.",
-    "CRITICAL RULE: RIGHT wall features appear on the RIGHT side of the photo.",
-    "CRITICAL RULE: Do NOT mirror, flip, or reinterpret these positions.",
-    "",
-    "ARCHITECTURAL FEATURES:",
-  ];
-
-  for (const role of ["far", "left", "right", "entrance"] as WallRole[]) {
-    const wall = rf.walls[role];
-    const hasReal = wall.features.some(f => f.type !== "nothing");
-    if (!hasReal && role === "entrance") continue; // entrance with no features is implicit
-    lines.push(`\n${PHOTO_POS[role]}:`);
-    if (!wall.features.length || !hasReal) {
-      lines.push("- No notable architectural features");
-    } else {
-      for (const f of wall.features) {
-        lines.push(`- ${describeFeature(f)}`);
-      }
-    }
-  }
-
-  // Camera and focal point (from spatial reasoning)
-  lines.push("\nCAMERA SETUP:");
-  lines.push("- Camera positioned at the ENTRANCE WALL — photographer standing IN THE DOORFRAME looking INTO the room");
-  if (spatial.focalPoint) {
-    lines.push(`- FOCAL POINT: ${spatial.focalPoint.label}`);
-    lines.push(`- ${spatial.focalPoint.description}`);
-  }
-
-  // Light sources
-  if (spatial.lightSources.length > 0) {
-    lines.push("\nNATURAL LIGHT:");
-    for (const ls of spatial.lightSources) {
-      lines.push(`- ${ls.description}`);
-    }
-    if (spatial.crossLightNote) {
-      lines.push(`- ${spatial.crossLightNote}`);
-    }
-  }
-
-  // Placement rules (from spatial reasoning)
-  lines.push("\nFURNITURE PLACEMENT RULES (MANDATORY):");
-  for (const rule of spatial.placementRules) {
-    lines.push(`- ${rule}`);
-  }
-
-  // Spatial narrative — summarises the holistic room logic for the model
-  lines.push("", spatial.promptNarrative);
-
-  return lines.join("\n");
-}
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export type PromptMeta = {
   projectName?: string | null;
@@ -217,6 +104,8 @@ export type PromptMeta = {
   floorPlanAnalysis?: string | null;
   roomFeatures?: RoomFeatures | null;
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function extractBayWindow(rf: RoomFeatures): { role: WallRole; w: WindowFeature } | null {
   for (const role of ["far", "left", "right", "entrance"] as WallRole[]) {
@@ -230,6 +119,41 @@ function extractBayWindow(rf: RoomFeatures): { role: WallRole; w: WindowFeature 
   return null;
 }
 
+const BAY_LABELS: Record<"bay_angular" | "bow" | "box_bay", string> = {
+  bay_angular: "angular bay window",
+  bow:         "curved bow window",
+  box_bay:     "box bay window",
+};
+
+const PHOTO_POS: Record<WallRole, string> = {
+  far:      "straight ahead — the far wall",
+  left:     "LEFT side of the photograph",
+  right:    "RIGHT side of the photograph",
+  entrance: "behind the camera (entrance wall)",
+};
+
+const DOOR_LABELS: Record<DoorFeature["subtype"], string> = {
+  single:  "single door",
+  double:  "double/French doors",
+  sliding: "sliding door",
+  bifold:  "bi-fold door",
+};
+
+const FIREPLACE_LABELS: Record<FireplaceFeature["subtype"], string> = {
+  traditional: "traditional fireplace with chimney breast",
+  inset:       "inset fireplace (flush to wall)",
+  freestanding:"freestanding stove",
+  electric:    "electric fireplace",
+};
+
+const WINDOW_LABELS: Record<"single" | "double" | "triple", string> = {
+  single: "Window",
+  double: "Two windows",
+  triple: "Three or more windows",
+};
+
+// ── Prompt builder ────────────────────────────────────────────────────────────
+
 export function buildPrompt(
   userPrompt: string,
   products: ProductForPrompt[],
@@ -238,139 +162,216 @@ export function buildPrompt(
 ): string {
   const { projectName, designStyle, wallColorPalette, flooringType, floorPlanAnalysis, roomFeatures } = meta;
 
-  const styleLabel = designStyle ? (DESIGN_STYLE_LABELS[designStyle] ?? designStyle) : "interior";
-  const roomType   = projectName ?? "room";
-  const lengthM    = (room.length / 1000).toFixed(1);
-  const widthM     = (room.width / 1000).toFixed(1);
-  const ceilingM   = (room.ceilingHeight / 1000).toFixed(1);
+  const rf      = roomFeatures ?? null;
+  const spatial = rf ? analyzeRoomSpatially(rf) : null;
 
-  // Custom wall color: any value not in the map is treated as a user description
-  const wallDesc = wallColorPalette
-    ? (WALL_COLOR_DESCRIPTIONS[wallColorPalette] ?? `${wallColorPalette} walls`)
-    : null;
-  const floorDesc = flooringType
-    ? (FLOORING_DESCRIPTIONS[flooringType] ?? flooringType)
-    : null;
+  // Pre-extract features by type
+  const bayEntry   = rf ? extractBayWindow(rf) : null;
+  const bayLabel   = bayEntry ? BAY_LABELS[bayEntry.w.subtype as keyof typeof BAY_LABELS] : null;
+  const door       = rf?.walls.entrance.features.find(f => f.type === "door") as DoorFeature | undefined;
+  const fireplaces: Array<{ role: WallRole; fp: FireplaceFeature }> = [];
+  const regularWindows: Array<{ role: WallRole; w: WindowFeature }> = [];
 
+  if (rf) {
+    for (const role of ["entrance", "far", "left", "right"] as WallRole[]) {
+      for (const f of rf.walls[role].features) {
+        if (f.type === "fireplace") fireplaces.push({ role, fp: f as FireplaceFeature });
+        if (f.type === "window") {
+          const w = f as WindowFeature;
+          if (!["bay_angular", "bow", "box_bay"].includes(w.subtype)) regularWindows.push({ role, w });
+        }
+      }
+    }
+  }
+
+  // Room shape & proportions
+  const lengthM  = (room.length / 1000).toFixed(1);
+  const widthM   = (room.width  / 1000).toFixed(1);
+  const ceilingM = (room.ceilingHeight / 1000).toFixed(1);
+  const areaM2   = (room.length / 1000) * (room.width / 1000);
+  const longer   = Math.max(room.length, room.width) / 1000;
+  const shorter  = Math.min(room.length, room.width) / 1000;
+  const ratio    = longer / shorter;
+  const shapeDesc = ratio >= 1.6
+    ? `strongly elongated — ${longer.toFixed(1)}m × ${shorter.toFixed(1)}m (${ratio.toFixed(1)}:1 ratio)`
+    : ratio >= 1.25
+      ? `moderately elongated — ${longer.toFixed(1)}m × ${shorter.toFixed(1)}m`
+      : `nearly square — ${longer.toFixed(1)}m × ${shorter.toFixed(1)}m`;
+  const ceilingFeel = parseFloat(ceilingM) < 2.4 ? "low/intimate" : parseFloat(ceilingM) > 2.7 ? "lofty" : "standard height";
+
+  // Surfaces & style
+  const styleLabel = designStyle ? (DESIGN_STYLE_LABELS[designStyle] ?? designStyle) : "interior design";
+  const roomLabel  = projectName ?? "room";
+  const wallDesc   = wallColorPalette ? (WALL_COLOR_DESCRIPTIONS[wallColorPalette] ?? `${wallColorPalette} walls`) : null;
+  const floorDesc  = flooringType ? (FLOORING_DESCRIPTIONS[flooringType] ?? flooringType) : null;
+
+  // Furniture lines
   const productLines = products.map((p) => {
-    const price    = p.priceGbp != null ? ` (£${p.priceGbp.toFixed(0)})` : "";
-    const category = p.category ? p.category.replace(/_/g, " ") : null;
-    const dims     =
-      p.widthMm && p.depthMm && p.heightMm
-        ? `${(p.widthMm / 1000).toFixed(2)}m wide × ${(p.depthMm / 1000).toFixed(2)}m deep × ${(p.heightMm / 1000).toFixed(2)}m tall`
-        : p.dimensionsRaw ?? null;
-    const styleStr = p.styleTags.length > 0 ? p.styleTags.join(", ") : null;
+    const price   = p.priceGbp != null ? ` (£${p.priceGbp.toFixed(0)})` : "";
+    const cat     = p.category ? p.category.replace(/_/g, " ") : null;
+    const dims    = p.widthMm && p.depthMm && p.heightMm
+      ? `${(p.widthMm / 1000).toFixed(2)}m wide × ${(p.depthMm / 1000).toFixed(2)}m deep × ${(p.heightMm / 1000).toFixed(2)}m tall`
+      : p.dimensionsRaw ?? null;
+    const tags    = p.styleTags.length > 0 ? p.styleTags.join(", ") : null;
     const details = [
-      category ? `type: ${category}` : null,
-      dims ? `exact size: ${dims}` : null,
-      styleStr ? `style: ${styleStr}` : null,
+      cat  ? `type: ${cat}`     : null,
+      dims ? `size: ${dims}`    : null,
+      tags ? `style: ${tags}`   : null,
     ].filter(Boolean).join(" | ");
     return `- "${p.title}" by ${p.retailer}${price}${details ? `\n  [${details}]` : ""}`;
   });
 
-  const areaM2 = (room.length / 1000) * (room.width / 1000);
-  const roomFeel = areaM2 < 12 ? "small and cosy" : areaM2 < 20 ? "medium sized" : "spacious and generous";
+  const lines: string[] = [];
 
-  // Aspect ratio for visual proportion guidance
-  const longer = Math.max(room.length, room.width) / 1000;
-  const shorter = Math.min(room.length, room.width) / 1000;
-  const ratio = longer / shorter;
-  const shapeDesc = ratio >= 1.6
-    ? `strongly elongated (${longer.toFixed(1)}m long, ${shorter.toFixed(1)}m wide — about ${ratio.toFixed(1)}× longer than wide)`
-    : ratio >= 1.25
-      ? `moderately elongated (${longer.toFixed(1)}m × ${shorter.toFixed(1)}m)`
-      : `nearly square (${longer.toFixed(1)}m × ${shorter.toFixed(1)}m)`;
-  const ceilingFeel = parseFloat(ceilingM) < 2.4 ? "low, intimate ceiling" : parseFloat(ceilingM) > 2.7 ? "lofty, generous ceiling" : "standard ceiling height";
+  // ── 1. ROOM DIMENSIONS ────────────────────────────────────────────────────────
+  // Start with the physical shell — the 3D space Gemini needs to construct first.
+  lines.push(
+    "=== 1. ROOM DIMENSIONS ===",
+    `Floor plan: ${lengthM}m × ${widthM}m — ${shapeDesc}`,
+    `Ceiling: ${ceilingM}m — ${ceilingFeel}`,
+    `Floor area: ${areaM2.toFixed(1)}m²`,
+    "These proportions are exact. The photograph must reflect them accurately.",
+  );
 
-  // Extract bay/bow window early so we can lead the prompt with it if present
-  const bayEntry = roomFeatures ? extractBayWindow(roomFeatures) : null;
-  const bayTypeLabel = bayEntry
-    ? ({ bay_angular: "angular bay window", bow: "curved bow window", box_bay: "box bay window" } as const)[bayEntry.w.subtype as "bay_angular" | "bow" | "box_bay"]
-    : null;
+  // ── 2. ENTRANCE & CAMERA ─────────────────────────────────────────────────────
+  // Establish the viewpoint before placing any features.
+  lines.push("", "=== 2. ENTRANCE & CAMERA ===");
 
-  // Camera description adapts to where the focal feature is
-  const cameraLine = (() => {
-    if (!bayEntry && !roomFeatures) {
-      return "Camera in the doorframe, looking straight into the room toward the far wall.";
-    }
-    if (bayEntry?.role === "far") {
-      return `Camera in the doorframe, looking straight ahead toward the far wall where the ${bayTypeLabel} is — it fills the view directly ahead.`;
-    }
-    if (bayEntry?.role === "left") {
-      return `Camera in the doorframe, angled slightly left to feature the ${bayTypeLabel} on the left wall — the window should be prominently visible on the left side of the photograph, flooding the room with natural light.`;
-    }
-    if (bayEntry?.role === "right") {
-      return `Camera in the doorframe, angled slightly right to feature the ${bayTypeLabel} on the right wall — the window should be prominently visible on the right side of the photograph, flooding the room with natural light.`;
-    }
-    return "Camera in the doorframe, looking straight into the room toward the far wall.";
-  })();
-
-  // If there's a bay/bow window, it leads the entire prompt — image models weight early tokens most
-  const leadingCallout: string[] = bayEntry ? [
-    `⚠️ THIS IMAGE MUST CONTAIN A ${(bayTypeLabel ?? "bay window").toUpperCase()} — THIS IS THE MOST IMPORTANT ELEMENT.`,
-    `A ${bayTypeLabel} (${bayEntry.w.widthCm}cm wide, ${bayEntry.w.heightCm}cm tall) is on the ${bayEntry.role === "far" ? "FAR WALL — straight ahead of the camera" : bayEntry.role === "left" ? "LEFT WALL — visible on the left side of the photograph" : "RIGHT WALL — visible on the right side of the photograph"}.`,
-    `This is a ${bayTypeLabel}: curved/angled window with multiple panes that projects outward from the wall face, creating a bay recess inside the room. It MUST be clearly visible and architecturally prominent in the finished image.`,
-    bayEntry.w.hasWindowSeat ? `The bay has a padded window seat — include it.` : "",
-    `Do NOT render this room without the ${bayTypeLabel}. A render without it is incorrect.`,
-    "",
-  ].filter(Boolean) : [];
-
-  const lines: (string | null)[] = [
-    ...leadingCallout,
-    `Professional interior design photograph of a ${styleLabel} ${roomType}.`,
-    cameraLine,
-    "",
-    "ROOM PROPORTIONS (MUST BE VISUALLY ACCURATE):",
-    `- Floor plan: ${lengthM}m × ${widthM}m — ${shapeDesc}`,
-    `- Floor area: ${areaM2.toFixed(1)}m² — ${roomFeel}`,
-    `- Ceiling: ${ceilingM}m — ${ceilingFeel}`,
-    `- The room shape in the photograph MUST reflect these proportions. Do not make a ${shapeDesc.split(" ")[0]} room look square, and do not make a square room look like a corridor.`,
-    wallDesc  ? `- Walls: ${wallDesc}`     : null,
-    floorDesc ? `- Flooring: ${floorDesc}` : null,
-  ];
-
-  if (products.length > 0) {
-    lines.push(
-      "",
-      "FURNITURE — THESE EXACT PIECES MUST APPEAR IN THE IMAGE:",
-      "Each item below is a real product with specific dimensions. Render each piece to match its listed size and style. Do not substitute or invent alternative furniture.",
-      ...productLines,
-    );
+  if (bayEntry?.role === "left") {
+    lines.push(`Camera in the doorframe, angled slightly LEFT toward the ${bayLabel} on the left wall.`);
+  } else if (bayEntry?.role === "right") {
+    lines.push(`Camera in the doorframe, angled slightly RIGHT toward the ${bayLabel} on the right wall.`);
+  } else {
+    lines.push("Camera in the doorframe, looking straight ahead toward the far wall.");
   }
+  lines.push("First-person viewpoint — as if you just opened the door and are looking into the room.");
 
-  // Structured room features take priority over legacy GPT-4o Vision analysis
-  if (roomFeatures) {
-    lines.push("", buildFeaturesSection(roomFeatures));
-  } else if (floorPlanAnalysis) {
+  if (door) {
+    const swingSide = door.hingeSide === "left" ? "right" : "left";
+    const clearCm   = door.widthCm + (door.opensInward ? 90 : 30);
     lines.push(
-      "",
-      "SPATIAL LAYOUT (EXACT — NON-NEGOTIABLE):",
-      floorPlanAnalysis,
-      "",
-      "You are standing IN THE DOORFRAME looking into the room. ENFORCE these positions exactly:",
-      "- If the analysis says a feature is on the RIGHT → it MUST appear on the RIGHT side of the photograph",
-      "- If the analysis says a feature is STRAIGHT AHEAD → it MUST be on the wall facing the camera",
-      "- If the analysis says a feature is on the LEFT → it MUST appear on the LEFT side of the photograph",
-      "- If the analysis says a feature is BEHIND YOU → it is on the same wall as the entrance, partially visible at the frame edges",
-      "Do NOT reinterpret or rearrange these positions. The photograph must match this exact spatial layout.",
+      `Entrance: ${DOOR_LABELS[door.subtype]}, ${door.widthCm}cm wide, hinged ${door.hingeSide}, opens ${door.opensInward ? "inward" : "outward"}.`,
+      `Keep ${clearCm}cm clear on the ${swingSide} side of the entrance for the door swing. The ${door.hingeSide} side of the entrance wall can have furniture against it.`,
     );
   }
 
   lines.push(
     "",
-    "STYLE DIRECTION:",
-    userPrompt,
-    "",
-    "CRITICAL REQUIREMENTS:",
-    "- This is a PHOTOGRAPH, not a 3D render or illustration — photorealistic, as seen in high-end interior design magazines",
-    "- Lighting: bright neutral midday daylight — NOT golden hour, NOT evening, NOT sunset",
-    `- Every piece of furniture listed MUST be present and sized correctly: the room is ${lengthM}m × ${widthM}m × ${ceilingM}m — items that are 2m wide should look 2m wide relative to the walls`,
-    "- Camera: photographer standing IN THE DOORFRAME looking straight into the room — show the full room depth from entrance to far wall",
-    "- LEFT wall features appear on the LEFT of the image. RIGHT wall features appear on the RIGHT. Do not mirror.",
-    "- No text, watermarks, floor-plan overlays, or labels in the image",
+    "Orientation diagram (top-down view, camera at bottom):",
+    "  ┌────────────────────────┐",
+    "  │       FAR WALL         │  ← straight ahead",
+    "LEFT WALL            RIGHT WALL",
+    "  └────────────────────────┘",
+    "          📷 CAMERA (entrance)",
+    "RULE: LEFT wall features appear on the LEFT of the image. RIGHT wall features appear on the RIGHT. Never flip or mirror.",
   );
 
-  return lines.filter((l) => l !== null).join("\n");
+  // ── 3. WINDOWS & NATURAL LIGHT ───────────────────────────────────────────────
+  // Windows define the light — place them before surfaces and furniture.
+  if (bayEntry || regularWindows.length > 0) {
+    lines.push("", "=== 3. WINDOWS & NATURAL LIGHT ===");
+  }
+
+  if (bayEntry) {
+    const { role, w } = bayEntry;
+    const bayLines = [
+      `⚠️ MANDATORY ARCHITECTURAL FEATURE: ${(bayLabel ?? "bay window").toUpperCase()} — ${PHOTO_POS[role].toUpperCase()}`,
+      `  Dimensions: ${w.widthCm}cm wide × ${w.heightCm}cm tall, sill at ${w.heightFromFloorCm}cm from floor.`,
+      w.projectionCm
+        ? `  Projection: protrudes ${w.projectionCm}cm outward from the wall — the 3D bay recess is clearly visible from inside.`
+        : "",
+      `  What it looks like: ${w.subtype === "bow"
+          ? "a smooth curved bank of glass panes bowing outward from the wall face, creating a curved alcove"
+          : w.subtype === "bay_angular"
+            ? "three flat glass panels in an angular formation (centre panel flanked by two angled side panels), projecting outward"
+            : "a rectangular box projection from the wall with glass on three sides"
+        }. Natural daylight streams through it and illuminates the room.`,
+      w.hasWindowSeat ? "  Window seat: padded bench fills the bay recess — include it." : "",
+      w.hasRadiatorBelow ? "  Radiator panel is visible below the window sill." : "",
+      `  This window MUST be clearly visible in the final image. Do not omit it.`,
+    ].filter(Boolean);
+    lines.push(...bayLines);
+  }
+
+  for (const { role, w } of regularWindows) {
+    const label = WINDOW_LABELS[w.subtype as keyof typeof WINDOW_LABELS] ?? "Window";
+    lines.push(
+      `${label} — ${PHOTO_POS[role]}: ${w.widthCm}cm wide × ${w.heightCm}cm tall, sill at ${w.heightFromFloorCm}cm from floor.` +
+      (w.hasRadiatorBelow ? " Radiator below." : ""),
+    );
+  }
+
+  if (spatial?.lightSources.length) {
+    lines.push(`Natural light: ${spatial.lightSources.map(ls => ls.description).join(" ")}`);
+    if (spatial.crossLightNote) lines.push(spatial.crossLightNote);
+  }
+
+  // ── 4. OTHER FIXED FEATURES ───────────────────────────────────────────────────
+  if (fireplaces.length > 0) {
+    lines.push("", "=== 4. FIXED FEATURES ===");
+    for (const { role, fp } of fireplaces) {
+      const fpLines = [
+        `${FIREPLACE_LABELS[fp.subtype]} — ${PHOTO_POS[role]}${fp.chimneyBreastWidthCm ? ` (${fp.chimneyBreastWidthCm}cm wide)` : ""}.`,
+        "100cm clear zone in front of the fireplace — no furniture placed here.",
+        fp.subtype === "traditional" ? "Alcoves either side of the chimney breast suit shelving or built-ins." : "",
+      ].filter(Boolean);
+      lines.push(...fpLines);
+    }
+  }
+
+  // ── 5. SURFACES ───────────────────────────────────────────────────────────────
+  // Wall colour and flooring define the palette the furniture sits against.
+  if (wallDesc || floorDesc) {
+    lines.push("", "=== 5. SURFACES ===");
+    if (wallDesc)  lines.push(`Walls: ${wallDesc}`);
+    if (floorDesc) lines.push(`Flooring: ${floorDesc}`);
+  }
+
+  // ── 6. ROOM TYPE & STYLE ──────────────────────────────────────────────────────
+  lines.push(
+    "",
+    "=== 6. ROOM TYPE & STYLE ===",
+    `This is a ${styleLabel} ${roomLabel}.`,
+    `Style direction: ${userPrompt}`,
+  );
+
+  // ── 7. FURNITURE ─────────────────────────────────────────────────────────────
+  // Furniture is placed last — into the scene already established above.
+  if (products.length > 0) {
+    lines.push(
+      "",
+      "=== 7. FURNITURE ===",
+      "Place these exact pieces in the room. Scale each item accurately — a 2.2m sofa must look 2.2m wide relative to the walls.",
+      ...productLines,
+    );
+  }
+
+  // ── 8. PLACEMENT RULES ────────────────────────────────────────────────────────
+  if (spatial?.placementRules.length) {
+    lines.push("", "=== 8. PLACEMENT RULES ===");
+    for (const rule of spatial.placementRules) lines.push(`- ${rule}`);
+  }
+
+  // Legacy fallback: no wall mapping but a floor plan analysis exists
+  if (!rf && floorPlanAnalysis) {
+    lines.push(
+      "",
+      "SPATIAL LAYOUT:",
+      floorPlanAnalysis,
+      "Enforce all positions exactly — LEFT features on LEFT, RIGHT features on RIGHT, FAR WALL straight ahead.",
+    );
+  }
+
+  // ── OUTPUT REQUIREMENTS ───────────────────────────────────────────────────────
+  lines.push(
+    "",
+    "=== OUTPUT REQUIREMENTS ===",
+    "- Photorealistic interior design photograph — not a 3D render or illustration",
+    "- Bright neutral midday daylight — not golden hour, not evening light",
+    "- No text, watermarks, or labels in the image",
+  );
+
+  return lines.join("\n");
 }
 
 /** Generate a room image using the Gemini API. Returns a PNG buffer. */
