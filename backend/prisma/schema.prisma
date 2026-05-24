@@ -86,6 +86,7 @@ model Render {
   errorMessage     String?
   productsSnapshot String?
   createdAt        DateTime @default(now())
+  deletedAt        DateTime?
 
   @@index([projectId])
   @@index([status])

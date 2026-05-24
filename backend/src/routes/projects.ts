@@ -179,7 +179,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       const projects = await prisma.project.findMany({
         where: { userId: u.sub },
         orderBy: { createdAt: "desc" },
-        include: { renders: { orderBy: { createdAt: "desc" }, take: 5 } },
+        include: { renders: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5 } },
       });
       return { projects: projects.map(serializeProject) };
     }
@@ -195,7 +195,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       const { projectId } = request.params as { projectId: string };
       const project = await prisma.project.findFirst({
         where: { id: projectId, userId: u.sub },
-        include: { renders: { orderBy: { createdAt: "desc" }, take: 5 } },
+        include: { renders: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5 } },
       });
       if (!project) return reply.status(404).send({ error: "Project not found" });
       return { project: serializeProject(project) };
@@ -226,7 +226,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           roomWidthMm: body.roomWidthMm,
           ceilingHeightMm: body.ceilingHeightMm,
         },
-        include: { renders: { orderBy: { createdAt: "desc" }, take: 5 } },
+        include: { renders: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5 } },
       });
       return { project: serializeProject(project) };
     }
@@ -262,7 +262,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           wallColorPalette: body.wallColorPalette,
           flooringType: body.flooringType,
         },
-        include: { renders: { orderBy: { createdAt: "desc" }, take: 5 } },
+        include: { renders: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5 } },
       });
 
       return { project: serializeProject(project) };
@@ -287,7 +287,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
         where: { id: projectId },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: { roomFeatures: body.roomFeatures as any },
-        include: { renders: { orderBy: { createdAt: "desc" }, take: 5 } },
+        include: { renders: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5 } },
       });
       return { project: serializeProject(project) };
     }
@@ -587,10 +587,10 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       const u = request.user as { sub: string };
       const { projectId, renderId } = request.params as { projectId: string; renderId: string };
       const render = await prisma.render.findFirst({
-        where: { id: renderId, projectId, project: { userId: u.sub } },
+        where: { id: renderId, projectId, project: { userId: u.sub }, deletedAt: null },
       });
       if (!render) return reply.status(404).send({ error: "Not found" });
-      await prisma.render.delete({ where: { id: render.id } });
+      await prisma.render.update({ where: { id: render.id }, data: { deletedAt: new Date() } });
       if (render.imageKey && !render.imageKey.startsWith("http")) {
         await storage.delete(render.imageKey).catch(() => {});
       }
@@ -607,7 +607,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       const u = request.user as { sub: string };
       const { projectId, renderId } = request.params as { projectId: string; renderId: string };
       const render = await prisma.render.findFirst({
-        where: { id: renderId, projectId, project: { userId: u.sub } },
+        where: { id: renderId, projectId, project: { userId: u.sub }, deletedAt: null },
       });
       if (!render) return reply.status(404).send({ error: "Not found" });
       return {
