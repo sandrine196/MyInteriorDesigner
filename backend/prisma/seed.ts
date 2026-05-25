@@ -670,6 +670,38 @@ async function main() {
     console.log(`Admin account created: ${adminEmail} (password: ChangeMe1! — change immediately)`);
   }
 
+  // ── Provider cost entries — seed canonical list for current month ─────────────
+  // Idempotent: removes any existing entry for known providers in this month,
+  // then re-creates the definitive list. Manually entered costs (R2, Gemini)
+  // should be updated each month via the admin UI.
+  const SEED_MONTH = 5;
+  const SEED_YEAR  = 2026;
+
+  const canonicalProviders = [
+    { provider: "Railway",            plan: "Backend hosting",  monthlyCostGbp: 18.50, status: "active",   notes: null },
+    { provider: "Vercel",             plan: "Frontend hosting", monthlyCostGbp:  0.00, status: "active",   notes: "Free tier" },
+    { provider: "Cloudflare R2",      plan: "File storage",     monthlyCostGbp:  0.00, status: "active",   notes: "Manual entry — pay per use" },
+    { provider: "Gemini API",         plan: "AI generation",    monthlyCostGbp:  0.00, status: "active",   notes: "Manual entry — pay per use" },
+    { provider: "OpenAI API",         plan: "Not used",         monthlyCostGbp:  0.00, status: "inactive", notes: "Not active — kept as future option" },
+    { provider: "Resend",             plan: "Email service",    monthlyCostGbp:  0.00, status: "active",   notes: "Free tier" },
+    { provider: "Awin",               plan: "Affiliate network",monthlyCostGbp:  6.00, status: "pending",  notes: "Pending approval" },
+    { provider: "Amazon Associates",  plan: "Affiliate",        monthlyCostGbp:  0.00, status: "active",   notes: "Commission only — no monthly fee" },
+    { provider: "Domain (.co.uk)",    plan: "Annual plan",      monthlyCostGbp:  1.25, status: "active",   notes: "myinteriordesigner.co.uk — £15/yr ÷ 12" },
+  ];
+
+  await prisma.costEntry.deleteMany({
+    where: {
+      month: SEED_MONTH, year: SEED_YEAR,
+      provider: { in: canonicalProviders.map(p => p.provider) },
+    },
+  });
+
+  await prisma.costEntry.createMany({
+    data: canonicalProviders.map(p => ({ ...p, month: SEED_MONTH, year: SEED_YEAR })),
+  });
+
+  console.log(`Seeded ${canonicalProviders.length} provider cost entries for ${SEED_MONTH}/${SEED_YEAR}`);
+
   // ── Products ─────────────────────────────────────────────────────────────────
   await prisma.product.deleteMany({});
 

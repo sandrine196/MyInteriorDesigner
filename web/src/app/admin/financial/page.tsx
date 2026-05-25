@@ -19,7 +19,7 @@ const MONTHS = [
 
 const REVENUE_SOURCES = ["Awin Affiliate", "Amazon Associates", "Premium Subscriptions", "Estate Agent Partners", "Other"];
 const REVENUE_TYPES   = ["Affiliate", "Subscription", "Partnership", "Other"];
-const STATUS_OPTIONS  = ["active", "pending", "cancelled"];
+const STATUS_OPTIONS  = ["active", "pending", "inactive", "cancelled"];
 
 // ── Editable cell ──────────────────────────────────────────────────────────────
 
@@ -162,7 +162,7 @@ export default function FinancialPage() {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
-  const totalCost    = costs.reduce((s, c) => s + c.monthlyCostGbp, 0);
+  const totalCost    = costs.filter(c => c.status !== "inactive").reduce((s, c) => s + c.monthlyCostGbp, 0);
   const totalRevenue = revenues.reduce((s, r) => s + r.amountGbp, 0);
   const netProfit    = totalRevenue - totalCost;
 
@@ -301,7 +301,7 @@ export default function FinancialPage() {
             <tbody>
               {costs.map(c => (
                 <tr key={c.id} className="border-b border-stone-800/50 hover:bg-stone-800/20 transition-colors"
-                  style={{ opacity: saving === c.id ? 0.5 : 1 }}>
+                  style={{ opacity: saving === c.id ? 0.5 : c.status === "inactive" ? 0.45 : 1 }}>
                   <td className="px-4 py-3 text-stone-200">
                     <EditCell value={c.provider} onCommit={v => updateCost(c.id, "provider", v)} />
                   </td>
@@ -316,7 +316,12 @@ export default function FinancialPage() {
                   <td className="px-4 py-3">
                     <SelectCell value={c.status} options={STATUS_OPTIONS}
                       onCommit={v => updateCost(c.id, "status", v)}
-                      className={c.status === "active" ? "text-green-400" : c.status === "pending" ? "text-amber-400" : "text-stone-500"} />
+                      className={
+                        c.status === "active"   ? "text-green-400"  :
+                        c.status === "pending"  ? "text-amber-400"  :
+                        c.status === "inactive" ? "text-stone-600"  :
+                        "text-stone-500"
+                      } />
                   </td>
                   <td className="px-4 py-3 text-stone-500 max-w-xs">
                     <EditCell value={c.notes ?? "—"} onCommit={v => updateCost(c.id, "notes", v)} />
