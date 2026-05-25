@@ -325,22 +325,44 @@ export type FinancialSummaryMonth = {
 };
 
 export type MarketingMetrics = {
-  styleDistribution:  Array<{ style: string | null; count: number; pct: number }>;
+  styleDistribution:    Array<{ style: string | null; count: number; pct: number }>;
   roomTypeDistribution: Array<{ roomType: string | null; count: number; pct: number }>;
-  topProducts:        Array<{ productId: string; productName: string; retailer: string; clicks: number }>;
-  retailerClicks:     Array<{ retailer: string; clicks: number }>;
-  renderTrend:        Array<{ date: string; count: number }>;
+  topProducts:          Array<{ productId: string; productName: string; retailer: string; clicks: number }>;
+  retailerClicks:       Array<{ retailer: string; clicks: number }>;
+  renderTrend:          Array<{ date: string; count: number }>;
 };
 
 export type ClientMetrics = {
   metrics: {
     totalUsers: number; newUsersThisMonth: number; activeThisMonth: number;
     totalRenders: number; avgRendersPerUser: number; reEngaged: number;
+    returnRate7d: number; returnRate30d: number; clickThroughRate: number;
   };
   funnel: Array<{ stage: string; count: number }>;
   limitMonitor: { freeLimit: number; nearLimit: number; atLimit: number };
+  limitTable: Array<{ email: string; tier: string; renders: number; limit: number; usagePct: number }>;
   top10: Array<{ rank: number; email: string; renderCount: number; joinedDaysAgo: number }>;
   registrationTrend: Array<{ date: string; count: number }>;
+};
+
+export type SystemStats = {
+  tables: Array<{ name: string; count: number }>;
+};
+
+export type SystemHealth = {
+  status: "ok" | "degraded";
+  checks: Record<string, { status: string; responseMs?: number; detail?: string }>;
+  timestamp: string;
+};
+
+export type BackupEntry = {
+  filename: string; key: string; sizeMB: string; createdAt: string; formattedDate: string;
+};
+
+export type BackupStats = {
+  totalBackups: number;
+  latestBackup: BackupEntry | null;
+  totalSizeMB: string;
 };
 
 export const admin = {
@@ -371,8 +393,19 @@ export const admin = {
 
   financialSummary: () =>
     request<{ summary: FinancialSummaryMonth[]; cumulativeProfit: number }>("/admin/financial-summary"),
-  marketingMetrics: () =>
-    request<MarketingMetrics>("/admin/marketing-metrics"),
-  clientMetrics:    () =>
-    request<ClientMetrics>("/admin/client-metrics"),
+  marketingMetrics: (range?: string) =>
+    request<MarketingMetrics>(`/admin/marketing-metrics${range ? `?range=${range}` : ""}`),
+  clientMetrics: (range?: string) =>
+    request<ClientMetrics>(`/admin/client-metrics${range ? `?range=${range}` : ""}`),
+
+  system: {
+    stats:  () => request<SystemStats>("/admin/system/stats"),
+    health: () => request<SystemHealth>("/admin/system/health"),
+  },
+
+  backups: {
+    list:  () => request<{ backups: BackupEntry[]; error?: string }>("/admin/backups"),
+    run:   () => request<{ success: boolean; filename: string; sizeMB: number; backupsRetained: number }>("/admin/backups/run", { method: "POST" }),
+    stats: () => request<BackupStats>("/admin/backups/stats"),
+  },
 };

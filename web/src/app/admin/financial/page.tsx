@@ -84,28 +84,32 @@ function SelectCell({
 
 export default function FinancialPage() {
   const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year,  setYear]  = useState(now.getFullYear());
-
-  const [costs,    setCosts]    = useState<CostEntry[]>([]);
-  const [revenues, setRevenues] = useState<RevenueEntry[]>([]);
-  const [summary,  setSummary]  = useState<Array<{ label: string; totalCost: number; totalRevenue: number; profit: number }>>([]);
+  const [month,     setMonth]     = useState(now.getMonth() + 1);
+  const [year,      setYear]      = useState(now.getFullYear());
+  const [costs,     setCosts]     = useState<CostEntry[]>([]);
+  const [revenues,  setRevenues]  = useState<RevenueEntry[]>([]);
+  const [summary,   setSummary]   = useState<Array<{ label: string; totalCost: number; totalRevenue: number; profit: number }>>([]);
   const [cumProfit, setCumProfit] = useState(0);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState<string | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [c, r, s] = await Promise.all([
-      admin.costs.list(month, year),
-      admin.revenues.list(month, year),
-      admin.financialSummary(),
-    ]);
-    setCosts(c.entries);
-    setRevenues(r.entries);
-    setSummary(s.summary);
-    setCumProfit(s.cumulativeProfit);
-    setLoading(false);
+    try {
+      const [c, r, s] = await Promise.all([
+        admin.costs.list(month, year),
+        admin.revenues.list(month, year),
+        admin.financialSummary(),
+      ]);
+      setCosts(c.entries);
+      setRevenues(r.entries);
+      setSummary(s.summary);
+      setCumProfit(s.cumulativeProfit);
+      setUpdatedAt(new Date());
+    } finally {
+      setLoading(false);
+    }
   }, [month, year]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -192,7 +196,10 @@ export default function FinancialPage() {
     a.click();
   };
 
-  if (loading) return (
+  // Only chart months that have real data
+  const chartData = summary.filter(m => m.totalCost > 0 || m.totalRevenue > 0);
+
+  if (loading && costs.length === 0) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-6 h-6 rounded-full border-2 border-mid-blue border-t-mid-gold animate-spin" />
     </div>
@@ -201,12 +208,21 @@ export default function FinancialPage() {
   return (
     <div className="space-y-10 max-w-5xl">
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Financial</h1>
           <p className="text-stone-500 text-sm mt-1">Costs, revenue, and P&amp;L</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {updatedAt && !loading && (
+            <span className="text-xs text-stone-600">
+              Updated {updatedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          <button onClick={loadData} disabled={loading}
+            className="text-xs px-3 py-1.5 rounded-lg border border-stone-700 text-stone-400 hover:text-white hover:border-stone-500 transition-colors disabled:opacity-40">
+            {loading ? "Loading…" : "↻ Refresh"}
+          </button>
           <select
             value={month}
             onChange={e => setMonth(parseInt(e.target.value))}
@@ -248,24 +264,33 @@ export default function FinancialPage() {
       {/* ── P&L chart ──────────────────────────────────────────────────── */}
       <div className="rounded-2xl p-5" style={{ background: "#1a3044", border: "1px solid #243d52" }}>
         <p className="text-sm font-medium text-stone-300 mb-5">Monthly P&amp;L — last 12 months</p>
-        <ResponsiveContainer width="100%" height={240}>
-          <ComposedChart data={summary} margin={{ left: 0, right: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e3d54" />
-            <XAxis dataKey="label" tick={{ fill: "#78716c", fontSize: 11 }} />
-            <YAxis tick={{ fill: "#78716c", fontSize: 11 }} width={50}
-              tickFormatter={v => `£${v}`} />
-            <Tooltip
-              contentStyle={{ background: "#0f2535", border: "1px solid #243d52", borderRadius: 8 }}
-              labelStyle={{ color: "#d6d3d1" }}
-              formatter={(v) => gbp(Number(v))}
-            />
-            <Legend wrapperStyle={{ fontSize: 11, color: "#78716c" }} />
-            <Bar dataKey="totalCost"    name="Costs"   fill="#ef4444" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="totalRevenue" name="Revenue" fill="#22c55e" radius={[3, 3, 0, 0]} />
-            <Line dataKey="profit" name="Profit/Loss" stroke="#D4A574"
-              strokeWidth={2} dot={false} type="monotone" />
-          </ComposedChart>
-        </ResponsiveContainer>
+        {chartData.length === 0 ? (
+          <div className="flex items-center justify-center h-40 text-center">
+            <div>
+              <p className="text-stone-500 text-sm">No financial data yet.</p>
+              <p className="text-stone-600 text-xs mt-1">Add your first month&apos;s costs and revenue to see your P&amp;L chart.</p>
+            </div>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={chartData} margin={{ left: 0, right: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e3d54" />
+              <XAxis dataKey="label" tick={{ fill: "#78716c", fontSize: 11 }} />
+              <YAxis tick={{ fill: "#78716c", fontSize: 11 }} width={50}
+                tickFormatter={v => `£${v}`} />
+              <Tooltip
+                contentStyle={{ background: "#0f2535", border: "1px solid #243d52", borderRadius: 8 }}
+                labelStyle={{ color: "#d6d3d1" }}
+                formatter={(v) => gbp(Number(v))}
+              />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#78716c" }} />
+              <Bar dataKey="totalCost"    name="Costs"   fill="#ef4444" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="totalRevenue" name="Revenue" fill="#22c55e" radius={[3, 3, 0, 0]} />
+              <Line dataKey="profit" name="Profit/Loss" stroke="#D4A574"
+                strokeWidth={2} dot={false} type="monotone" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* ── Costs table ────────────────────────────────────────────────── */}

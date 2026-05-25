@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
+import { backupDatabase, listBackups } from "../scripts/backup.js";
 
 const COST_PER_RENDER_GBP = 0.03;
 const PRO_PRICE_GBP = 9.99;
@@ -9,11 +10,12 @@ function parseRetailers(raw: string | null): string[] {
   try { return JSON.parse(raw) as string[]; } catch { return []; }
 }
 
-/** Build a 30-day day-by-day count array, oldest first. */
-function groupByDay(dates: Date[]): Array<{ date: string; count: number }> {
+/** Build a day-by-day count array for the given window, oldest first. */
+function groupByDay(dates: Date[], days: number): Array<{ date: string; count: number }> {
   const result: Array<{ date: string; count: number }> = [];
   const now = new Date();
-  for (let i = 29; i >= 0; i--) {
+  const n = days > 0 ? days : 30;
+  for (let i = n - 1; i >= 0; i--) {
     const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
     result.push({ date: d.toISOString().slice(0, 10), count: 0 });
   }
@@ -23,6 +25,24 @@ function groupByDay(dates: Date[]): Array<{ date: string; count: number }> {
     if (slot) slot.count++;
   }
   return result;
+}
+
+/** Anonymise email: keep first char + domain, mask the rest. */
+function anonEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***@***";
+  return `${local[0]}***@${domain}`;
+}
+
+/** Parse the ?range= query param into a cutoff Date or null (= all time). */
+function parseRange(range?: string): Date | null {
+  const now = new Date();
+  switch (range) {
+    case "7d":    return new Date(now.getTime() - 7  * 86400000);
+    case "30d":   return new Date(now.getTime() - 30 * 86400000);
+    case "month": return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    default:      return null; // all time
+  }
 }
 
 function csvRow(values: (string | number | boolean | null)[]): string {
@@ -187,8 +207,8 @@ export async function adminRoutes(app: FastifyInstance) {
         userEmail: r.project.user.email,
       })),
 
-      signupsPerDay: groupByDay(signupsLast30.map((u) => u.createdAt)),
-      rendersPerDay: groupByDay(rendersLast30.map((r) => r.createdAt)),
+      signupsPerDay: groupByDay(signupsLast30.map((u) => u.createdAt), 30),
+      rendersPerDay: groupByDay(rendersLast30.map((r) => r.createdAt), 30),
     };
   });
 
@@ -398,46 +418,46 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // ── Marketing metrics ──────────────────────────────────────────────────────
 
-  app.get("/admin/marketing-metrics", auth, async () => {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  app.get("/admin/marketing-metrics", auth, async (request) => {
+    const { range } = request.query as { range?: string };
+    const cutoff = parseRange(range);
+    const days   = range === "7d" ? 7 : range === "month" ? 31 : range === "all" ? 365 : 30;
+    const dateFilter = cutoff ? { gte: cutoff } : undefined;
 
     const [
       rendersByStyle,
       projectsByRoomType,
       clicksByProduct,
       clicksByRetailer,
-      rendersLast30,
+      renderDates,
     ] = await Promise.all([
-      // Style distribution by render count
       prisma.project.groupBy({
         by: ["designStyle"],
         _count: { _all: true },
-        where: { designStyle: { not: null } },
+        where: { designStyle: { not: null }, ...(dateFilter && { createdAt: dateFilter }) },
         orderBy: { _count: { designStyle: "desc" } },
       }),
-      // Room type distribution
       prisma.project.groupBy({
         by: ["roomType"],
         _count: { _all: true },
-        where: { roomType: { not: null } },
+        where: { roomType: { not: null }, ...(dateFilter && { createdAt: dateFilter }) },
         orderBy: { _count: { roomType: "desc" } },
       }),
-      // Top clicked products
       prisma.productClick.groupBy({
         by: ["productId", "productName", "retailer"],
         _count: { _all: true },
+        where: dateFilter ? { clickedAt: dateFilter } : undefined,
         orderBy: { _count: { productId: "desc" } },
         take: 20,
       }),
-      // Clicks by retailer
       prisma.productClick.groupBy({
         by: ["retailer"],
         _count: { _all: true },
+        where: dateFilter ? { clickedAt: dateFilter } : undefined,
         orderBy: { _count: { retailer: "desc" } },
       }),
-      // Daily render counts for last 30 days
       prisma.render.findMany({
-        where: { createdAt: { gte: thirtyDaysAgo }, deletedAt: null },
+        where: { deletedAt: null, ...(dateFilter && { createdAt: dateFilter }) },
         select: { createdAt: true },
       }),
     ]);
@@ -466,16 +486,21 @@ export async function adminRoutes(app: FastifyInstance) {
         retailer: c.retailer,
         clicks:   c._count._all,
       })),
-      renderTrend: groupByDay(rendersLast30.map(r => r.createdAt)),
+      renderTrend: groupByDay(renderDates.map(r => r.createdAt), days),
     };
   });
 
   // ── Client metrics ─────────────────────────────────────────────────────────
 
-  app.get("/admin/client-metrics", auth, async () => {
-    const now = new Date();
-    const sevenDaysAgo  = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  app.get("/admin/client-metrics", auth, async (request) => {
+    const { range } = request.query as { range?: string };
+    const cutoff    = parseRange(range);
+    const days      = range === "7d" ? 7 : range === "month" ? 31 : range === "all" ? 365 : 30;
+    const dateFilter = cutoff ? { gte: cutoff } : undefined;
+
+    const now           = new Date();
+    const sevenDaysAgo  = new Date(now.getTime() - 7  * 86400000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
     const startOfMonth  = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const freeLimit     = parseInt(process.env.FREE_RENDERS_PER_MONTH ?? "3");
 
@@ -483,19 +508,20 @@ export async function adminRoutes(app: FastifyInstance) {
       totalUsers,
       newUsersThisMonth,
       usersWithProject,
-      signupsLast30,
+      signupDates,
       allUsersWithStats,
+      usersWhoClicked,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { createdAt: { gte: startOfMonth } } }),
       prisma.project.groupBy({ by: ["userId"], _count: { _all: true } }),
       prisma.user.findMany({
-        where: { createdAt: { gte: thirtyDaysAgo } },
+        where: { createdAt: dateFilter ?? {} },
         select: { createdAt: true },
       }),
       prisma.user.findMany({
         select: {
-          id: true, email: true, createdAt: true,
+          id: true, email: true, tier: true, createdAt: true,
           projects: {
             select: {
               renders: {
@@ -506,83 +532,213 @@ export async function adminRoutes(app: FastifyInstance) {
           },
         },
       }),
+      prisma.productClick.groupBy({
+        by: ["userId"],
+        where: { userId: { not: null } },
+      }),
     ]);
 
-    // Build per-user stats
     const userStats = allUsersWithStats.map(u => {
       const renders = u.projects.flatMap(p => p.renders);
-      const renderCount = renders.length;
-      const lastRender  = renders.reduce((max, r) =>
-        r.createdAt > max ? r.createdAt : max, new Date(0));
-      return { ...u, renderCount, lastRender };
+      return { ...u, renders, renderCount: renders.length };
     });
 
-    // Funnel
-    const usersWhoRendered   = userStats.filter(u => u.renderCount > 0);
     const usersWithProjectSet = new Set(usersWithProject.map(u => u.userId));
     const usersWhoMadeProject = userStats.filter(u => usersWithProjectSet.has(u.id));
+    const usersWhoRendered    = userStats.filter(u => u.renderCount > 0);
 
-    const totalClicks = await prisma.productClick.count();
-    const usersWhoClicked = await prisma.productClick.groupBy({
-      by: ["userId"],
-      where: { userId: { not: null } },
-    });
-
-    // Active this month
     const activeThisMonth = userStats.filter(u =>
-      u.projects.flatMap(p => p.renders).some(r => r.createdAt >= startOfMonth)
+      u.renders.some(r => r.createdAt >= startOfMonth),
     ).length;
 
-    // Re-engaged: registered > 7 days ago, rendered in last 7 days
     const reEngaged = userStats.filter(u =>
       u.createdAt < sevenDaysAgo &&
-      u.projects.flatMap(p => p.renders).some(r => r.createdAt >= sevenDaysAgo)
+      u.renders.some(r => r.createdAt >= sevenDaysAgo),
     ).length;
 
-    // Near limit (80%+) and at limit
-    const startOfUtcMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const usersAtOrNearLimit = userStats.map(u => {
-      const rendersThisMonth = u.projects
-        .flatMap(p => p.renders)
-        .filter(r => r.createdAt >= startOfUtcMonth).length;
-      return { ...u, rendersThisMonth };
-    });
-    const nearLimit = usersAtOrNearLimit.filter(u => u.rendersThisMonth >= freeLimit * 0.8 && u.rendersThisMonth < freeLimit).length;
-    const atLimit   = usersAtOrNearLimit.filter(u => u.rendersThisMonth >= freeLimit).length;
+    // Limit monitor — per user this month
+    const usersThisMonth = userStats.map(u => ({
+      ...u,
+      rendersThisMonth: u.renders.filter(r => r.createdAt >= startOfMonth).length,
+    }));
+    const nearLimit = usersThisMonth.filter(u =>
+      u.rendersThisMonth >= freeLimit * 0.8 && u.rendersThisMonth < freeLimit,
+    ).length;
+    const atLimit = usersThisMonth.filter(u =>
+      u.rendersThisMonth >= freeLimit,
+    ).length;
 
-    // Top 10 users
-    const top10 = userStats
+    // Limit monitor table — users at ≥50% usage this month, sorted by %
+    const limitTable = usersThisMonth
+      .filter(u => u.rendersThisMonth >= Math.ceil(freeLimit * 0.5))
+      .sort((a, b) => b.rendersThisMonth - a.rendersThisMonth)
+      .slice(0, 20)
+      .map(u => ({
+        email:       anonEmail(u.email),
+        tier:        u.tier,
+        renders:     u.rendersThisMonth,
+        limit:       freeLimit,
+        usagePct:    Math.round(u.rendersThisMonth / freeLimit * 100),
+      }));
+
+    // Return rates
+    const returnRate7d  = totalUsers > 0
+      ? Math.round(userStats.filter(u =>
+          u.createdAt <= sevenDaysAgo &&
+          u.renders.some(r => r.createdAt >= sevenDaysAgo),
+        ).length / totalUsers * 100) : 0;
+    const returnRate30d = totalUsers > 0
+      ? Math.round(userStats.filter(u =>
+          u.createdAt <= thirtyDaysAgo &&
+          u.renders.some(r => r.createdAt >= thirtyDaysAgo),
+        ).length / totalUsers * 100) : 0;
+
+    // Click-through rate = users who clicked / users who rendered
+    const clickThroughRate = usersWhoRendered.length > 0
+      ? Math.round(usersWhoClicked.length / usersWhoRendered.length * 100) : 0;
+
+    // Top 10
+    const top10 = [...userStats]
       .sort((a, b) => b.renderCount - a.renderCount)
       .slice(0, 10)
       .map((u, i) => ({
         rank: i + 1,
-        email: u.email.replace(/(?<=.{2}).(?=.*@)/g, "*"),  // partial anonymize
+        email: anonEmail(u.email),
         renderCount: u.renderCount,
         joinedDaysAgo: Math.floor((now.getTime() - u.createdAt.getTime()) / 86400000),
       }));
 
-    const totalRenders = userStats.reduce((s, u) => s + u.renderCount, 0);
+    const totalRenders      = userStats.reduce((s, u) => s + u.renderCount, 0);
     const avgRendersPerUser = totalUsers > 0 ? Math.round(totalRenders / totalUsers * 10) / 10 : 0;
 
     return {
       metrics: {
-        totalUsers,
-        newUsersThisMonth,
-        activeThisMonth,
-        totalRenders,
-        avgRendersPerUser,
-        reEngaged,
+        totalUsers, newUsersThisMonth, activeThisMonth,
+        totalRenders, avgRendersPerUser, reEngaged,
+        returnRate7d, returnRate30d, clickThroughRate,
       },
       funnel: [
-        { stage: "Registered",        count: totalUsers },
-        { stage: "Created a project", count: usersWhoMadeProject.length },
-        { stage: "Generated a render",count: usersWhoRendered.length },
-        { stage: "Clicked a product", count: usersWhoClicked.length + (totalClicks > 0 && usersWhoClicked.length === 0 ? totalClicks : 0) },
+        { stage: "Registered",         count: totalUsers },
+        { stage: "Created a project",  count: usersWhoMadeProject.length },
+        { stage: "Generated a render", count: usersWhoRendered.length },
+        { stage: "Clicked a product",  count: usersWhoClicked.length },
       ],
       limitMonitor: { freeLimit, nearLimit, atLimit },
+      limitTable,
       top10,
-      registrationTrend: groupByDay(signupsLast30.map(u => u.createdAt)),
+      registrationTrend: groupByDay(signupDates.map(u => u.createdAt), days),
     };
+  });
+
+  // ── System: database stats ────────────────────────────────────────────────
+
+  app.get("/admin/system/stats", auth, async () => {
+    const [users, projects, renders, products, clicks, costs, revenues] = await Promise.all([
+      prisma.user.count(),
+      prisma.project.count(),
+      prisma.render.count(),
+      prisma.product.count(),
+      prisma.productClick.count(),
+      prisma.costEntry.count(),
+      prisma.revenueEntry.count(),
+    ]);
+    return {
+      tables: [
+        { name: "Users",          count: users },
+        { name: "Projects",       count: projects },
+        { name: "Renders",        count: renders },
+        { name: "Products",       count: products },
+        { name: "ProductClicks",  count: clicks },
+        { name: "CostEntries",    count: costs },
+        { name: "RevenueEntries", count: revenues },
+      ].sort((a, b) => b.count - a.count),
+    };
+  });
+
+  // ── System: health check ───────────────────────────────────────────────────
+
+  app.get("/admin/system/health", auth, async () => {
+    const checks: Record<string, { status: string; responseMs?: number; detail?: string }> = {};
+
+    // Database
+    const dbStart = Date.now();
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      checks.database = { status: "ok", responseMs: Date.now() - dbStart };
+    } catch (e) {
+      checks.database = { status: "error", detail: e instanceof Error ? e.message : "unknown" };
+    }
+
+    // R2 (try listing backup prefix)
+    const r2Start = Date.now();
+    try {
+      const { S3Client, ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+      const client = new S3Client({
+        region: "auto",
+        endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        credentials: {
+          accessKeyId:     process.env.R2_ACCESS_KEY_ID ?? "",
+          secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? "",
+        },
+      });
+      await client.send(new ListObjectsV2Command({
+        Bucket: process.env.R2_BUCKET_NAME ?? "",
+        Prefix: "database-backups/",
+        MaxKeys: 1,
+      }));
+      checks.r2 = { status: "ok", responseMs: Date.now() - r2Start };
+    } catch (e) {
+      checks.r2 = { status: "error", detail: e instanceof Error ? e.message : "unknown" };
+    }
+
+    // Keys present (no live API call)
+    checks.gemini  = { status: process.env.GEMINI_API_KEY  ? "ok" : "missing_key" };
+    checks.resend  = { status: process.env.RESEND_API_KEY  ? "ok" : "missing_key" };
+    checks.adminEmail = { status: process.env.ADMIN_EMAIL  ? "ok" : "missing_key" };
+
+    const allOk = Object.values(checks).every(c => c.status === "ok");
+    return { status: allOk ? "ok" : "degraded", checks, timestamp: new Date().toISOString() };
+  });
+
+  // ── Backups: list ──────────────────────────────────────────────────────────
+
+  app.get("/admin/backups", auth, async () => {
+    try {
+      const backups = await listBackups();
+      return { backups };
+    } catch (e) {
+      return { backups: [], error: e instanceof Error ? e.message : "Failed to list backups" };
+    }
+  });
+
+  // ── Backups: manual trigger ────────────────────────────────────────────────
+
+  let backupRunning = false;
+
+  app.post("/admin/backups/run", auth, async (_req, reply) => {
+    if (backupRunning) {
+      return reply.status(409).send({ error: "A backup is already in progress" });
+    }
+    backupRunning = true;
+    try {
+      const result = await backupDatabase();
+      return result;
+    } finally {
+      backupRunning = false;
+    }
+  });
+
+  // ── Backups: stats ─────────────────────────────────────────────────────────
+
+  app.get("/admin/backups/stats", auth, async () => {
+    try {
+      const backups = await listBackups();
+      if (backups.length === 0) return { totalBackups: 0, latestBackup: null, totalSizeMB: "0.00" };
+      const totalSizeMB = backups.reduce((s, b) => s + parseFloat(b.sizeMB), 0).toFixed(2);
+      return { totalBackups: backups.length, latestBackup: backups[0], totalSizeMB };
+    } catch {
+      return { totalBackups: 0, latestBackup: null, totalSizeMB: "0.00" };
+    }
   });
 
   // ── Product click tracking (public endpoint, auth optional) ───────────────

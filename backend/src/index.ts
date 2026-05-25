@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import cron from "node-cron";
 import cors from "@fastify/cors";
 import compress from "@fastify/compress";
 import helmet from "@fastify/helmet";
@@ -16,6 +17,7 @@ import { authRoutes } from "./routes/auth.js";
 import { productRoutes } from "./routes/products.js";
 import { projectRoutes } from "./routes/projects.js";
 import { adminRoutes } from "./routes/admin.js";
+import { backupDatabase } from "./scripts/backup.js";
 
 const isProd = config.env === "production";
 
@@ -173,5 +175,16 @@ async function scheduleCleanup() {
 }
 await scheduleCleanup();
 setInterval(scheduleCleanup, 24 * 60 * 60 * 1000);
+
+// ── Daily database backup at 02:00 London time ────────────────────────────────
+cron.schedule("0 2 * * *", async () => {
+  app.log.info("Starting scheduled daily backup");
+  try {
+    const result = await backupDatabase();
+    app.log.info({ result }, "Daily backup completed");
+  } catch (err) {
+    app.log.error({ err }, "Daily backup failed");
+  }
+}, { timezone: "Europe/London" });
 
 await app.listen({ port: env.PORT, host: "0.0.0.0" });

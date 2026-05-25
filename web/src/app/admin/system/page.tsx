@@ -1,0 +1,270 @@
+"use client";
+import { useEffect, useState, useCallback } from "react";
+import { admin, type BackupEntry, type BackupStats, type SystemStats, type SystemHealth } from "@/lib/api";
+
+function SectionHeader({ title }: { title: string }) {
+  return <h2 className="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-4">{title}</h2>;
+}
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-2xl p-6 ${className}`} style={{ background: "#1a3044", border: "1px solid #243d52" }}>
+      {children}
+    </div>
+  );
+}
+
+function StatusDot({ status }: { status: string }) {
+  const color = status === "ok" ? "#22c55e" : status === "missing_key" ? "#f59e0b" : "#ef4444";
+  return <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ background: color }} />;
+}
+
+// ── Backup section ─────────────────────────────────────────────────────────────
+
+function BackupSection() {
+  const [stats,    setStats]    = useState<BackupStats | null>(null);
+  const [backups,  setBackups]  = useState<BackupEntry[]>([]);
+  const [running,  setRunning]  = useState(false);
+  const [result,   setResult]   = useState<{ ok: boolean; msg: string } | null>(null);
+  const [loading,  setLoading]  = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [s, b] = await Promise.all([admin.backups.stats(), admin.backups.list()]);
+      setStats(s);
+      setBackups(b.backups);
+    } catch {
+      // R2 might not be reachable from dev
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function runBackup() {
+    if (!confirm("Run a manual backup now? This may take 30–60 seconds.")) return;
+    setRunning(true);
+    setResult(null);
+    try {
+      const r = await admin.backups.run();
+      setResult({ ok: true, msg: `✅ Backup completed! ${r.filename} (${r.sizeMB.toFixed(2)} MB)` });
+      load();
+    } catch (e) {
+      setResult({ ok: false, msg: `❌ Backup failed. ${e instanceof Error ? e.message : "Check Railway logs."}` });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Database backup" />
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <Card>
+          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Total backups</p>
+          <p className="text-3xl font-bold text-white">{loading ? "—" : stats?.totalBackups ?? 0}</p>
+          <p className="text-xs text-stone-500 mt-1">kept in R2 (last 5)</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Latest backup</p>
+          <p className="text-sm font-bold text-white truncate">{loading ? "—" : stats?.latestBackup?.formattedDate ?? "None yet"}</p>
+          <p className="text-xs text-stone-500 mt-1">{stats?.latestBackup?.sizeMB ?? "—"} MB</p>
+        </Card>
+        <Card className="col-span-2 md:col-span-1">
+          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Total stored size</p>
+          <p className="text-3xl font-bold text-white">{loading ? "—" : `${stats?.totalSizeMB ?? "0"} MB`}</p>
+          <p className="text-xs text-stone-500 mt-1">across all backups</p>
+        </Card>
+      </div>
+
+      {/* Manual trigger */}
+      <Card>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <p className="text-sm font-medium text-stone-200">Run backup now</p>
+            <p className="text-xs text-stone-500 mt-0.5">Automated backups run daily at 02:00 London time</p>
+          </div>
+          <button
+            onClick={runBackup}
+            disabled={running}
+            className="px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
+            style={{ background: running ? "#1e3d54" : "#1B4965" }}
+          >
+            {running ? (
+              <span className="flex items-center gap-2">
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-stone-400 border-t-white animate-spin" />
+                Running…
+              </span>
+            ) : "Run Backup Now"}
+          </button>
+        </div>
+        {result && (
+          <p className={`mt-3 text-sm font-medium ${result.ok ? "text-green-400" : "text-red-400"}`}>
+            {result.msg}
+          </p>
+        )}
+      </Card>
+
+      {/* Backup list */}
+      <div className="rounded-2xl overflow-hidden border border-stone-800">
+        <div className="px-4 py-3 border-b border-stone-800 flex items-center justify-between" style={{ background: "#1a3044" }}>
+          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Recent backups</p>
+          <button onClick={load} className="text-xs text-stone-500 hover:text-stone-300 transition-colors">↻ Refresh</button>
+        </div>
+        {loading ? (
+          <div className="px-4 py-6 text-center text-stone-600 text-sm">Loading…</div>
+        ) : backups.length === 0 ? (
+          <div className="px-4 py-6 text-center text-stone-600 text-sm">No backups yet — click "Run Backup Now" to create the first one</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-stone-500 border-b border-stone-800" style={{ background: "#1a3044" }}>
+                <th className="text-left px-4 py-2.5 font-medium">Filename</th>
+                <th className="text-right px-4 py-2.5 font-medium">Size</th>
+                <th className="text-right px-4 py-2.5 font-medium">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {backups.map(b => (
+                <tr key={b.key} className="border-b border-stone-800/50 hover:bg-stone-800/20">
+                  <td className="px-4 py-2.5 font-mono text-xs text-stone-300">{b.filename}</td>
+                  <td className="px-4 py-2.5 text-right text-stone-400 text-xs">{b.sizeMB} MB</td>
+                  <td className="px-4 py-2.5 text-right text-stone-500 text-xs">{b.formattedDate}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── DB stats section ────────────────────────────────────────────────────────────
+
+function DbStatsSection() {
+  const [stats,   setStats]   = useState<SystemStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    admin.system.stats()
+      .then(setStats)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div>
+      <SectionHeader title="Database statistics" />
+      <div className="rounded-2xl overflow-hidden border border-stone-800">
+        {loading ? (
+          <div className="px-4 py-6 text-center text-stone-600 text-sm">Loading…</div>
+        ) : !stats ? (
+          <div className="px-4 py-6 text-center text-stone-600 text-sm">Unable to load stats</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-stone-500 border-b border-stone-800" style={{ background: "#1a3044" }}>
+                <th className="text-left px-4 py-2.5 font-medium">Table</th>
+                <th className="text-right px-4 py-2.5 font-medium">Rows</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.tables.map(t => (
+                <tr key={t.name} className="border-b border-stone-800/50 hover:bg-stone-800/20">
+                  <td className="px-4 py-2.5 text-stone-300">{t.name}</td>
+                  <td className="px-4 py-2.5 text-right text-white font-semibold tabular-nums">{t.count.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── System health section ───────────────────────────────────────────────────────
+
+function HealthSection() {
+  const [health,  setHealth]  = useState<SystemHealth | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const h = await admin.system.health();
+      setHealth(h);
+    } catch {
+      setHealth(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <SectionHeader title="System health" />
+        <button onClick={load} disabled={loading}
+          className="text-xs text-stone-500 hover:text-stone-300 transition-colors mb-4">
+          {loading ? "Checking…" : "↻ Re-check"}
+        </button>
+      </div>
+      <Card>
+        {loading ? (
+          <div className="py-4 text-center text-stone-600 text-sm">Running checks…</div>
+        ) : !health ? (
+          <div className="py-4 text-center text-red-400 text-sm">Health check failed — check Railway logs</div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${health.status === "ok" ? "bg-green-900/40 text-green-400" : "bg-red-900/40 text-red-400"}`}>
+                {health.status}
+              </span>
+              <span className="text-xs text-stone-600">{new Date(health.timestamp).toLocaleTimeString("en-GB")}</span>
+            </div>
+            {Object.entries(health.checks).map(([key, check]) => (
+              <div key={key} className="flex items-center justify-between py-2 border-b border-stone-800/50">
+                <div className="flex items-center">
+                  <StatusDot status={check.status} />
+                  <span className="text-sm text-stone-200 capitalize">{key.replace(/_/g, " ")}</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  {check.responseMs != null && (
+                    <span className="text-xs text-stone-600">{check.responseMs}ms</span>
+                  )}
+                  <span className={`text-xs font-medium ${check.status === "ok" ? "text-green-400" : check.status === "missing_key" ? "text-amber-400" : "text-red-400"}`}>
+                    {check.status === "missing_key" ? "Key not set" : check.status === "ok" ? "OK" : check.detail ?? "Error"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
+
+export default function SystemPage() {
+  return (
+    <div className="space-y-14 max-w-3xl">
+      <div>
+        <h1 className="text-2xl font-bold text-white">System</h1>
+        <p className="text-stone-500 text-sm mt-1">Backups, database stats, and service health</p>
+      </div>
+      <BackupSection />
+      <DbStatsSection />
+      <HealthSection />
+    </div>
+  );
+}
