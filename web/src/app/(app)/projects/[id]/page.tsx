@@ -17,6 +17,7 @@ import {
 } from "@/lib/api";
 import FloorPlanMapper from "@/components/FloorPlanMapper";
 import RoomSummary from "@/components/RoomSummary";
+import ProductLink from "@/components/ProductLink";
 import { config } from "@/config";
 
 const API_BASE = config.apiUrl;
@@ -1205,15 +1206,15 @@ export default function ProjectWorkspacePage() {
                           <span className="font-medium text-stone-900">£{p.priceGbp}</span>
                         )}
                         {p.productUrl && (
-                          <a
+                          <ProductLink
+                            id={p.id}
                             href={p.affiliateUrl ?? p.productUrl}
-                            target="_blank" rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={() => {}}
                             className="text-xs font-medium hover:underline transition-colors"
                             style={{ color: "#1B4965" }}
                           >
                             Shop →
-                          </a>
+                          </ProductLink>
                         )}
                       </div>
                     </li>
@@ -1488,15 +1489,14 @@ function FurnitureRow({ product: p }: { product: RenderProduct }) {
         {p.priceGbp != null && (
           <span className="text-sm font-semibold text-stone-700">£{p.priceGbp.toFixed(0)}</span>
         )}
-        <a
+        <ProductLink
+          id={p.id}
           href={p.affiliateUrl ?? p.productUrl}
-          target="_blank"
-          rel="noopener noreferrer"
           className="text-xs font-medium hover:underline transition-colors"
           style={{ color: "#062C3D" }}
         >
           Shop →
-        </a>
+        </ProductLink>
       </div>
     </li>
   );

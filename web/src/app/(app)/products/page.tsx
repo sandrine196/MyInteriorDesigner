@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { products as api, type Product } from "@/lib/api";
+import ProductLink from "@/components/ProductLink";
 
 const RETAILERS = [
   { value: "", label: "All retailers" },
@@ -121,14 +122,13 @@ export default function ProductsPage() {
                   <p className="text-xs text-stone-400 mb-3">{p.dimensionsRaw}</p>
                 )}
                 {p.productUrl && (
-                  <a
+                  <ProductLink
+                    id={p.id}
                     href={p.affiliateUrl ?? p.productUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="mt-auto inline-flex items-center justify-center gap-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl px-4 py-2 text-xs font-medium transition-colors"
                   >
                     Shop now →
-                  </a>
+                  </ProductLink>
                 )}
               </div>
             </li>

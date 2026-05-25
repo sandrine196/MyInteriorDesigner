@@ -93,6 +93,49 @@ model Render {
   @@index([createdAt])
 }
 
+model CostEntry {
+  id             String   @id @default(cuid())
+  provider       String
+  plan           String
+  monthlyCostGbp Float
+  month          Int
+  year           Int
+  status         String   @default("active")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([year, month])
+}
+
+model RevenueEntry {
+  id        String   @id @default(cuid())
+  source    String
+  type      String
+  amountGbp Float
+  month     Int
+  year      Int
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([year, month])
+}
+
+model ProductClick {
+  id          String   @id @default(cuid())
+  productId   String
+  productName String
+  retailer    String
+  userId      String?
+  clickedAt   DateTime @default(now())
+
+  @@index([productId])
+  @@index([retailer])
+  @@index([clickedAt])
+  @@index([userId])
+}
+
 model Product {
   id             String  @id @default(cuid())
   retailer       String

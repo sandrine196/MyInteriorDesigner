@@ -127,6 +127,8 @@ export const products = {
     if (params.projectId) qs.set("projectId", params.projectId);
     return request<{ items: Product[] }>(`/products?${qs}`);
   },
+  click: (id: string) =>
+    request<{ url: string | null }>(`/products/${id}/click`, { method: "POST" }),
 };
 
 // ── Projects ─────────────────────────────────────────────────────────────────
@@ -307,7 +309,70 @@ export type AdminMetrics = {
   rendersPerDay: Array<{ date: string; count: number }>;
 };
 
+export type CostEntry = {
+  id: string; provider: string; plan: string; monthlyCostGbp: number;
+  month: number; year: number; status: string; notes: string | null;
+};
+
+export type RevenueEntry = {
+  id: string; source: string; type: string; amountGbp: number;
+  month: number; year: number; notes: string | null;
+};
+
+export type FinancialSummaryMonth = {
+  label: string; month: number; year: number;
+  totalCost: number; totalRevenue: number; profit: number;
+};
+
+export type MarketingMetrics = {
+  styleDistribution:  Array<{ style: string | null; count: number; pct: number }>;
+  roomTypeDistribution: Array<{ roomType: string | null; count: number; pct: number }>;
+  topProducts:        Array<{ productId: string; productName: string; retailer: string; clicks: number }>;
+  retailerClicks:     Array<{ retailer: string; clicks: number }>;
+  renderTrend:        Array<{ date: string; count: number }>;
+};
+
+export type ClientMetrics = {
+  metrics: {
+    totalUsers: number; newUsersThisMonth: number; activeThisMonth: number;
+    totalRenders: number; avgRendersPerUser: number; reEngaged: number;
+  };
+  funnel: Array<{ stage: string; count: number }>;
+  limitMonitor: { freeLimit: number; nearLimit: number; atLimit: number };
+  top10: Array<{ rank: number; email: string; renderCount: number; joinedDaysAgo: number }>;
+  registrationTrend: Array<{ date: string; count: number }>;
+};
+
 export const admin = {
-  metrics: () => request<AdminMetrics>("/admin/metrics"),
-  exportUrl: (type: "users" | "renders") => `${BASE}/admin/export/${type}`,
+  metrics:          () => request<AdminMetrics>("/admin/metrics"),
+  exportUrl:        (type: "users" | "renders") => `${BASE}/admin/export/${type}`,
+
+  costs: {
+    list:   (month: number, year: number) =>
+      request<{ entries: CostEntry[] }>(`/admin/costs?month=${month}&year=${year}`),
+    create: (data: Omit<CostEntry, "id">) =>
+      request<{ entry: CostEntry }>("/admin/costs", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<CostEntry>) =>
+      request<{ entry: CostEntry }>(`/admin/costs/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    remove: (id: string) =>
+      request<{ ok: boolean }>(`/admin/costs/${id}`, { method: "DELETE" }),
+  },
+
+  revenues: {
+    list:   (month: number, year: number) =>
+      request<{ entries: RevenueEntry[] }>(`/admin/revenues?month=${month}&year=${year}`),
+    create: (data: Omit<RevenueEntry, "id">) =>
+      request<{ entry: RevenueEntry }>("/admin/revenues", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<RevenueEntry>) =>
+      request<{ entry: RevenueEntry }>(`/admin/revenues/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    remove: (id: string) =>
+      request<{ ok: boolean }>(`/admin/revenues/${id}`, { method: "DELETE" }),
+  },
+
+  financialSummary: () =>
+    request<{ summary: FinancialSummaryMonth[]; cumulativeProfit: number }>("/admin/financial-summary"),
+  marketingMetrics: () =>
+    request<MarketingMetrics>("/admin/marketing-metrics"),
+  clientMetrics:    () =>
+    request<ClientMetrics>("/admin/client-metrics"),
 };
