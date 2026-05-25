@@ -187,4 +187,12 @@ cron.schedule("0 2 * * *", async () => {
   }
 }, { timezone: "Europe/London" });
 
+console.log("Email config:", {
+  hasResendKey: !!process.env.RESEND_API_KEY,
+  resendKeyPrefix: process.env.RESEND_API_KEY?.slice(0, 10),
+  emailFrom: process.env.EMAIL_FROM,
+  emailProvider: process.env.EMAIL_PROVIDER ?? "(auto-detect)",
+  resolvedProvider: config.email.provider,
+});
+
 await app.listen({ port: env.PORT, host: "0.0.0.0" });

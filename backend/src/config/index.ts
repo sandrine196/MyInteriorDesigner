@@ -57,7 +57,11 @@ export const config = {
     alertEmail: env.ALERT_EMAIL,
     apiKey: env.RESEND_API_KEY,
     from: process.env.EMAIL_FROM ?? "hello@myinteriordesigner.co.uk",
-    provider: (process.env.EMAIL_PROVIDER ?? "console") as "console" | "resend" | "smtp",
+    // Auto-select "resend" when a key is present; no separate env var required.
+    // Override with EMAIL_PROVIDER=console to suppress all sends in local dev.
+    provider: (process.env.EMAIL_PROVIDER
+      ?? (env.RESEND_API_KEY ? "resend" : "console")
+    ) as "console" | "resend" | "smtp",
   },
 
   jwt: {

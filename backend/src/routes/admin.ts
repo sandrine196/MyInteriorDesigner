@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { backupDatabase, listBackups } from "../scripts/backup.js";
+import { Resend } from "resend";
+import { config } from "../config/index.js";
 
 const COST_PER_RENDER_GBP = 0.03;
 const PRO_PRICE_GBP = 9.99;
@@ -738,6 +740,46 @@ export async function adminRoutes(app: FastifyInstance) {
       return { totalBackups: backups.length, latestBackup: backups[0], totalSizeMB };
     } catch {
       return { totalBackups: 0, latestBackup: null, totalSizeMB: "0.00" };
+    }
+  });
+
+  // ── Test email (admin only — remove after debugging) ──────────────────────
+
+  app.get("/admin/test-email", auth, async (_req, reply) => {
+    const to      = process.env.ADMIN_EMAIL;
+    const from    = config.email.from;
+    const apiKey  = config.email.apiKey;
+    const provider = config.email.provider;
+
+    const info = { provider, hasApiKey: !!apiKey, from, to: to ?? "(ADMIN_EMAIL not set)" };
+
+    if (!to) {
+      return reply.status(400).send({ error: "ADMIN_EMAIL env var not set", info });
+    }
+    if (provider !== "resend" || !apiKey) {
+      return reply.status(400).send({
+        error: `Email not configured — provider is "${provider}", API key present: ${!!apiKey}`,
+        info,
+      });
+    }
+
+    try {
+      const resend = new Resend(apiKey);
+      const result = await resend.emails.send({
+        from,
+        to,
+        subject: "Test email — MyInteriorDesigner",
+        html: "<p>Email system is working! ✅</p>",
+      });
+      return { ok: true, result, info };
+    } catch (err) {
+      const e = err as { message?: string; statusCode?: number };
+      return reply.status(500).send({
+        ok: false,
+        error: e.message,
+        code:  e.statusCode,
+        info,
+      });
     }
   });
 
