@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { admin, type BackupEntry, type BackupStats, type SystemStats, type SystemHealth } from "@/lib/api";
 
 function SectionHeader({ title }: { title: string }) {
@@ -21,12 +21,103 @@ function StatusDot({ status }: { status: string }) {
 
 // ── Backup section ─────────────────────────────────────────────────────────────
 
+function RestoreModal({ backups, onClose }: { backups: BackupEntry[]; onClose: () => void }) {
+  const [selected,    setSelected]    = useState(backups[0]?.key ?? "");
+  const [restoring,   setRestoring]   = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [error,       setError]       = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  async function doRestore() {
+    if (confirmText !== "RESTORE") return;
+    setRestoring(true);
+    setError(null);
+    try {
+      const r = await admin.backups.restore(selected);
+      alert(`Restore complete — ${r.rowsRestored.toLocaleString()} rows restored.`);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Restore failed. Check Railway logs.");
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
+      <div className="w-full max-w-md rounded-2xl p-6 space-y-5" style={{ background: "#112231", border: "1px solid #243d52" }}>
+        <div>
+          <h3 className="text-base font-semibold text-white">Restore database from backup</h3>
+          <p className="text-xs text-red-400 mt-1">This will DELETE all current data and replace it with the selected backup.</p>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-stone-400 font-medium">Select backup</label>
+          <select
+            value={selected}
+            onChange={e => setSelected(e.target.value)}
+            className="w-full rounded-lg px-3 py-2 text-sm text-white bg-transparent border border-stone-700 focus:outline-none focus:border-stone-500"
+          >
+            {backups.map(b => (
+              <option key={b.key} value={b.key} style={{ background: "#1a3044" }}>
+                {b.filename} — {b.formattedDate}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-stone-400 font-medium">
+            Type <span className="font-mono text-amber-400">RESTORE</span> to confirm
+          </label>
+          <input
+            ref={inputRef}
+            type="text"
+            value={confirmText}
+            onChange={e => setConfirmText(e.target.value)}
+            placeholder="RESTORE"
+            className="w-full rounded-lg px-3 py-2 text-sm text-white bg-transparent border border-stone-700 focus:outline-none focus:border-stone-500 font-mono"
+          />
+        </div>
+
+        {error && <p className="text-sm text-red-400">{error}</p>}
+
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            disabled={restoring}
+            className="px-4 py-2 rounded-lg text-sm text-stone-400 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={doRestore}
+            disabled={confirmText !== "RESTORE" || restoring}
+            className="px-5 py-2 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-40"
+            style={{ background: "#b91c1c" }}
+          >
+            {restoring ? (
+              <span className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full border-2 border-red-300 border-t-white animate-spin" />
+                Restoring…
+              </span>
+            ) : "Restore now"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BackupSection() {
-  const [stats,    setStats]    = useState<BackupStats | null>(null);
-  const [backups,  setBackups]  = useState<BackupEntry[]>([]);
-  const [running,  setRunning]  = useState(false);
-  const [result,   setResult]   = useState<{ ok: boolean; msg: string } | null>(null);
-  const [loading,  setLoading]  = useState(true);
+  const [stats,          setStats]          = useState<BackupStats | null>(null);
+  const [backups,        setBackups]        = useState<BackupEntry[]>([]);
+  const [running,        setRunning]        = useState(false);
+  const [result,         setResult]         = useState<{ ok: boolean; msg: string } | null>(null);
+  const [loading,        setLoading]        = useState(true);
+  const [showRestore,    setShowRestore]    = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,98 +140,116 @@ function BackupSection() {
     setResult(null);
     try {
       const r = await admin.backups.run();
-      setResult({ ok: true, msg: `✅ Backup completed! ${r.filename} (${r.sizeMB.toFixed(2)} MB)` });
+      setResult({ ok: true, msg: `Backup completed! ${r.filename} (${r.sizeMB} MB, ${r.rowCount?.toLocaleString()} rows)` });
       load();
     } catch (e) {
-      setResult({ ok: false, msg: `❌ Backup failed. ${e instanceof Error ? e.message : "Check Railway logs."}` });
+      setResult({ ok: false, msg: `Backup failed. ${e instanceof Error ? e.message : "Check Railway logs."}` });
     } finally {
       setRunning(false);
     }
   }
 
   return (
-    <div className="space-y-4">
-      <SectionHeader title="Database backup" />
+    <>
+      {showRestore && backups.length > 0 && (
+        <RestoreModal backups={backups} onClose={() => { setShowRestore(false); load(); }} />
+      )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Card>
-          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Total backups</p>
-          <p className="text-3xl font-bold text-white">{loading ? "—" : stats?.totalBackups ?? 0}</p>
-          <p className="text-xs text-stone-500 mt-1">kept in R2 (last 5)</p>
-        </Card>
-        <Card>
-          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Latest backup</p>
-          <p className="text-sm font-bold text-white truncate">{loading ? "—" : stats?.latestBackup?.formattedDate ?? "None yet"}</p>
-          <p className="text-xs text-stone-500 mt-1">{stats?.latestBackup?.sizeMB ?? "—"} MB</p>
-        </Card>
-        <Card className="col-span-2 md:col-span-1">
-          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Total stored size</p>
-          <p className="text-3xl font-bold text-white">{loading ? "—" : `${stats?.totalSizeMB ?? "0"} MB`}</p>
-          <p className="text-xs text-stone-500 mt-1">across all backups</p>
-        </Card>
-      </div>
+      <div className="space-y-4">
+        <SectionHeader title="Database backup" />
 
-      {/* Manual trigger */}
-      <Card>
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <p className="text-sm font-medium text-stone-200">Run backup now</p>
-            <p className="text-xs text-stone-500 mt-0.5">Automated backups run daily at 02:00 London time</p>
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <Card>
+            <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Total backups</p>
+            <p className="text-3xl font-bold text-white">{loading ? "—" : stats?.totalBackups ?? 0}</p>
+            <p className="text-xs text-stone-500 mt-1">kept in R2 (last 30)</p>
+          </Card>
+          <Card>
+            <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Latest backup</p>
+            <p className="text-sm font-bold text-white truncate">{loading ? "—" : stats?.latestBackup?.formattedDate ?? "None yet"}</p>
+            <p className="text-xs text-stone-500 mt-1">{stats?.latestBackup?.sizeMB ?? "—"} MB · {stats?.method ?? "—"}</p>
+          </Card>
+          <Card className="col-span-2 md:col-span-1">
+            <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Total stored size</p>
+            <p className="text-3xl font-bold text-white">{loading ? "—" : `${stats?.totalSizeMB ?? "0"} MB`}</p>
+            <p className="text-xs text-stone-500 mt-1">across all backups</p>
+          </Card>
+        </div>
+
+        {/* Actions */}
+        <Card>
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <p className="text-sm font-medium text-stone-200">Backup &amp; restore</p>
+              <p className="text-xs text-stone-500 mt-0.5">Automated backups run daily at 02:00 London time · Prisma JSON</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowRestore(true)}
+                disabled={loading || backups.length === 0}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+                style={{ background: "#2d1515", color: "#fca5a5", border: "1px solid #7f1d1d" }}
+              >
+                Restore from backup…
+              </button>
+              <button
+                onClick={runBackup}
+                disabled={running}
+                className="px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
+                style={{ background: running ? "#1e3d54" : "#1B4965" }}
+              >
+                {running ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded-full border-2 border-stone-400 border-t-white animate-spin" />
+                    Running…
+                  </span>
+                ) : "Run Backup Now"}
+              </button>
+            </div>
           </div>
-          <button
-            onClick={runBackup}
-            disabled={running}
-            className="px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
-            style={{ background: running ? "#1e3d54" : "#1B4965" }}
-          >
-            {running ? (
-              <span className="flex items-center gap-2">
-                <span className="w-3.5 h-3.5 rounded-full border-2 border-stone-400 border-t-white animate-spin" />
-                Running…
-              </span>
-            ) : "Run Backup Now"}
-          </button>
-        </div>
-        {result && (
-          <p className={`mt-3 text-sm font-medium ${result.ok ? "text-green-400" : "text-red-400"}`}>
-            {result.msg}
-          </p>
-        )}
-      </Card>
+          {result && (
+            <p className={`mt-3 text-sm font-medium ${result.ok ? "text-green-400" : "text-red-400"}`}>
+              {result.ok ? "✅" : "❌"} {result.msg}
+            </p>
+          )}
+        </Card>
 
-      {/* Backup list */}
-      <div className="rounded-2xl overflow-hidden border border-stone-800">
-        <div className="px-4 py-3 border-b border-stone-800 flex items-center justify-between" style={{ background: "#1a3044" }}>
-          <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Recent backups</p>
-          <button onClick={load} className="text-xs text-stone-500 hover:text-stone-300 transition-colors">↻ Refresh</button>
-        </div>
-        {loading ? (
-          <div className="px-4 py-6 text-center text-stone-600 text-sm">Loading…</div>
-        ) : backups.length === 0 ? (
-          <div className="px-4 py-6 text-center text-stone-600 text-sm">No backups yet — click "Run Backup Now" to create the first one</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-stone-500 border-b border-stone-800" style={{ background: "#1a3044" }}>
-                <th className="text-left px-4 py-2.5 font-medium">Filename</th>
-                <th className="text-right px-4 py-2.5 font-medium">Size</th>
-                <th className="text-right px-4 py-2.5 font-medium">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {backups.map(b => (
-                <tr key={b.key} className="border-b border-stone-800/50 hover:bg-stone-800/20">
-                  <td className="px-4 py-2.5 font-mono text-xs text-stone-300">{b.filename}</td>
-                  <td className="px-4 py-2.5 text-right text-stone-400 text-xs">{b.sizeMB} MB</td>
-                  <td className="px-4 py-2.5 text-right text-stone-500 text-xs">{b.formattedDate}</td>
+        {/* Backup list */}
+        <div className="rounded-2xl overflow-hidden border border-stone-800">
+          <div className="px-4 py-3 border-b border-stone-800 flex items-center justify-between" style={{ background: "#1a3044" }}>
+            <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Recent backups</p>
+            <button onClick={load} className="text-xs text-stone-500 hover:text-stone-300 transition-colors">↻ Refresh</button>
+          </div>
+          {loading ? (
+            <div className="px-4 py-6 text-center text-stone-600 text-sm">Loading…</div>
+          ) : backups.length === 0 ? (
+            <div className="px-4 py-6 text-center text-stone-600 text-sm">No backups yet — click "Run Backup Now" to create the first one</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-stone-500 border-b border-stone-800" style={{ background: "#1a3044" }}>
+                  <th className="text-left px-4 py-2.5 font-medium">Filename</th>
+                  <th className="text-right px-4 py-2.5 font-medium">Size</th>
+                  <th className="text-right px-4 py-2.5 font-medium">Method</th>
+                  <th className="text-right px-4 py-2.5 font-medium">Created</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {backups.map(b => (
+                  <tr key={b.key} className="border-b border-stone-800/50 hover:bg-stone-800/20">
+                    <td className="px-4 py-2.5 font-mono text-xs text-stone-300">{b.filename}</td>
+                    <td className="px-4 py-2.5 text-right text-stone-400 text-xs">{b.sizeMB} MB</td>
+                    <td className="px-4 py-2.5 text-right text-stone-500 text-xs">{b.method}</td>
+                    <td className="px-4 py-2.5 text-right text-stone-500 text-xs">{b.formattedDate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

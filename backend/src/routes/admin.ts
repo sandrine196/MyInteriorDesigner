@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
-import { backupDatabase, listBackups } from "../scripts/backup.js";
+import { backupDatabase, listBackups, restoreDatabase, getBackupStats } from "../scripts/backup.js";
 import { Resend } from "resend";
 import { config } from "../config/index.js";
 
@@ -734,13 +734,24 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get("/admin/backups/stats", auth, async () => {
     try {
-      const backups = await listBackups();
-      if (backups.length === 0) return { totalBackups: 0, latestBackup: null, totalSizeMB: "0.00" };
-      const totalSizeMB = backups.reduce((s, b) => s + parseFloat(b.sizeMB), 0).toFixed(2);
-      return { totalBackups: backups.length, latestBackup: backups[0], totalSizeMB };
+      return await getBackupStats();
     } catch {
-      return { totalBackups: 0, latestBackup: null, totalSizeMB: "0.00" };
+      return { totalBackups: 0, latestBackup: null, totalSizeMB: "0.00", nextScheduled: null, method: "prisma-json", storageLocation: null };
     }
+  });
+
+  // ── Backups: restore ────────────────────────────────────────────────────────
+
+  app.post("/admin/backups/restore", auth, async (request, reply) => {
+    const { backupKey, confirm } = request.body as { backupKey?: string; confirm?: string };
+    if (confirm !== "RESTORE") {
+      return reply.status(400).send({ error: 'Send confirm: "RESTORE" to proceed.' });
+    }
+    if (!backupKey?.startsWith("database-backups/")) {
+      return reply.status(400).send({ error: "Invalid backup key" });
+    }
+    const result = await restoreDatabase(backupKey);
+    return result;
   });
 
   // ── Test email (admin only — remove after debugging) ──────────────────────

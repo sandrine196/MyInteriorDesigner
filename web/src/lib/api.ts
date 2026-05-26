@@ -356,13 +356,16 @@ export type SystemHealth = {
 };
 
 export type BackupEntry = {
-  filename: string; key: string; sizeMB: string; createdAt: string; formattedDate: string;
+  filename: string; key: string; sizeMB: string; createdAt: string; formattedDate: string; method: string;
 };
 
 export type BackupStats = {
   totalBackups: number;
   latestBackup: BackupEntry | null;
   totalSizeMB: string;
+  nextScheduled: string | null;
+  method: string;
+  storageLocation: string | null;
 };
 
 export const admin = {
@@ -404,8 +407,9 @@ export const admin = {
   },
 
   backups: {
-    list:  () => request<{ backups: BackupEntry[]; error?: string }>("/admin/backups"),
-    run:   () => request<{ success: boolean; filename: string; sizeMB: number; backupsRetained: number }>("/admin/backups/run", { method: "POST" }),
-    stats: () => request<BackupStats>("/admin/backups/stats"),
+    list:    () => request<{ backups: BackupEntry[]; error?: string }>("/admin/backups"),
+    run:     () => request<{ success: boolean; filename: string; sizeMB: string; rowCount: number; backupsRetained: number; method: string }>("/admin/backups/run", { method: "POST" }),
+    stats:   () => request<BackupStats>("/admin/backups/stats"),
+    restore: (backupKey: string) => request<{ success: boolean; rowsRestored: number }>("/admin/backups/restore", { method: "POST", body: JSON.stringify({ backupKey, confirm: "RESTORE" }) }),
   },
 };
