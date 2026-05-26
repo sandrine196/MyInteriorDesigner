@@ -61,8 +61,14 @@ export const auth = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<User>("/auth/me"),
-  exportData: () =>
-    request<Blob>("/me/export", { headers: { Accept: "application/json" } }),
+  exportData: async (): Promise<Blob> => {
+    const t = token();
+    const headers: Record<string, string> = {};
+    if (t) headers["Authorization"] = `Bearer ${t}`;
+    const res = await fetch(`${BASE}/me/export`, { headers });
+    if (!res.ok) throw new ApiError(res.status, "Export failed");
+    return res.blob();
+  },
   deleteAccount: () =>
     request<{ ok: boolean; message: string }>("/me/delete-account", { method: "DELETE" }),
   requestReset: (email: string) =>

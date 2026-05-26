@@ -43,6 +43,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/products", label: "Browse Furniture" },
   ];
 
+  const isAccount = pathname.startsWith("/account");
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-white border-b border-stone-200 px-6 flex items-stretch justify-between">
@@ -82,7 +84,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {user && (
-            <span className="text-stone-400 hidden md:block text-xs">{user.email}</span>
+            <Link
+              href="/account"
+              className={`hidden md:block text-xs transition-colors ${
+                isAccount ? "text-mid-blue font-medium" : "text-stone-400 hover:text-stone-700"
+              }`}
+            >
+              {user.email}
+            </Link>
           )}
           <button
             onClick={signOut}

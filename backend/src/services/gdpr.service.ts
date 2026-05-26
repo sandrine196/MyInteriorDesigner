@@ -1,10 +1,11 @@
+import { zipSync } from "fflate";
 import { prisma } from "../lib/prisma.js";
 import { storage } from "./storage.service.js";
 
 // ── GDPR right to access ───────────────────────────────────────────────────────
 
-export async function exportUserData(userId: string) {
-  const [user, projects] = await Promise.all([
+export async function exportUserData(userId: string): Promise<Buffer> {
+  const [user, projects, clicks, events] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, tier: true, createdAt: true },
@@ -12,47 +13,116 @@ export async function exportUserData(userId: string) {
     prisma.project.findMany({
       where: { userId },
       orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        name: true,
-        createdAt: true,
-        budgetMin: true,
-        budgetMax: true,
-        designStyle: true,
-        preferredRetailers: true,
-        roomLengthMm: true,
-        roomWidthMm: true,
-        ceilingHeightMm: true,
+      include: {
         renders: {
+          where: { deletedAt: null },
           orderBy: { createdAt: "asc" },
           select: {
-            id: true,
-            status: true,
-            prompt: true,
-            errorMessage: true,
-            createdAt: true,
+            id: true, status: true, prompt: true,
+            imageKey: true, errorMessage: true, createdAt: true,
           },
         },
       },
     }),
+    prisma.productClick.findMany({
+      where: { userId },
+      orderBy: { clickedAt: "asc" },
+      select: { productName: true, retailer: true, clickedAt: true },
+    }),
+    prisma.analyticsEvent.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      select: { eventType: true, metadata: true, createdAt: true },
+    }),
   ]);
 
-  return {
+  // profile.json
+  const profile = {
     exportedAt: new Date().toISOString(),
-    user,
-    projects: projects.map((p) => ({
-      ...p,
-      preferredRetailers: (() => {
-        try { return JSON.parse(p.preferredRetailers ?? "[]"); } catch { return []; }
+    id:        user?.id,
+    email:     user?.email,
+    tier:      user?.tier,
+    createdAt: user?.createdAt,
+  };
+
+  // projects.json — render image keys replaced with local ZIP paths
+  const projectsExport = projects.map((p) => ({
+    id:            p.id,
+    name:          p.name,
+    roomType:      p.roomType,
+    designStyle:   p.designStyle,
+    budgetMin:     p.budgetMin,
+    budgetMax:     p.budgetMax,
+    roomLengthMm:  p.roomLengthMm,
+    roomWidthMm:   p.roomWidthMm,
+    ceilingHeightMm: p.ceilingHeightMm,
+    wallColorPalette: p.wallColorPalette,
+    flooringType:  p.flooringType,
+    preferredRetailers: (() => {
+      try { return JSON.parse(p.preferredRetailers ?? "[]"); } catch { return []; }
+    })(),
+    createdAt: p.createdAt,
+    renders: p.renders.map((r) => ({
+      id:           r.id,
+      status:       r.status,
+      prompt:       r.prompt,
+      imageFile:    r.imageKey ? `renders/${r.id}.png` : null,
+      errorMessage: r.errorMessage,
+      createdAt:    r.createdAt,
+    })),
+  }));
+
+  // usage.json
+  const usageExport = {
+    productClicks: clicks,
+    analyticsEvents: events.map((e) => ({
+      eventType: e.eventType,
+      createdAt: e.createdAt,
+      metadata: (() => {
+        try { return e.metadata ? JSON.parse(e.metadata) : null; } catch { return e.metadata; }
       })(),
     })),
   };
+
+  const enc = (obj: unknown) => new Uint8Array(Buffer.from(JSON.stringify(obj, null, 2)));
+
+  const files: Record<string, Uint8Array> = {
+    "profile.json":  enc(profile),
+    "projects.json": enc(projectsExport),
+    "usage.json":    enc(usageExport),
+  };
+
+  // Download render images in parallel (best-effort — missing files are skipped)
+  const renderEntries = projects.flatMap((p) =>
+    p.renders
+      .filter((r) => r.imageKey)
+      .map((r) => ({ id: r.id, imageKey: r.imageKey! })),
+  );
+
+  await Promise.all(
+    renderEntries.map(async ({ id, imageKey }) => {
+      try {
+        let buf: Buffer;
+        if (imageKey.startsWith("http")) {
+          const res = await fetch(imageKey);
+          if (!res.ok) return;
+          buf = Buffer.from(await res.arrayBuffer());
+        } else {
+          buf = await storage.download(imageKey);
+        }
+        files[`renders/${id}.png`] = new Uint8Array(buf);
+      } catch {
+        // skip missing or inaccessible renders
+      }
+    }),
+  );
+
+  return Buffer.from(zipSync(files, { level: 1 }));
 }
 
 // ── GDPR right to erasure ──────────────────────────────────────────────────────
 
 export async function deleteUserData(userId: string): Promise<void> {
-  // Collect storage keys before cascade-deleting DB records
   const projects = await prisma.project.findMany({
     where: { userId },
     select: {
@@ -61,7 +131,6 @@ export async function deleteUserData(userId: string): Promise<void> {
     },
   });
 
-  // Delete files from storage (best-effort — DB deletion proceeds even if storage fails)
   for (const project of projects) {
     if (project.floorPlanKey) {
       await storage.delete(project.floorPlanKey).catch(() => {});
@@ -73,6 +142,5 @@ export async function deleteUserData(userId: string): Promise<void> {
     }
   }
 
-  // Prisma cascade (onDelete: Cascade) handles renders → projects automatically
   await prisma.user.delete({ where: { id: userId } });
 }

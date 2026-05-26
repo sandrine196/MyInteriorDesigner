@@ -136,13 +136,11 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const u = request.user as { sub: string };
-      const data = await exportUserData(u.sub);
-      reply.header(
-        "Content-Disposition",
-        `attachment; filename="my-interior-designer-data-${u.sub}.json"`
-      );
-      reply.header("Content-Type", "application/json");
-      return reply.send(JSON.stringify(data, null, 2));
+      const zip = await exportUserData(u.sub);
+      reply.header("Content-Type", "application/zip");
+      reply.header("Content-Disposition", 'attachment; filename="my-interior-designer-data.zip"');
+      reply.header("Content-Length", zip.length);
+      return reply.send(zip);
     }
   );
 
