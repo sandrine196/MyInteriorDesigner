@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Resend } from "resend";
 import { config } from "../config/index.js";
 
@@ -7,15 +8,55 @@ function displayName(email: string): string {
   return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
+// ── Unsubscribe token helpers ──────────────────────────────────────────────────
+// Token = base64url( email + ":" + HMAC-SHA256(email, JWT_SECRET) )
+// No expiry — intentional for unsubscribe links.
+
+function secret() {
+  return process.env.JWT_SECRET ?? "dev-secret";
+}
+
+export function makeUnsubToken(email: string): string {
+  const sig = createHmac("sha256", secret())
+    .update(email.toLowerCase())
+    .digest("hex");
+  return Buffer.from(`${email}:${sig}`).toString("base64url");
+}
+
+export function verifyUnsubToken(token: string): string | null {
+  try {
+    const decoded = Buffer.from(token, "base64url").toString("utf8");
+    const idx = decoded.lastIndexOf(":");
+    if (idx < 0) return null;
+    const email = decoded.slice(0, idx);
+    const sig   = decoded.slice(idx + 1);
+    const expected = createHmac("sha256", secret())
+      .update(email.toLowerCase())
+      .digest("hex");
+    if (sig.length !== expected.length) return null;
+    if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+    return email;
+  } catch {
+    return null;
+  }
+}
+
+function unsubFooter(to: string): string {
+  const token = makeUnsubToken(to);
+  const url   = `${config.server.frontendUrl}/unsubscribe?token=${token}`;
+  return `<div style="margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:12px;color:#999;font-family:system-ui,sans-serif;">
+    <p style="margin:0;">You're receiving this email because you have an account at My Interior Designer.</p>
+    <p style="margin:4px 0 0;"><a href="${url}" style="color:#999;text-decoration:underline;">Unsubscribe from marketing emails</a></p>
+  </div>`;
+}
+
+// ── Core send ──────────────────────────────────────────────────────────────────
+
 async function send(subject: string, to: string, html: string): Promise<void> {
   const { provider, apiKey, from } = config.email;
 
   console.log("=== EMAIL ATTEMPT ===");
-  console.log("To:", to);
-  console.log("From:", from);
-  console.log("Subject:", subject);
-  console.log("Provider:", provider);
-  console.log("Has API key:", !!apiKey);
+  console.log("To:", to, "| Subject:", subject, "| Provider:", provider, "| Key:", !!apiKey);
 
   if (provider !== "resend" || !apiKey) {
     console.log("=== EMAIL SKIPPED (provider:", provider, "/ key present:", !!apiKey, ") ===");
@@ -24,18 +65,16 @@ async function send(subject: string, to: string, html: string): Promise<void> {
 
   try {
     const resend = new Resend(apiKey);
-    const result = await resend.emails.send({ from, to, subject, html });
+    const result = await resend.emails.send({ from, to, subject, html: html + unsubFooter(to) });
     console.log("=== EMAIL SUCCESS ===", result);
   } catch (err) {
     const e = err as { message?: string; statusCode?: number };
-    console.error("=== EMAIL FAILED ===", {
-      message: e.message,
-      code:    e.statusCode,
-      details: err,
-    });
+    console.error("=== EMAIL FAILED ===", { message: e.message, code: e.statusCode, details: err });
     throw err;
   }
 }
+
+// ── Email methods ──────────────────────────────────────────────────────────────
 
 export const emailService = {
   async sendWelcome(to: string): Promise<void> {
@@ -66,7 +105,7 @@ export const emailService = {
   },
 
   async sendPasswordReset(to: string, resetToken: string): Promise<void> {
-    const name = displayName(to);
+    const name     = displayName(to);
     const resetUrl = `${config.server.frontendUrl}/reset-password?token=${resetToken}`;
     try {
       await send(
@@ -85,7 +124,7 @@ export const emailService = {
         </div>`,
       );
     } catch {
-      // Log already printed inside send(); swallow so the route returns the friendly message
+      // Swallow so the route returns the friendly message
     }
   },
 
@@ -107,32 +146,6 @@ export const emailService = {
       );
     } catch {
       // Non-critical — render was still generated
-    }
-  },
-
-  async sendAccountDeleted(to: string): Promise<void> {
-    try {
-      await send(
-        "Your My Interior Designer account has been deleted",
-        to,
-        `<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;">
-          <h2 style="color:#062C3D;">Account deleted</h2>
-          <p>Your account has been permanently deleted. All your data has been removed from our systems, including:</p>
-          <ul style="line-height:1.8;color:#444;">
-            <li>Your profile and login credentials</li>
-            <li>All room projects and settings</li>
-            <li>All generated room renders</li>
-            <li>Your product click history</li>
-          </ul>
-          <p>This action is irreversible. If you change your mind, you're welcome to create a new account at any time.</p>
-          <div style="margin:30px 0;">
-            <a href="${config.server.frontendUrl}" style="background:#D4A574;color:#062C3D;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:500;">Visit My Interior Designer</a>
-          </div>
-          <p style="color:#666;font-size:14px;margin-top:40px;">Questions? Contact us at help@myinteriordesigner.co.uk</p>
-        </div>`,
-      );
-    } catch {
-      // Non-critical — account is already deleted
     }
   },
 
@@ -160,6 +173,36 @@ export const emailService = {
       );
     } catch {
       // Non-critical
+    }
+  },
+
+  async sendAccountDeleted(to: string): Promise<void> {
+    // Intentionally no unsubscribe footer — account is already gone
+    const { provider, apiKey, from } = config.email;
+    if (provider !== "resend" || !apiKey) return;
+    try {
+      const resend = new Resend(apiKey);
+      await resend.emails.send({
+        from, to,
+        subject: "Your My Interior Designer account has been deleted",
+        html: `<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#062C3D;">Account deleted</h2>
+          <p>Your account has been permanently deleted. All your data has been removed from our systems, including:</p>
+          <ul style="line-height:1.8;color:#444;">
+            <li>Your profile and login credentials</li>
+            <li>All room projects and settings</li>
+            <li>All generated room renders</li>
+            <li>Your product click history</li>
+          </ul>
+          <p>This action is irreversible. If you change your mind, you're welcome to create a new account at any time.</p>
+          <div style="margin:30px 0;">
+            <a href="${config.server.frontendUrl}" style="background:#D4A574;color:#062C3D;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:500;">Visit My Interior Designer</a>
+          </div>
+          <p style="color:#666;font-size:14px;margin-top:40px;">Questions? Contact us at help@myinteriordesigner.co.uk</p>
+        </div>`,
+      });
+    } catch {
+      // Non-critical — account is already deleted
     }
   },
 };

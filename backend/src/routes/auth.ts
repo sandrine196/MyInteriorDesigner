@@ -6,7 +6,7 @@ import { prisma } from "../lib/prisma.js";
 import { hashPassword, verifyPassword } from "../lib/auth.js";
 import { track } from "../lib/analytics.js";
 import { exportUserData, deleteUserData } from "../services/gdpr.service.js";
-import { emailService } from "../services/email.service.js";
+import { emailService, verifyUnsubToken } from "../services/email.service.js";
 
 const passwordSchema = z
   .string()
@@ -15,8 +15,9 @@ const passwordSchema = z
   .regex(/\d/, "Password must contain at least one number");
 
 const registerBody = z.object({
-  email: z.string().email(),
-  password: passwordSchema,
+  email:             z.string().email(),
+  password:          passwordSchema,
+  marketingConsent:  z.boolean().optional().default(false),
 });
 
 const loginBody = z.object({
@@ -57,13 +58,18 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
     }
     const passwordHash = await hashPassword(body.password);
     const user = await prisma.user.create({
-      data: { email: body.email, passwordHash },
-      select: { id: true, email: true, tier: true, isAdmin: true },
+      data: {
+        email:                body.email,
+        passwordHash,
+        marketingConsent:     body.marketingConsent,
+        marketingConsentDate: body.marketingConsent ? new Date() : null,
+      },
+      select: { id: true, email: true, tier: true, isAdmin: true, marketingConsent: true },
     });
     track("user_signup", user.id, { email: user.email });
     void emailService.sendWelcome(user.email);
     const token = await reply.jwtSign({ sub: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin });
-    return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin } };
+    return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin, marketingConsent: user.marketingConsent } };
   });
 
   app.post("/auth/login", authRateLimit, async (request, reply) => {
@@ -89,9 +95,48 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
     { preHandler: [app.authenticate] },
     async (request) => {
       const u = request.user as { sub: string; email: string; tier: string; isAdmin: boolean };
-      return { id: u.sub, email: u.email, tier: u.tier, isAdmin: u.isAdmin };
+      const user = await prisma.user.findUnique({
+        where: { id: u.sub },
+        select: { marketingConsent: true },
+      });
+      return { id: u.sub, email: u.email, tier: u.tier, isAdmin: u.isAdmin, marketingConsent: user?.marketingConsent ?? false };
     }
   );
+
+  // ── PATCH /me/marketing-consent ───────────────────────────────────────────
+
+  app.patch(
+    "/me/marketing-consent",
+    { preHandler: [app.authenticate] },
+    async (request) => {
+      const u = request.user as { sub: string };
+      const { consent } = request.body as { consent: boolean };
+      await prisma.user.update({
+        where: { id: u.sub },
+        data: {
+          marketingConsent:     consent,
+          marketingConsentDate: new Date(),
+        },
+      });
+      return { ok: true, marketingConsent: consent };
+    }
+  );
+
+  // ── GET /unsubscribe (public, token-based) ────────────────────────────────
+
+  app.get("/unsubscribe", async (request, reply) => {
+    const { token } = request.query as { token?: string };
+    if (!token) return reply.status(400).send({ error: "Missing token" });
+
+    const email = verifyUnsubToken(token);
+    if (!email) return reply.status(400).send({ error: "Invalid or tampered unsubscribe link" });
+
+    await prisma.user.updateMany({
+      where: { email: email.toLowerCase() },
+      data: { marketingConsent: false, marketingConsentDate: new Date() },
+    });
+    return { ok: true };
+  });
 
   app.post("/auth/request-reset", authRateLimit, async (request, reply) => {
     const parsed = requestResetBody.safeParse(request.body);

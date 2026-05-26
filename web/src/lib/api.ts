@@ -44,15 +44,15 @@ export class ApiError extends Error {
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
-export type User = { id: string; email: string; tier: "free" | "pro"; isAdmin?: boolean };
+export type User = { id: string; email: string; tier: "free" | "pro"; isAdmin?: boolean; marketingConsent: boolean };
 export type AuthResponse = { token: string; user: User };
 
 export const auth = {
-  register: (email: string, password: string) =>
+  register: (email: string, password: string, marketingConsent = false) =>
     request<AuthResponse>("/auth/register", {
       method: "POST",
       auth: false,
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, marketingConsent }),
     }),
   login: (email: string, password: string) =>
     request<AuthResponse>("/auth/login", {
@@ -71,6 +71,13 @@ export const auth = {
   },
   deleteAccount: () =>
     request<{ ok: boolean; message: string }>("/me/delete-account", { method: "DELETE" }),
+  updateMarketingConsent: (consent: boolean) =>
+    request<{ ok: boolean; marketingConsent: boolean }>("/me/marketing-consent", {
+      method: "PATCH",
+      body: JSON.stringify({ consent }),
+    }),
+  unsubscribe: (token: string) =>
+    request<{ ok: boolean }>(`/unsubscribe?token=${encodeURIComponent(token)}`, { auth: false }),
   requestReset: (email: string) =>
     request<{ message: string }>("/auth/request-reset", {
       method: "POST",

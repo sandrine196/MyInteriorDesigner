@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, clearToken } from "@/lib/api";
 
@@ -122,6 +122,68 @@ function DeleteModal({ onClose, onDeleted }: { onClose: () => void; onDeleted: (
   );
 }
 
+function MarketingToggle() {
+  const [consent,  setConsent]  = useState<boolean | null>(null);
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+
+  useEffect(() => {
+    auth.me().then((u) => setConsent(u.marketingConsent)).catch(() => {});
+  }, []);
+
+  async function toggle() {
+    if (consent === null) return;
+    const next = !consent;
+    setSaving(true);
+    setSaved(false);
+    try {
+      await auth.updateMarketingConsent(next);
+      setConsent(next);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (consent === null) {
+    return <div className="h-8 w-48 bg-stone-200 rounded-lg animate-pulse" />;
+  }
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={toggle}
+        disabled={saving}
+        className="flex items-center gap-3 group"
+        aria-pressed={consent}
+      >
+        <span
+          className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${
+            consent ? "bg-mid-blue" : "bg-stone-300"
+          } ${saving ? "opacity-60" : ""}`}
+          style={consent ? { background: "#1B4965" } : {}}
+        >
+          <span
+            className={`inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200 ${
+              consent ? "translate-x-5" : "translate-x-0"
+            }`}
+          />
+        </span>
+        <span className="text-sm text-stone-700 group-hover:text-stone-900 transition-colors">
+          {consent ? "Marketing emails on" : "Marketing emails off"}
+        </span>
+      </button>
+      {saved && <p className="text-xs text-green-600 font-medium">Preference saved.</p>}
+      <p className="text-xs text-stone-400">
+        {consent
+          ? "You'll receive design tips and exclusive furniture deals."
+          : "You won't receive marketing emails. Transactional emails (password reset, render ready) are unaffected."}
+      </p>
+    </div>
+  );
+}
+
 export default function AccountPage() {
   const router = useRouter();
 
@@ -219,6 +281,14 @@ export default function AccountPage() {
           <p className="text-xs text-stone-400 mt-4">
             Large exports (many renders) may take up to 30 seconds to prepare.
           </p>
+        </Section>
+
+        {/* Email preferences section */}
+        <Section
+          title="Email preferences"
+          description="Control which emails you receive from us."
+        >
+          <MarketingToggle />
         </Section>
 
         {/* Privacy / delete section */}

@@ -8,15 +8,17 @@ datasource db {
 }
 
 model User {
-  id           String               @id @default(cuid())
-  email        String               @unique
-  passwordHash String
-  tier         String               @default("free")
-  suspended    Boolean              @default(false)
-  isAdmin      Boolean              @default(false)
-  createdAt    DateTime             @default(now())
-  projects     Project[]
-  resetTokens  PasswordResetToken[]
+  id                   String               @id @default(cuid())
+  email                String               @unique
+  passwordHash         String
+  tier                 String               @default("free")
+  suspended            Boolean              @default(false)
+  isAdmin              Boolean              @default(false)
+  createdAt            DateTime             @default(now())
+  marketingConsent     Boolean              @default(false)
+  marketingConsentDate DateTime?
+  projects             Project[]
+  resetTokens          PasswordResetToken[]
 }
 
 model AnalyticsEvent {

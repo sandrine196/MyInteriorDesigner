@@ -6,17 +6,18 @@ import { auth, saveToken, ApiError } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [email,             setEmail]             = useState("");
+  const [password,          setPassword]          = useState("");
+  const [marketingConsent,  setMarketingConsent]  = useState(false);
+  const [error,             setError]             = useState("");
+  const [loading,           setLoading]           = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const { token } = await auth.register(email, password);
+      const { token } = await auth.register(email, password, marketingConsent);
       saveToken(token);
       router.push("/projects");
     } catch (err) {
@@ -68,6 +69,19 @@ export default function RegisterPage() {
               className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent"
             />
           </div>
+
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={marketingConsent}
+              onChange={(e) => setMarketingConsent(e.target.checked)}
+              className="mt-0.5 w-4 h-4 shrink-0 rounded accent-mid-blue cursor-pointer"
+            />
+            <span className="text-xs text-stone-500 leading-relaxed group-hover:text-stone-700 transition-colors">
+              I'd like to receive design tips and exclusive furniture deals{" "}
+              <span className="text-stone-400">(optional)</span>
+            </span>
+          </label>
 
           <button
             type="submit"

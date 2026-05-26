@@ -378,7 +378,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
 
       const user = await prisma.user.findUnique({
         where: { id: u.sub },
-        select: { email: true, suspended: true },
+        select: { email: true, suspended: true, marketingConsent: true },
       });
       if (user?.suspended) {
         return reply.status(403).send({
@@ -557,7 +557,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
         if (user?.email) {
           void emailService.sendRenderReady(user.email, project.name, projectId);
 
-          if (u.tier === "free") {
+          if (u.tier === "free" && user.marketingConsent) {
             const usedAfter = await countSuccessfulRendersThisMonth(u.sub);
             if (usedAfter === env.FREE_RENDERS_PER_MONTH - 1) {
               void emailService.sendUsageWarning(user.email, usedAfter, env.FREE_RENDERS_PER_MONTH);
