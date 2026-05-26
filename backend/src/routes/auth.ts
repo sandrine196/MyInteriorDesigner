@@ -150,9 +150,10 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
     "/me/delete-account",
     { preHandler: [app.authenticate] },
     async (request) => {
-      const u = request.user as { sub: string };
+      const u = request.user as { sub: string; email: string };
       await deleteUserData(u.sub);
-      // JWT is stateless — instruct the client to clear its token.
+      // Fire-and-forget confirmation email (account is already gone, don't fail the response)
+      void emailService.sendAccountDeleted(u.email);
       return { ok: true, message: "Account and all associated data have been deleted." };
     }
   );

@@ -123,6 +123,7 @@ export async function exportUserData(userId: string): Promise<Buffer> {
 // ── GDPR right to erasure ──────────────────────────────────────────────────────
 
 export async function deleteUserData(userId: string): Promise<void> {
+  // Collect storage keys and render count before any deletion
   const projects = await prisma.project.findMany({
     where: { userId },
     select: {
@@ -131,16 +132,34 @@ export async function deleteUserData(userId: string): Promise<void> {
     },
   });
 
-  for (const project of projects) {
-    if (project.floorPlanKey) {
-      await storage.delete(project.floorPlanKey).catch(() => {});
-    }
-    for (const render of project.renders) {
-      if (render.imageKey && !render.imageKey.startsWith("http")) {
-        await storage.delete(render.imageKey).catch(() => {});
-      }
-    }
-  }
+  const renderCount = projects.reduce((n, p) => n + p.renders.length, 0);
 
+  // Delete files from storage in parallel (best-effort — DB deletion proceeds even on failure)
+  await Promise.all(
+    projects.flatMap((p) => {
+      const keys: string[] = [];
+      if (p.floorPlanKey) keys.push(p.floorPlanKey);
+      for (const r of p.renders) {
+        if (r.imageKey && !r.imageKey.startsWith("http")) keys.push(r.imageKey);
+      }
+      return keys.map((k) => storage.delete(k).catch(() => {}));
+    }),
+  );
+
+  // Delete non-cascaded records linked by userId
+  await Promise.all([
+    prisma.productClick.deleteMany({ where: { userId } }),
+    prisma.analyticsEvent.deleteMany({ where: { userId } }),
+  ]);
+
+  // Preserve anonymised aggregate signal (no userId attached)
+  await prisma.analyticsEvent.create({
+    data: {
+      eventType: "account_deleted",
+      metadata:  JSON.stringify({ renderCount }),
+    },
+  });
+
+  // Delete user — Prisma cascade removes projects → renders → passwordResetTokens
   await prisma.user.delete({ where: { id: userId } });
 }

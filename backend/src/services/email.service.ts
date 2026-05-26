@@ -110,6 +110,32 @@ export const emailService = {
     }
   },
 
+  async sendAccountDeleted(to: string): Promise<void> {
+    try {
+      await send(
+        "Your My Interior Designer account has been deleted",
+        to,
+        `<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#062C3D;">Account deleted</h2>
+          <p>Your account has been permanently deleted. All your data has been removed from our systems, including:</p>
+          <ul style="line-height:1.8;color:#444;">
+            <li>Your profile and login credentials</li>
+            <li>All room projects and settings</li>
+            <li>All generated room renders</li>
+            <li>Your product click history</li>
+          </ul>
+          <p>This action is irreversible. If you change your mind, you're welcome to create a new account at any time.</p>
+          <div style="margin:30px 0;">
+            <a href="${config.server.frontendUrl}" style="background:#D4A574;color:#062C3D;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:500;">Visit My Interior Designer</a>
+          </div>
+          <p style="color:#666;font-size:14px;margin-top:40px;">Questions? Contact us at help@myinteriordesigner.co.uk</p>
+        </div>`,
+      );
+    } catch {
+      // Non-critical — account is already deleted
+    }
+  },
+
   async sendUsageWarning(to: string, rendersUsed: number, rendersLimit: number): Promise<void> {
     const name = displayName(to);
     try {
