@@ -6,11 +6,11 @@ export interface FitResult {
 }
 
 // Categories that map to living-room fit logic
-const LIVING_CATS = new Set(["sofa", "sofas", "armchair", "armchairs", "coffee_table", "side_table", "tv_unit"]);
+const LIVING_CATS = new Set(["sofa", "armchair", "coffee_table", "side_table", "tv_unit"]);
 // Categories that map to bedroom fit logic
-const BEDROOM_CATS = new Set(["bed", "beds", "wardrobe", "wardrobes", "bedside_table"]);
+const BEDROOM_CATS = new Set(["bed", "wardrobe", "bedside_table"]);
 // Categories that map to dining fit logic
-const DINING_CATS = new Set(["dining_table", "dining_chair", "dining_chairs"]);
+const DINING_CATS = new Set(["dining_table", "dining_chair"]);
 
 function noData(): FitResult {
   return { fits: "unknown", clearanceCm: 0, message: "Dimensions unavailable", recommendation: "Check dimensions before purchasing" };

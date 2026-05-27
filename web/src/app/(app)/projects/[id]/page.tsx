@@ -1132,8 +1132,16 @@ export default function ProjectWorkspacePage() {
               placeholder="Search sofas, tables, beds…"
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
-              className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
+              className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
             />
+            {!hasDimensions && (
+              <p className="text-xs text-stone-400 mb-3 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                </svg>
+                Add room dimensions in Step 1 to see fit results
+              </p>
+            )}
             {productsLoading ? (
               <div className="grid sm:grid-cols-2 gap-2">
                 {[1, 2, 3, 4].map((i) => (
