@@ -714,7 +714,7 @@ function Footer() {
           </div>
         </div>
         <div className="border-t border-white/10 pt-6 text-xs text-blue-200/30">
-          © {new Date().getFullYear()} MyInteriorDesigner.co.uk · All rights reserved · ICO Registered: CSN9872434
+          © {new Date().getFullYear()} MyInteriorDesigner.co.uk · All rights reserved · ICO Registered: 00014236119
         </div>
       </div>
     </footer>

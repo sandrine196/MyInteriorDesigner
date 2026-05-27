@@ -103,7 +103,7 @@ export default function PrivacyPage() {
           <p className="font-semibold">My Interior Designer</p>
           <p>Trading as MyInteriorDesigner.co.uk</p>
           <p>Email: <a href="mailto:hello@myinteriordesigner.co.uk" className="underline">hello@myinteriordesigner.co.uk</a></p>
-          <p className="pt-1 border-t border-stone-200 mt-2">ICO Registration Number: <strong>CSN9872434</strong></p>
+          <p className="pt-1 border-t border-stone-200 mt-2">ICO Registration Number: <strong>00014236119</strong></p>
           <p className="text-stone-500">Registered with the Information Commissioner&apos;s Office under the Data Protection Act 2018</p>
         </div>
 

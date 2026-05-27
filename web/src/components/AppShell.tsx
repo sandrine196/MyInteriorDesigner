@@ -119,7 +119,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <footer className="border-t border-stone-100 px-6 py-4">
         <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-stone-400">© {new Date().getFullYear()} MyInteriorDesigner.co.uk &middot; ICO Registered: CSN9872434</p>
+          <p className="text-xs text-stone-400">© {new Date().getFullYear()} MyInteriorDesigner.co.uk &middot; ICO Registered: 00014236119</p>
           <nav className="flex gap-4 text-xs text-stone-400">
             <Link href="/privacy" className="hover:text-stone-700 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-stone-700 transition-colors">Terms</Link>
