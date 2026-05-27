@@ -71,7 +71,7 @@ export async function productRoutes(app: FastifyInstance) {
         }
       }
 
-      const hasDimensions = roomLengthMm != null && roomWidthMm != null;
+      const hasDimensions = !!roomLengthMm && !!roomWidthMm;
 
       const rawItems = await prisma.product.findMany({
         where,

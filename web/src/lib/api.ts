@@ -97,7 +97,7 @@ export const auth = {
 // ── Products ─────────────────────────────────────────────────────────────────
 
 export type FitResult = {
-  fits: "perfect" | "tight" | "too_large";
+  fits: "perfect" | "tight" | "too_large" | "unknown";
   clearanceCm: number;
   message: string;
   recommendation: string;

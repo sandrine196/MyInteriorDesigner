@@ -16,6 +16,7 @@ import { track } from "../lib/analytics.js";
 import { storage } from "../services/storage.service.js";
 import { aiService } from "../services/ai.service.js";
 import { emailService } from "../services/email.service.js";
+import { checkFurnitureFit } from "../services/fitChecker.service.js";
 import type { Env } from "../env.js";
 
 const FLOOR_PLAN_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -498,6 +499,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       }
 
       // ── Generate render ───────────────────────────────────────────────────
+      const hasDims = !!project.roomLengthMm && !!project.roomWidthMm;
       const productsSnapshot = JSON.stringify(
         products.map((p) => ({
           id: p.id,
@@ -507,6 +509,13 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           imageUrl: p.imageUrl,
           productUrl: p.productUrl,
           affiliateUrl: p.affiliateUrl ?? null,
+          widthMm: p.widthMm,
+          depthMm: p.depthMm,
+          heightMm: p.heightMm,
+          category: p.category,
+          fitResult: hasDims
+            ? checkFurnitureFit(project.roomLengthMm!, project.roomWidthMm!, p)
+            : null,
         }))
       );
 

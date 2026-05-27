@@ -1,5 +1,5 @@
 export interface FitResult {
-  fits: "perfect" | "tight" | "too_large";
+  fits: "perfect" | "tight" | "too_large" | "unknown";
   clearanceCm: number;
   message: string;
   recommendation: string;
@@ -13,7 +13,7 @@ const BEDROOM_CATS = new Set(["bed", "beds", "wardrobe", "wardrobes", "bedside_t
 const DINING_CATS = new Set(["dining_table", "dining_chair", "dining_chairs"]);
 
 function noData(): FitResult {
-  return { fits: "perfect", clearanceCm: 0, message: "Fits in most rooms", recommendation: "Check dimensions before purchasing" };
+  return { fits: "unknown", clearanceCm: 0, message: "Dimensions unavailable", recommendation: "Check dimensions before purchasing" };
 }
 
 export function checkFurnitureFit(
@@ -95,5 +95,5 @@ export function checkFurnitureFit(
 }
 
 export function fitSortOrder(fit: FitResult["fits"]): number {
-  return { perfect: 0, tight: 1, too_large: 2 }[fit];
+  return { perfect: 0, tight: 1, too_large: 2, unknown: 3 }[fit];
 }

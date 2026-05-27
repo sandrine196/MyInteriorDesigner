@@ -1176,15 +1176,14 @@ export default function ProjectWorkspacePage() {
                           )}
                           {p.dimensionsRaw ? ` · ${p.dimensionsRaw}` : ""}
                         </p>
-                        {p.fitResult && p.fitResult.fits !== "perfect" && (
-                          <p className={`text-xs mt-1 font-medium ${
-                            p.fitResult.fits === "tight" ? "text-amber-600" : "text-red-500"
-                          }`}>
-                            {p.fitResult.fits === "tight" ? "⚠️" : "❌"} {p.fitResult.message}
-                          </p>
-                        )}
-                        {p.fitResult?.fits === "perfect" && p.fitResult.clearanceCm > 0 && (
+                        {p.fitResult?.fits === "perfect" && (
                           <p className="text-xs mt-1 text-green-600 font-medium">✅ {p.fitResult.message}</p>
+                        )}
+                        {p.fitResult?.fits === "tight" && (
+                          <p className="text-xs mt-1 text-amber-600 font-medium">⚠️ {p.fitResult.message}</p>
+                        )}
+                        {p.fitResult?.fits === "too_large" && (
+                          <p className="text-xs mt-1 text-red-500 font-medium">❌ {p.fitResult.message}</p>
                         )}
                       </button>
                     </li>
