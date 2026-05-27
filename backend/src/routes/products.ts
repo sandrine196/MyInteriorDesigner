@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { checkFurnitureFit, fitSortOrder } from "../services/fitChecker.service.js";
+import { track } from "../lib/analytics.js";
 
 const querySchema = z.object({
   q: z.string().optional(),
@@ -108,6 +109,21 @@ export async function productRoutes(app: FastifyInstance) {
           const fitB = fitSortOrder(b.fitResult!.fits);
           if (fitA !== fitB) return fitA - fitB;
           return (a.priceGbp ?? 9999) - (b.priceGbp ?? 9999);
+        });
+      }
+
+      if (hasDimensions) {
+        const u = request.user as { sub: string };
+        const counts = { perfect: 0, tight: 0, too_large: 0, unknown: 0 };
+        for (const item of mapped) {
+          if (item.fitResult) counts[item.fitResult.fits]++;
+        }
+        void track("fit_check_results", u.sub, {
+          projectId: q.projectId,
+          roomLengthMm,
+          roomWidthMm,
+          totalProducts: mapped.length,
+          ...counts,
         });
       }
 

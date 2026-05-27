@@ -30,7 +30,9 @@ export function checkFurnitureFit(
   const roomLCm = roomLengthMm / 10;
   const roomWCm = roomWidthMm / 10;
   const itemWCm = widthMm / 10;
-  const itemDCm = depthMm ? depthMm / 10 : itemWCm * 0.5; // estimate depth if missing
+  // Depth fallback: 50% of width is a reasonable estimate for most upholstered/case goods
+  // when the retailer omits depth. Dining tables are typically 40–50% as deep as they are wide.
+  const itemDCm = depthMm ? depthMm / 10 : itemWCm * 0.5;
 
   // ── Bedroom items ────────────────────────────────────────────────────────────
   if (BEDROOM_CATS.has(cat)) {
