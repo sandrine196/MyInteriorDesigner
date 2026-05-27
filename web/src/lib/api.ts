@@ -8,10 +8,12 @@ function token(): string | null {
 }
 
 export function saveToken(t: string) {
+  if (typeof window === "undefined") return;
   localStorage.setItem("rv_token", t);
 }
 
 export function clearToken() {
+  if (typeof window === "undefined") return;
   localStorage.removeItem("rv_token");
 }
 
