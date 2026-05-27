@@ -370,7 +370,10 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
 
   app.post(
     "/projects/:projectId/renders",
-    { preHandler: [app.authenticate] },
+    {
+      preHandler: [app.authenticate],
+      config: { rateLimit: { max: 20, timeWindow: "1 hour" } },
+    },
     async (request, reply) => {
       const u = request.user as { sub: string; tier: string };
       const { projectId } = request.params as { projectId: string };

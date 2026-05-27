@@ -707,8 +707,9 @@ function Footer() {
             </div>
             <div className="space-y-3">
               <p className="text-blue-200/40 text-xs font-semibold uppercase tracking-wider">Legal</p>
-              <a href="#" className="block hover:text-white transition-colors">Privacy policy</a>
-              <a href="#" className="block hover:text-white transition-colors">Terms of service</a>
+              <Link href="/privacy" className="block hover:text-white transition-colors">Privacy policy</Link>
+              <Link href="/terms" className="block hover:text-white transition-colors">Terms of service</Link>
+              <a href="mailto:hello@myinteriordesigner.co.uk" className="block hover:text-white transition-colors">Contact us</a>
             </div>
           </div>
         </div>

@@ -116,6 +116,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <main className="flex-1 px-6 py-8 max-w-5xl mx-auto w-full">{children}</main>
+
+      <footer className="border-t border-stone-100 px-6 py-4">
+        <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-stone-400">© {new Date().getFullYear()} MyInteriorDesigner.co.uk</p>
+          <nav className="flex gap-4 text-xs text-stone-400">
+            <Link href="/privacy" className="hover:text-stone-700 transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-stone-700 transition-colors">Terms</Link>
+            <a href="mailto:hello@myinteriordesigner.co.uk" className="hover:text-stone-700 transition-colors">Contact</a>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }
