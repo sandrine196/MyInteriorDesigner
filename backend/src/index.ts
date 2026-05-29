@@ -39,8 +39,20 @@ await app.register(helmet, {
 await app.register(compress, { global: true });
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
+const allowedOrigins = new Set([
+  "https://myinteriordesigner.co.uk",
+  "https://www.myinteriordesigner.co.uk",
+  "https://my-interior-designer.vercel.app", // keep during transition
+  env.FRONTEND_URL,
+  ...(env.EXTRA_ORIGINS ? env.EXTRA_ORIGINS.split(",").map((s) => s.trim()) : []),
+].filter(Boolean));
+
 await app.register(cors, {
-  origin: env.FRONTEND_URL, // locked to the configured frontend (e.g. https://myinteriordesigner.co.uk)
+  origin: (origin, cb) => {
+    // Allow requests with no origin (server-to-server, curl, health checks)
+    if (!origin || allowedOrigins.has(origin)) return cb(null, true);
+    cb(new Error(`Origin ${origin} not allowed`), false);
+  },
   credentials: true,
 });
 

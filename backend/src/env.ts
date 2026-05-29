@@ -8,6 +8,7 @@ const schema = z.object({
   GEMINI_MODEL: z.string().default("gemini-2.5-flash-image"),
   PORT: z.coerce.number().default(3000),
   FRONTEND_URL: z.string().default("http://localhost:3001"),
+  EXTRA_ORIGINS: z.string().optional(), // comma-separated additional allowed origins
   FREE_RENDERS_PER_MONTH: z.coerce.number().default(100),
   PRO_RENDERS_PER_DAY: z.coerce.number().default(100),
   MAX_RENDERS_PER_HOUR: z.coerce.number().default(20),
