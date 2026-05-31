@@ -5,10 +5,12 @@ type WallRole = "entrance" | "far" | "left" | "right";
 
 interface DoorFeature {
   type: "door";
-  subtype: "single" | "double" | "sliding" | "bifold";
+  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio";
   widthCm: number;
   opensInward: boolean;
   hingeSide: "left" | "right";
+  leadsTo?: "garden" | "balcony" | "hallway" | "unknown";
+  isGlazed?: boolean;
 }
 
 interface WindowFeature {

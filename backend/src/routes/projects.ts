@@ -17,6 +17,8 @@ import { storage } from "../services/storage.service.js";
 import { aiService } from "../services/ai.service.js";
 import { emailService } from "../services/email.service.js";
 import { checkFurnitureFit } from "../services/fitChecker.service.js";
+import { analyzeFloorPlan } from "../services/floorPlanAnalysis.service.js";
+import type { FloorPlanAnalysis } from "../services/floorPlanAnalysis.service.js";
 import type { Env } from "../env.js";
 
 const FLOOR_PLAN_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -362,6 +364,33 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
         data: { floorPlanKey: newKey },
       });
 
+      // Run Gemini Vision analysis fire-and-forget — never blocks the upload response
+      void (async () => {
+        try {
+          const analysis = await analyzeFloorPlan(webpBuffer, "image/webp");
+          const updateData: Parameters<typeof prisma.project.update>[0]["data"] = {
+            floorPlanAnalysis: analysis as object,
+          };
+          // Auto-populate dimensions if not already set by the user and Gemini found them
+          if (analysis.confidence >= 0.7 && analysis.dimensions.lengthM > 0) {
+            const current = await prisma.project.findUnique({
+              where: { id: projectId },
+              select: { roomLengthMm: true, roomWidthMm: true },
+            });
+            if (!current?.roomLengthMm) {
+              updateData.roomLengthMm = Math.round(analysis.dimensions.lengthM * 1000);
+            }
+            if (!current?.roomWidthMm) {
+              updateData.roomWidthMm = Math.round(analysis.dimensions.widthM * 1000);
+            }
+          }
+          await prisma.project.update({ where: { id: projectId }, data: updateData });
+          console.log(`[FloorPlan] Analysis saved for project ${projectId}`);
+        } catch (err) {
+          console.error(`[FloorPlan] Analysis save failed for project ${projectId}:`, err);
+        }
+      })();
+
       // Return both the key (for state update) and the resolved URL (for direct display)
       return { floorPlanKey: newKey, floorPlanUrl: storage.getUrl(newKey) };
     }
@@ -526,14 +555,15 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
 
       try {
         const { buffer, mock } = await aiService.generateRoomImage({
-          userPrompt:       body.prompt,
-          floorPlanKey:     project.floorPlanKey,
-          projectName:      project.name,
-          designStyle:      project.designStyle,
-          wallColorPalette: project.wallColorPalette,
-          flooringType:     project.flooringType,
+          userPrompt:           body.prompt,
+          floorPlanKey:         project.floorPlanKey,
+          projectName:          project.name,
+          designStyle:          project.designStyle,
+          wallColorPalette:     project.wallColorPalette,
+          flooringType:         project.flooringType,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          roomFeatures:     (project.roomFeatures as any) ?? null,
+          roomFeatures:         (project.roomFeatures as any) ?? null,
+          structuredFloorPlan:  (project.floorPlanAnalysis as FloorPlanAnalysis | null) ?? null,
           products: products.map((p) => ({
             title:         p.title,
             retailer:      p.retailer,

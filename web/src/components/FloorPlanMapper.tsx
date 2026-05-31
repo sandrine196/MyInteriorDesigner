@@ -24,10 +24,12 @@ interface WindowData {
 }
 
 interface DoorData {
-  subtype: "single" | "double" | "sliding" | "bifold";
+  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio";
   widthCm: number | null;
   opensInward: boolean;
   hingeSide: "left" | "right";
+  leadsTo: "garden" | "balcony" | "hallway" | "unknown";
+  isGlazed: boolean;
 }
 
 interface FireplaceData {
@@ -49,6 +51,7 @@ const DEFAULT_WINDOW: WindowData = {
 };
 const DEFAULT_DOOR: DoorData = {
   subtype: "single", widthCm: null, opensInward: true, hingeSide: "right",
+  leadsTo: "hallway", isGlazed: false,
 };
 const DEFAULT_FIREPLACE: FireplaceData = {
   subtype: "traditional", chimneyBreastWidthCm: null,
@@ -70,7 +73,10 @@ function roleLabel(role: WallRole) {
 }
 
 function featureEmoji(f: WallFeature) {
-  if (f.type === "door") return "🚪";
+  if (f.type === "door") {
+    const d = f as DoorFeature;
+    return d.subtype === "sliding_patio" ? "🌿" : "🚪";
+  }
   if (f.type === "fireplace") return "🔥";
   if (f.type === "nothing") return "—";
   const w = f as WindowFeature;
@@ -82,8 +88,12 @@ function featureLabel(f: WallFeature): string {
   if (f.type === "nothing") return "Nothing special";
   if (f.type === "door") {
     const d = f as DoorFeature;
-    const s = { single: "Single door", double: "Double doors", sliding: "Sliding door", bifold: "Bi-fold door" }[d.subtype];
-    return `${s} (${d.widthCm}cm)`;
+    const s = {
+      single: "Single door", double: "Double doors", sliding: "Sliding door",
+      bifold: "Bi-fold door", sliding_patio: "Patio doors",
+    }[d.subtype];
+    const dest = d.subtype === "sliding_patio" && d.leadsTo ? ` → ${d.leadsTo}` : "";
+    return `${s} (${d.widthCm}cm)${dest}`;
   }
   if (f.type === "window") {
     const w = f as WindowFeature;
@@ -112,12 +122,17 @@ function buildFeature(
 ): WallFeature | null {
   if (featureType === "nothing") return { type: "nothing" };
   if (featureType === "door") {
-    return {
+    const feat: DoorFeature = {
       type: "door", subtype: door.subtype,
-      widthCm: door.widthCm ?? 80,
+      widthCm: door.widthCm ?? (door.subtype === "sliding_patio" ? 180 : 80),
       opensInward: door.opensInward,
       hingeSide: door.hingeSide,
     };
+    if (door.subtype === "sliding_patio") {
+      feat.leadsTo = door.leadsTo;
+      feat.isGlazed = true;
+    }
+    return feat;
   }
   if (featureType === "window") {
     if (!window.count) return null;
@@ -177,44 +192,71 @@ interface DoorFormProps {
 }
 
 function DoorForm({ data, onChange, onAdd }: DoorFormProps) {
+  const isPatio = data.subtype === "sliding_patio";
   return (
     <div className="space-y-3">
       <FormField label="Door type">
         <RadioGroup
           options={[
-            { value: "single",  label: "Single door" },
-            { value: "double",  label: "Double / French doors" },
-            { value: "sliding", label: "Sliding door" },
-            { value: "bifold",  label: "Bi-fold door" },
+            { value: "single",        label: "Single door" },
+            { value: "double",        label: "Double / French doors" },
+            { value: "sliding_patio", label: "Sliding patio doors (garden / balcony)" },
+            { value: "bifold",        label: "Bi-fold doors" },
+            { value: "sliding",       label: "Sliding (internal)" },
           ]}
           value={data.subtype}
-          onChange={(v) => onChange("subtype", v as DoorData["subtype"])}
+          onChange={(v) => {
+            onChange("subtype", v as DoorData["subtype"]);
+            if (v === "sliding_patio") {
+              onChange("isGlazed", true);
+              onChange("leadsTo", "garden");
+            }
+          }}
         />
       </FormField>
       <FormField label="Width (cm)">
         <NumberInput
           value={data.widthCm}
           onChange={(v) => onChange("widthCm", v)}
-          placeholder="80"
+          placeholder={isPatio ? "180" : "80"}
         />
       </FormField>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Opens">
-          <Toggle
-            options={[{ value: "inward", label: "Inward" }, { value: "outward", label: "Outward" }]}
-            value={data.opensInward ? "inward" : "outward"}
-            onChange={(v) => onChange("opensInward", v === "inward")}
-          />
-        </FormField>
-        <FormField label="Hinge side">
-          <Toggle
-            options={[{ value: "left", label: "Left" }, { value: "right", label: "Right" }]}
-            value={data.hingeSide}
-            onChange={(v) => onChange("hingeSide", v as "left" | "right")}
-          />
-        </FormField>
-      </div>
-      <p className="text-xs text-stone-400">Door swing area will be kept clear of furniture</p>
+      {isPatio ? (
+        <>
+          <FormField label="Leads to">
+            <RadioGroup
+              options={[
+                { value: "garden",  label: "Garden (ground floor)" },
+                { value: "balcony", label: "Balcony / terrace (upper floor)" },
+                { value: "unknown", label: "Not sure" },
+              ]}
+              value={data.leadsTo}
+              onChange={(v) => onChange("leadsTo", v as DoorData["leadsTo"])}
+            />
+          </FormField>
+          <p className="text-xs text-stone-400">150cm will be kept clear in front of the patio doors</p>
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Opens">
+              <Toggle
+                options={[{ value: "inward", label: "Inward" }, { value: "outward", label: "Outward" }]}
+                value={data.opensInward ? "inward" : "outward"}
+                onChange={(v) => onChange("opensInward", v === "inward")}
+              />
+            </FormField>
+            <FormField label="Hinge side">
+              <Toggle
+                options={[{ value: "left", label: "Left" }, { value: "right", label: "Right" }]}
+                value={data.hingeSide}
+                onChange={(v) => onChange("hingeSide", v as "left" | "right")}
+              />
+            </FormField>
+          </div>
+          <p className="text-xs text-stone-400">Door swing area will be kept clear of furniture</p>
+        </>
+      )}
       <AddButton ready={true} onAdd={onAdd} />
     </div>
   );

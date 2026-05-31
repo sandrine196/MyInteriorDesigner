@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
 import { analyzeRoomSpatially } from "../services/spatialReasoning.service.js";
+import type { FloorPlanAnalysis } from "../services/floorPlanAnalysis.service.js";
 
 export const RENDER_WIDTH = 1024;
 export const RENDER_HEIGHT = 768;
@@ -64,10 +65,12 @@ type WallRole = "entrance" | "far" | "left" | "right";
 
 interface DoorFeature {
   type: "door";
-  subtype: "single" | "double" | "sliding" | "bifold";
+  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio";
   widthCm: number;
   opensInward: boolean;
   hingeSide: "left" | "right";
+  leadsTo?: "garden" | "balcony" | "hallway" | "unknown";
+  isGlazed?: boolean;
 }
 
 interface WindowFeature {
@@ -101,8 +104,9 @@ export type PromptMeta = {
   designStyle?: string | null;
   wallColorPalette?: string | null;
   flooringType?: string | null;
-  floorPlanAnalysis?: string | null;
-  roomFeatures?: RoomFeatures | null;
+  floorPlanAnalysis?: string | null;       // GPT-4o free-text analysis (legacy)
+  roomFeatures?: RoomFeatures | null;       // user-mapped wall features
+  structuredFloorPlan?: FloorPlanAnalysis | null; // Gemini Vision structured analysis
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -133,10 +137,11 @@ const PHOTO_POS: Record<WallRole, string> = {
 };
 
 const DOOR_LABELS: Record<DoorFeature["subtype"], string> = {
-  single:  "single door",
-  double:  "double/French doors",
-  sliding: "sliding door",
-  bifold:  "bi-fold door",
+  single:        "single door",
+  double:        "double/French doors",
+  sliding:       "sliding door",
+  bifold:        "bi-fold door",
+  sliding_patio: "sliding patio doors",
 };
 
 const FIREPLACE_LABELS: Record<FireplaceFeature["subtype"], string> = {
@@ -160,7 +165,7 @@ export function buildPrompt(
   room: RoomDimensionsMm,
   meta: PromptMeta = {},
 ): string {
-  const { projectName, designStyle, wallColorPalette, flooringType, floorPlanAnalysis, roomFeatures } = meta;
+  const { projectName, designStyle, wallColorPalette, flooringType, floorPlanAnalysis, roomFeatures, structuredFloorPlan } = meta;
 
   const rf      = roomFeatures ?? null;
   const spatial = rf ? analyzeRoomSpatially(rf) : null;
@@ -338,6 +343,72 @@ export function buildPrompt(
         `  This fireplace MUST appear in the final image. Do not omit it.`,
       ].filter(Boolean);
       lines.push(...fpLines);
+    }
+  }
+
+  // ── 4b. ROOM IRREGULARITIES (from Gemini Vision analysis) ────────────────────
+  if (structuredFloorPlan) {
+    const staircases = structuredFloorPlan.irregularities.filter((i) => i.type === "staircase");
+    const chimneys   = structuredFloorPlan.irregularities.filter((i) => i.type === "chimney_breast");
+    const patioDoors = structuredFloorPlan.doors.filter((d) => d.type === "sliding_patio");
+    const bayIrreg   = structuredFloorPlan.irregularities.filter(
+      (i) => i.type === "bay_window" || i.type === "bow_window",
+    );
+
+    if (staircases.length > 0) {
+      lines.push("", "=== 4b. STAIRCASE INTRUSION ===");
+      for (const s of staircases) {
+        lines.push(
+          `⚠️ MANDATORY CONSTRAINT: STAIRCASE IN ${(s.corner ?? "corner").toUpperCase()} CORNER.`,
+          `  Size: approx ${s.widthM ?? "?"}m × ${s.depthM ?? "?"}m — this space does NOT exist as floor area.`,
+          `  DO NOT place any furniture in or near this corner. The corner must appear open/clear in the image.`,
+          `  The room is NOT a rectangle — the ${s.corner ?? "corner"} corner is cut away.`,
+        );
+      }
+    }
+
+    if (chimneys.length > 0 && fireplaces.length === 0) {
+      lines.push("", "=== 4b. CHIMNEY BREAST ===");
+      for (const c of chimneys) {
+        lines.push(
+          `Chimney breast on ${c.wall ?? "?"} wall (${c.widthM ?? "?"}m wide). Creates alcoves on either side.`,
+          "  Alcoves suit built-in shelving or cabinets.",
+        );
+      }
+    }
+
+    if (!rf && bayIrreg.length > 0) {
+      lines.push("", "=== 4b. BAY WINDOW (detected) ===");
+      for (const b of bayIrreg) {
+        lines.push(
+          `⚠️ MANDATORY ARCHITECTURAL FEATURE: BAY WINDOW on ${b.wall ?? "?"} wall.`,
+          `  Width: ${b.widthM ?? "?"}m. Projects ${b.projectionM ?? "?"}m outward.`,
+          `  This is a key Victorian feature — it MUST be visible and prominent in the render.`,
+          `  Natural daylight streams through it. Do not hide it behind curtains or furniture.`,
+        );
+      }
+    }
+
+    if (patioDoors.length > 0) {
+      lines.push("", "=== 4b. SLIDING PATIO DOORS ===");
+      for (const pd of patioDoors) {
+        const destination = pd.leadsTo === "garden" ? "garden" : pd.leadsTo === "balcony" ? "balcony" : "outside";
+        lines.push(
+          `⚠️ IMPORTANT FEATURE: SLIDING PATIO DOORS on ${pd.wall} wall (${pd.widthM}m wide).`,
+          `  Leads to: ${destination}. ${pd.floorToCeiling ? "Floor-to-ceiling glazing." : "Standard height glass."}`,
+          `  These are a MAJOR light source — bright daylight streams from the ${pd.wall} direction.`,
+          `  Keep 150cm clear in front of the doors for access — no furniture blocking them.`,
+          `  ${pd.leadsTo === "garden" ? "Show the suggestion of a garden view through the glass." : ""}`,
+          `  Arrange seating to enjoy the ${destination} view. Use light, airy materials near the doors.`,
+        );
+      }
+    }
+
+    if (structuredFloorPlan.dimensions.usableAreaM2 > 0) {
+      lines.push(
+        "",
+        `Usable floor area (after accounting for irregularities): ${structuredFloorPlan.dimensions.usableAreaM2.toFixed(1)}m²`,
+      );
     }
   }
 

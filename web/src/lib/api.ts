@@ -171,10 +171,12 @@ export type WallRole = "entrance" | "far" | "left" | "right";
 
 export type DoorFeature = {
   type: "door";
-  subtype: "single" | "double" | "sliding" | "bifold";
+  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio";
   widthCm: number;
   opensInward: boolean;
   hingeSide: "left" | "right";
+  leadsTo?: "garden" | "balcony" | "hallway" | "unknown";
+  isGlazed?: boolean;
 };
 
 export type WindowFeature = {
@@ -229,8 +231,53 @@ export type Project = {
   wallColorPalette: string | null;
   flooringType: string | null;
   roomFeatures: RoomFeatures | null;
+  floorPlanAnalysis: FloorPlanAnalysis | null;
   createdAt: string;
   renders: Render[];
+};
+
+export type FloorPlanAnalysis = {
+  shape: "rectangular" | "bay_window" | "staircase_intrusion" | "l_shaped" | "irregular";
+  irregularities: Array<{
+    type: "bay_window" | "bow_window" | "staircase" | "chimney_breast" | "alcove" | "l_shape";
+    wall?: string;
+    corner?: string;
+    widthM?: number;
+    projectionM?: number;
+    depthM?: number;
+    notes?: string;
+  }>;
+  dimensions: {
+    lengthM: number;
+    widthM: number;
+    printedMeasurements: string;
+    usableAreaM2: number;
+  };
+  doors: Array<{
+    wall: string;
+    type: "single" | "double_french" | "sliding_patio" | "bifold" | "pocket";
+    widthM: number;
+    opensInward?: boolean;
+    leadsTo?: "garden" | "balcony" | "hallway" | "unknown";
+    isGlazed: boolean;
+    floorToCeiling: boolean;
+    positionFromLeft: number;
+  }>;
+  windows: Array<{
+    wall: string;
+    type: string;
+    widthM: number;
+    positionFromLeft: number;
+  }>;
+  hasFireplace: boolean;
+  fireplaceWall?: string | null;
+  hasStaircaseIntrusion: boolean;
+  staircaseCorner?: string | null;
+  recommendedCameraWall: string;
+  recommendedFacingWall: string;
+  focalPoint: string;
+  confidence: number;
+  notes: string;
 };
 
 export type ProjectSetup = {

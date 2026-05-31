@@ -69,6 +69,8 @@ model Project {
   flooringType    String?
   /// Structured wall features captured via the interactive floor plan mapper.
   roomFeatures    Json?
+  /// Structured floor plan analysis from Gemini Vision (irregularities, doors, windows, confidence).
+  floorPlanAnalysis Json?
   /// Room type e.g. 'living_room', 'bedroom_primary', 'home_office'.
   roomType        String?
   createdAt       DateTime @default(now())
