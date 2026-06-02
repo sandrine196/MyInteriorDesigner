@@ -14,6 +14,7 @@ import {
   type Usage,
   type RoomFeatures,
   type WallRole,
+  type DoorFeature,
 } from "@/lib/api";
 import FloorPlanMapper from "@/components/FloorPlanMapper";
 import RoomSummary from "@/components/RoomSummary";
@@ -304,10 +305,14 @@ export default function ProjectWorkspacePage() {
     const rf = project.roomFeatures as RoomFeatures | null;
     if (!rf) return false;
     const roles: WallRole[] = ["entrance", "far", "left", "right"];
-    return (
-      rf.walls.entrance.features.some((f) => f.type === "door") &&
-      roles.some((r) => rf.walls[r].features.some((f) => f.type === "window"))
+    const hasDoor = rf.walls.entrance.features.some((f) => f.type === "door");
+    const hasWindow = roles.some((r) => rf.walls[r].features.some((f) => f.type === "window"));
+    const hasGlazedDoor = roles.some((r) =>
+      rf.walls[r].features.some(
+        (f) => f.type === "door" && (f as DoorFeature).subtype === "sliding_patio"
+      )
     );
+    return hasDoor && (hasWindow || hasGlazedDoor);
   })();
 
   async function saveFeatures(features: RoomFeatures) {

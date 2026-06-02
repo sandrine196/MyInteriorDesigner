@@ -13,7 +13,7 @@ type FeatureType = "door" | "window" | "fireplace" | "nothing";
 // ── Form data interfaces (at module level, outside everything) ─────────────────
 
 interface WindowData {
-  count: "one" | "two" | "triple" | "bay" | null;
+  count: "one" | "two" | "triple" | "bay" | "sash" | "floor_ceiling" | null;
   widthCm: number | null;
   heightCm: number | null;
   heightFromFloorCm: number | null;
@@ -24,12 +24,13 @@ interface WindowData {
 }
 
 interface DoorData {
-  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio";
+  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio" | "pocket";
   widthCm: number | null;
   opensInward: boolean;
   hingeSide: "left" | "right";
   leadsTo: "garden" | "balcony" | "hallway" | "unknown";
   isGlazed: boolean;
+  floorToCeiling: boolean;
 }
 
 interface FireplaceData {
@@ -51,7 +52,7 @@ const DEFAULT_WINDOW: WindowData = {
 };
 const DEFAULT_DOOR: DoorData = {
   subtype: "single", widthCm: null, opensInward: true, hingeSide: "right",
-  leadsTo: "hallway", isGlazed: false,
+  leadsTo: "hallway", isGlazed: false, floorToCeiling: false,
 };
 const DEFAULT_FIREPLACE: FireplaceData = {
   subtype: "traditional", chimneyBreastWidthCm: null,
@@ -89,8 +90,8 @@ function featureLabel(f: WallFeature): string {
   if (f.type === "door") {
     const d = f as DoorFeature;
     const s = {
-      single: "Single door", double: "Double doors", sliding: "Sliding door",
-      bifold: "Bi-fold door", sliding_patio: "Patio doors",
+      single: "Single door", double: "Double/French doors", sliding: "Sliding door",
+      bifold: "Bi-fold doors", sliding_patio: "Patio doors", pocket: "Pocket door",
     }[d.subtype];
     const dest = d.subtype === "sliding_patio" && d.leadsTo ? ` → ${d.leadsTo}` : "";
     return `${s} (${d.widthCm}cm)${dest}`;
@@ -100,6 +101,7 @@ function featureLabel(f: WallFeature): string {
     const labels: Record<WindowFeature["subtype"], string> = {
       single: "Single window", double: "Two windows", triple: "Three+ windows",
       bay_angular: "Bay window (angular)", bow: "Bow window", box_bay: "Box bay",
+      sash: "Sash window", floor_to_ceiling: "Floor-to-ceiling window",
     };
     return `${labels[w.subtype]} ${w.widthCm}cm wide`;
   }
@@ -137,7 +139,10 @@ function buildFeature(
   if (featureType === "window") {
     if (!window.count) return null;
     const isBay = window.count === "bay";
-    const subtypeMap = { one: "single", two: "double", triple: "triple", bay: window.baySubtype } as const;
+    const subtypeMap = {
+      one: "single", two: "double", triple: "triple",
+      bay: window.baySubtype, sash: "sash", floor_ceiling: "floor_to_ceiling",
+    } as const;
     const feat: WindowFeature = {
       type: "window",
       subtype: subtypeMap[window.count],
@@ -203,6 +208,7 @@ function DoorForm({ data, onChange, onAdd }: DoorFormProps) {
             { value: "sliding_patio", label: "Sliding patio doors (garden / balcony)" },
             { value: "bifold",        label: "Bi-fold doors" },
             { value: "sliding",       label: "Sliding (internal)" },
+            { value: "pocket",        label: "Pocket door (slides into wall)" },
           ]}
           value={data.subtype}
           onChange={(v) => {
@@ -232,6 +238,13 @@ function DoorForm({ data, onChange, onAdd }: DoorFormProps) {
               ]}
               value={data.leadsTo}
               onChange={(v) => onChange("leadsTo", v as DoorData["leadsTo"])}
+            />
+          </FormField>
+          <FormField label="Floor-to-ceiling glass?">
+            <Toggle
+              options={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }]}
+              value={data.floorToCeiling ? "yes" : "no"}
+              onChange={(v) => onChange("floorToCeiling", v === "yes")}
             />
           </FormField>
           <p className="text-xs text-stone-400">150cm will be kept clear in front of the patio doors</p>
@@ -394,10 +407,12 @@ function WindowForm({ data, onChange, onAdd }: WindowFormProps) {
         <FormField label="How many windows?">
           <RadioGroup
             options={[
-              { value: "one",    label: "One window" },
-              { value: "two",    label: "Two windows" },
-              { value: "triple", label: "Three or more" },
-              { value: "bay",    label: "Bay / Bow window" },
+              { value: "one",         label: "One window" },
+              { value: "two",         label: "Two windows" },
+              { value: "triple",      label: "Three or more" },
+              { value: "bay",         label: "Bay / Bow window" },
+              { value: "sash",        label: "Sash window" },
+              { value: "floor_ceiling", label: "Floor-to-ceiling window / glass wall" },
             ]}
             value={data.count ?? ""}
             onChange={(v) => onChange("count", v as WindowData["count"])}
@@ -704,9 +719,13 @@ export default function FloorPlanMapper({ floorPlanUrl, initialFeatures, saving,
     onSave({ walls, roomShape: "rectangular" });
   }
 
-  const hasDoor   = walls.entrance.features.some(f => f.type === "door");
-  const hasWindow = (ROLES as WallRole[]).some(r => walls[r].features.some(f => f.type === "window"));
-  const canSave   = entranceSide !== null && hasDoor && hasWindow;
+  const hasDoor       = walls.entrance.features.some(f => f.type === "door");
+  const hasWindow     = (ROLES as WallRole[]).some(r => walls[r].features.some(f => f.type === "window"));
+  const hasGlazedDoor = (ROLES as WallRole[]).some(r =>
+    walls[r].features.some(f => f.type === "door" && (f as DoorFeature).subtype === "sliding_patio")
+  );
+  const hasLightSource = hasWindow || hasGlazedDoor;
+  const canSave        = entranceSide !== null && hasDoor && hasLightSource;
 
   return (
     <div>
@@ -796,8 +815,8 @@ export default function FloorPlanMapper({ floorPlanUrl, initialFeatures, saving,
 
       {entranceSide && (
         <div className="mt-4 flex flex-col gap-2">
-          {!hasDoor   && <p className="text-xs text-red-500">⚠ Mark the entrance door on the Entrance wall</p>}
-          {!hasWindow && <p className="text-xs text-amber-600">⚠ Mark at least one window on any wall</p>}
+          {!hasDoor        && <p className="text-xs text-red-500">⚠ Mark the entrance door on the Entrance wall</p>}
+          {!hasLightSource && <p className="text-xs text-amber-600">⚠ Mark at least one window or glazed patio doors on any wall</p>}
           <div className="flex items-center gap-3">
             <button
               onClick={handleSave}
@@ -806,7 +825,7 @@ export default function FloorPlanMapper({ floorPlanUrl, initialFeatures, saving,
             >
               {saving ? "Saving…" : "Save room layout →"}
             </button>
-            {!canSave && <p className="text-xs text-stone-400">Mark entrance door + at least one window to continue</p>}
+            {!canSave && <p className="text-xs text-stone-400">Mark entrance door + at least one window or glazed door to continue</p>}
           </div>
         </div>
       )}

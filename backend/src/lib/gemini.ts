@@ -65,17 +65,18 @@ type WallRole = "entrance" | "far" | "left" | "right";
 
 interface DoorFeature {
   type: "door";
-  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio";
+  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio" | "pocket";
   widthCm: number;
   opensInward: boolean;
   hingeSide: "left" | "right";
   leadsTo?: "garden" | "balcony" | "hallway" | "unknown";
   isGlazed?: boolean;
+  floorToCeiling?: boolean;
 }
 
 interface WindowFeature {
   type: "window";
-  subtype: "single" | "double" | "triple" | "bay_angular" | "bow" | "box_bay";
+  subtype: "single" | "double" | "triple" | "bay_angular" | "bow" | "box_bay" | "sash" | "floor_to_ceiling";
   widthCm: number;
   heightCm: number;
   heightFromFloorCm: number;
@@ -142,6 +143,7 @@ const DOOR_LABELS: Record<DoorFeature["subtype"], string> = {
   sliding:       "sliding door",
   bifold:        "bi-fold door",
   sliding_patio: "sliding patio doors",
+  pocket:        "pocket door",
 };
 
 const FIREPLACE_LABELS: Record<FireplaceFeature["subtype"], string> = {
@@ -151,10 +153,12 @@ const FIREPLACE_LABELS: Record<FireplaceFeature["subtype"], string> = {
   electric:    "electric fireplace",
 };
 
-const WINDOW_LABELS: Record<"single" | "double" | "triple", string> = {
-  single: "Window",
-  double: "Two windows",
-  triple: "Three or more windows",
+const WINDOW_LABELS: Record<"single" | "double" | "triple" | "sash" | "floor_to_ceiling", string> = {
+  single:          "Window",
+  double:          "Two windows",
+  triple:          "Three or more windows",
+  sash:            "Sash window",
+  floor_to_ceiling:"Floor-to-ceiling window",
 };
 
 // ── Prompt builder ────────────────────────────────────────────────────────────
@@ -341,7 +345,8 @@ export function buildPrompt(
     const destination = door.leadsTo === "garden" ? "garden" : door.leadsTo === "balcony" ? "balcony" : "outside";
     lines.push(...[
       `⚠️ MAJOR LIGHT SOURCE: ${DOOR_LABELS[door.subtype].toUpperCase()} — ${PHOTO_POS[role].toUpperCase()}`,
-      `  ${door.widthCm}cm wide. Leads to: ${destination}. Treat this exactly like a large window for lighting purposes.`,
+      `  ${door.widthCm}cm wide${door.floorToCeiling ? ", floor-to-ceiling glass" : ""}. Leads to: ${destination}. Treat this exactly like a large window for lighting purposes.`,
+      door.floorToCeiling ? "  The glass spans from floor to ceiling — maximum daylight penetration and visual openness." : "",
       `  Bright ${destination} daylight streams in from the ${role} direction. Do NOT render this as a dark wall.`,
       `  Keep 150cm clear in front of the doors for access.`,
       door.leadsTo === "garden" ? "  Show the suggestion of a garden view through the glass." : "",
@@ -528,12 +533,13 @@ export async function generateRoomImage(
 
   const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl } });
   const prompt = buildPrompt(opts.userPrompt, opts.products, opts.room, {
-    projectName:       opts.projectName,
-    designStyle:       opts.designStyle,
-    wallColorPalette:  opts.wallColorPalette,
-    flooringType:      opts.flooringType,
-    floorPlanAnalysis: opts.floorPlanAnalysis,
-    roomFeatures:      opts.roomFeatures,
+    projectName:         opts.projectName,
+    designStyle:         opts.designStyle,
+    wallColorPalette:    opts.wallColorPalette,
+    flooringType:        opts.flooringType,
+    floorPlanAnalysis:   opts.floorPlanAnalysis,
+    roomFeatures:        opts.roomFeatures,
+    structuredFloorPlan: opts.structuredFloorPlan,
   });
 
   console.log("[Gemini] Prompt:\n" + prompt);

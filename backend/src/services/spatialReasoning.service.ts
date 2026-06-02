@@ -5,17 +5,18 @@ type WallRole = "entrance" | "far" | "left" | "right";
 
 interface DoorFeature {
   type: "door";
-  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio";
+  subtype: "single" | "double" | "sliding" | "bifold" | "sliding_patio" | "pocket";
   widthCm: number;
   opensInward: boolean;
   hingeSide: "left" | "right";
   leadsTo?: "garden" | "balcony" | "hallway" | "unknown";
   isGlazed?: boolean;
+  floorToCeiling?: boolean;
 }
 
 interface WindowFeature {
   type: "window";
-  subtype: "single" | "double" | "triple" | "bay_angular" | "bow" | "box_bay";
+  subtype: "single" | "double" | "triple" | "bay_angular" | "bow" | "box_bay" | "sash" | "floor_to_ceiling";
   widthCm: number;
   heightCm: number;
   heightFromFloorCm: number;

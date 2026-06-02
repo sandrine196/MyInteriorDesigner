@@ -391,7 +391,7 @@ function describeWall(features: WallFeature[]): string {
     if (f.type === "nothing") return "Nothing special";
     if (f.type === "door") {
       const d = f as DoorFeature;
-      const types = { single: "Single door", double: "Double doors", sliding: "Sliding door", bifold: "Bi-fold door", sliding_patio: "Sliding patio doors" };
+      const types = { single: "Single door", double: "Double doors", sliding: "Sliding door", bifold: "Bi-fold door", sliding_patio: "Sliding patio doors", pocket: "Pocket door" };
       return `${types[d.subtype]} (${d.widthCm}cm, opens ${d.opensInward ? "inward" : "outward"}, ${d.hingeSide} hinge)`;
     }
     if (f.type === "window") {
@@ -399,6 +399,7 @@ function describeWall(features: WallFeature[]): string {
       const labels: Record<WindowFeature["subtype"], string> = {
         single: "Window", double: "Two windows", triple: "Three+ windows",
         bay_angular: "Bay window (angular)", bow: "Bow window", box_bay: "Box bay",
+        sash: "Sash window", floor_to_ceiling: "Floor-to-ceiling window",
       };
       const extras = [
         w.projectionCm ? `projects ${w.projectionCm}cm` : null,

@@ -45,6 +45,7 @@ export interface FloorPlanAnalysis {
   };
   limitations: string;
   confidence: number;
+  wallAnalysis?: Record<string, string>;
 }
 
 // ── Prompt ────────────────────────────────────────────────────────────────────
@@ -60,6 +61,14 @@ YOUR JOB:
 4. Note any special features: fireplace, chimney breast, staircase, alcoves, built-in storage
 5. Determine the best camera position for an interior photograph
 6. List practical furniture placement constraints
+7. For each compass direction, describe what is on that wall in "wallAnalysis"
+
+WALL DETECTION RULES:
+- Walls are THICK BLACK LINES — thin lines are furniture, hatching, or annotation
+- Dashed or dotted lines indicate above-ceiling features or thresholds — NOT solid walls
+- Door openings appear as breaks in thick wall lines, often with a swing arc
+- Window openings appear as breaks in thick wall lines with thin parallel lines across the gap
+- The outermost thick lines define the room perimeter; interior thick lines = chimney breasts or load-bearing walls
 
 RETURN EXACTLY THIS JSON (no markdown code fences, no other text):
 
@@ -138,7 +147,13 @@ RETURN EXACTLY THIS JSON (no markdown code fences, no other text):
     "reasoning": "Standing at the entrance on the south wall gives the widest view. Angling slightly toward the fireplace makes it the focal point, while the patio doors behind provide natural backlighting and depth."
   },
   "limitations": "Staircase dimensions are estimated — no scale bar visible. Bay window projection depth not printed.",
-  "confidence": 0.82
+  "confidence": 0.82,
+  "wallAnalysis": {
+    "north": "Rear wall: sliding patio doors spanning most of the wall with floor-to-ceiling glazing leading to garden",
+    "south": "Front wall: angular bay window plus entrance door to hallway",
+    "east": "Right wall: traditional chimney breast with fireplace, alcoves either side",
+    "west": "Left wall: plain plasterwork, no openings"
+  }
 }
 
 RULES:
@@ -151,6 +166,7 @@ RULES:
 - Mark every opening or feature that needs furniture kept clear with a keepClearCm value
 - List all constraints in furniturePlacementNotes — the AI rendering engine reads these directly
 - lightingSources: one entry per glazed opening that admits natural light, describing its location and character
+- wallAnalysis: describe each compass wall in plain English — what features are on it, its length, any openings
 - If you cannot determine something, say so in "limitations" and lower confidence
 - North = top of the image unless labelled otherwise`;
 
@@ -177,6 +193,7 @@ const FALLBACK: FloorPlanAnalysis = {
   },
   limitations: "Analysis failed — please enter dimensions and room details manually",
   confidence: 0,
+  wallAnalysis: {},
 };
 
 // ── Analysis model — separate from the image-generation model ─────────────────
