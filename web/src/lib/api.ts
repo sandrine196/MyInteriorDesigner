@@ -237,47 +237,43 @@ export type Project = {
 };
 
 export type FloorPlanAnalysis = {
-  shape: "rectangular" | "bay_window" | "staircase_intrusion" | "l_shaped" | "irregular";
-  irregularities: Array<{
-    type: "bay_window" | "bow_window" | "staircase" | "chimney_breast" | "alcove" | "l_shape";
-    wall?: string;
-    corner?: string;
-    widthM?: number;
-    projectionM?: number;
-    depthM?: number;
-    notes?: string;
-  }>;
+  overallDescription: string;
+  shapeDescription: string;
   dimensions: {
     lengthM: number;
     widthM: number;
     printedMeasurements: string;
+    imperialMeasurements?: string;
     usableAreaM2: number;
   };
-  doors: Array<{
-    wall: string;
-    type: "single" | "double_french" | "sliding_patio" | "bifold" | "pocket";
-    widthM: number;
-    opensInward?: boolean;
-    leadsTo?: "garden" | "balcony" | "hallway" | "unknown";
-    isGlazed: boolean;
-    floorToCeiling: boolean;
-    positionFromLeft: number;
+  openings: Array<{
+    description: string;
+    type: "door" | "window" | "patio_doors" | "french_doors" | "bifold_doors";
+    approximateWidthM?: number;
+    wall?: string;
+    isGlazed?: boolean;
+    keepClearCm?: number;
+    isLightSource?: boolean;
   }>;
-  windows: Array<{
-    wall: string;
-    type: string;
-    widthM: number;
-    positionFromLeft: number;
+  specialFeatures: Array<{
+    description: string;
+    type: "fireplace" | "chimney_breast" | "staircase" | "alcove" | "built_in_storage" | "radiator" | "other";
+    wall?: string;
+    corner?: string;
+    approximateSize?: string;
+    keepClearCm?: number;
+    isFocalPoint?: boolean;
   }>;
-  hasFireplace: boolean;
-  fireplaceWall?: string | null;
-  hasStaircaseIntrusion: boolean;
-  staircaseCorner?: string | null;
-  recommendedCameraWall: string;
-  recommendedFacingWall: string;
-  focalPoint: string;
+  lightingSources: string[];
+  furniturePlacementNotes: string[];
+  recommendedCamera: {
+    shootFromWall: string;
+    facingWall: string;
+    focalPoint: string;
+    reasoning: string;
+  };
+  limitations: string;
   confidence: number;
-  notes: string;
 };
 
 export type ProjectSetup = {

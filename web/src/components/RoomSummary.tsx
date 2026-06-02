@@ -391,7 +391,7 @@ function describeWall(features: WallFeature[]): string {
     if (f.type === "nothing") return "Nothing special";
     if (f.type === "door") {
       const d = f as DoorFeature;
-      const types = { single: "Single door", double: "Double doors", sliding: "Sliding door", bifold: "Bi-fold door" };
+      const types = { single: "Single door", double: "Double doors", sliding: "Sliding door", bifold: "Bi-fold door", sliding_patio: "Sliding patio doors" };
       return `${types[d.subtype]} (${d.widthCm}cm, opens ${d.opensInward ? "inward" : "outward"}, ${d.hingeSide} hinge)`;
     }
     if (f.type === "window") {

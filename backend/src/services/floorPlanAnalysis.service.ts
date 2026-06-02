@@ -3,182 +3,180 @@ import { config } from "../config/index.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface RoomIrregularity {
-  type: "bay_window" | "bow_window" | "staircase" | "chimney_breast" | "alcove" | "l_shape";
-  wall?: "north" | "south" | "east" | "west";
-  corner?: "north_east" | "north_west" | "south_east" | "south_west";
-  widthM?: number;
-  projectionM?: number;
-  depthM?: number;
-  notes?: string;
+export interface RoomOpening {
+  description: string;
+  type: "door" | "window" | "patio_doors" | "french_doors" | "bifold_doors";
+  approximateWidthM?: number;
+  wall?: string;
+  isGlazed?: boolean;
+  keepClearCm?: number;
+  isLightSource?: boolean;
 }
 
-export interface DetectedDoor {
-  wall: "north" | "south" | "east" | "west";
-  type: "single" | "double_french" | "sliding_patio" | "bifold" | "pocket";
-  widthM: number;
-  opensInward?: boolean;
-  swingsLeft?: boolean;
-  slideDirection?: "left" | "right";
-  positionFromLeft: number; // 0–1 ratio along the wall
-  leadsTo?: "garden" | "balcony" | "hallway" | "unknown";
-  isGlazed: boolean;
-  floorToCeiling: boolean;
-}
-
-export interface DetectedWindow {
-  wall: "north" | "south" | "east" | "west";
-  type: "standard" | "bay_angular" | "bow" | "box_bay" | "floor_to_ceiling";
-  widthM: number;
-  positionFromLeft: number; // 0–1 ratio along the wall
+export interface SpecialFeature {
+  description: string;
+  type: "fireplace" | "chimney_breast" | "staircase" | "alcove" | "built_in_storage" | "radiator" | "other";
+  wall?: string;
+  corner?: string;
+  approximateSize?: string;
+  keepClearCm?: number;
+  isFocalPoint?: boolean;
 }
 
 export interface FloorPlanAnalysis {
-  shape: "rectangular" | "bay_window" | "staircase_intrusion" | "l_shaped" | "irregular";
-  irregularities: RoomIrregularity[];
+  overallDescription: string;
+  shapeDescription: string;
   dimensions: {
     lengthM: number;
     widthM: number;
     printedMeasurements: string;
+    imperialMeasurements?: string;
     usableAreaM2: number;
   };
-  doors: DetectedDoor[];
-  windows: DetectedWindow[];
-  hasFireplace: boolean;
-  fireplaceWall?: string | null;
-  hasBuiltInStorage: boolean;
-  hasStaircaseIntrusion: boolean;
-  staircaseCorner?: string | null;
-  recommendedCameraWall: string;
-  recommendedFacingWall: string;
-  focalPoint: string;
-  confidence: number; // 0–1
-  notes: string;
+  openings: RoomOpening[];
+  specialFeatures: SpecialFeature[];
+  lightingSources: string[];
+  furniturePlacementNotes: string[];
+  recommendedCamera: {
+    shootFromWall: string;
+    facingWall: string;
+    focalPoint: string;
+    reasoning: string;
+  };
+  limitations: string;
+  confidence: number;
 }
 
 // ── Prompt ────────────────────────────────────────────────────────────────────
 
 const PROMPT = `You are an expert architectural floor plan analyser specialising in UK residential properties.
 
-Analyse this floor plan image extremely carefully and return a JSON response.
+Analyse this floor plan image and return structured JSON. This may be an estate agent plan, architect's drawing, or hand-drawn sketch — handle any style generically.
 
-LOOK FOR THESE SPECIFIC THINGS:
+YOUR JOB:
+1. Describe what you actually see — don't force features into rigid categories
+2. Extract any printed dimensions (metric or imperial)
+3. Identify all openings: doors, windows, patio doors, French doors, bi-fold doors
+4. Note any special features: fireplace, chimney breast, staircase, alcoves, built-in storage
+5. Determine the best camera position for an interior photograph
+6. List practical furniture placement constraints
 
-1. ROOM SHAPE — Is it a perfect rectangle? Common UK irregularities:
-   - Bay windows: angled or curved projection from one wall (very common in Victorian/Edwardian properties!)
-   - Staircase intrusions: rectangular cut-out usually in a corner
-   - Chimney breasts: rectangular protrusion from a wall
-   - Alcoves: recesses beside chimney breasts
-   - L-shaped rooms: two rectangles joined
-
-2. PRINTED DIMENSIONS
-   Look carefully for numbers like "5.58m x 5.29m" or "18'4 x 17'4". These are CRITICAL — extract them exactly.
-
-3. DOORS
-   Hinged doors: gap in wall + quarter-circle arc. Arc direction shows hinge and swing.
-   Sliding/patio doors: parallel lines on wall, sometimes with an arrow indicating slide direction.
-   - Sliding patio doors are common on the REAR wall of UK ground-floor rooms (garden access).
-   - Mark these as type "sliding_patio", leadsTo "garden" if on rear/north wall.
-   - They are a MAJOR light source and should NOT be blocked by furniture.
-
-4. WINDOWS
-   Shown as thin parallel lines across wall. Bay windows project outward beyond the wall line.
-
-5. STAIRS
-   Shown as parallel lines (steps) in a rectangle, usually in a corner of the room.
-
-6. FIREPLACE / CHIMNEY
-   Marked "CH", or shown as rectangular indent/recess, or noticeably thicker wall section.
-   Usually centred on one wall.
-
-RETURN EXACTLY THIS JSON (no other text):
+RETURN EXACTLY THIS JSON (no markdown code fences, no other text):
 
 {
-  "shape": "rectangular|bay_window|staircase_intrusion|l_shaped|irregular",
-  "irregularities": [
-    {
-      "type": "bay_window|bow_window|staircase|chimney_breast|alcove",
-      "wall": "north|south|east|west",
-      "corner": "north_east|north_west|south_east|south_west",
-      "widthM": 1.8,
-      "projectionM": 0.6,
-      "depthM": 1.5,
-      "notes": "Victorian angular bay window"
-    }
-  ],
+  "overallDescription": "A nearly square Victorian reception room with an angular bay window on the front wall, sliding patio doors to the rear garden, and a traditional fireplace with chimney breast on the right wall. The room has a staircase intrusion in the south-east corner.",
+  "shapeDescription": "Nearly rectangular with a bay window projection on the front wall and a staircase cut-out in the south-east corner",
   "dimensions": {
     "lengthM": 5.58,
     "widthM": 5.29,
     "printedMeasurements": "5.58m x 5.29m",
+    "imperialMeasurements": "18'4\" x 17'4\"",
     "usableAreaM2": 26.5
   },
-  "doors": [
+  "openings": [
     {
+      "description": "Single hinged door, opens inward, hinged on left side, leads to hallway",
+      "type": "door",
+      "approximateWidthM": 0.9,
       "wall": "south",
-      "type": "single",
-      "widthM": 0.9,
-      "opensInward": true,
-      "swingsLeft": false,
-      "positionFromLeft": 0.5,
-      "leadsTo": "hallway",
       "isGlazed": false,
-      "floorToCeiling": false
+      "keepClearCm": 90,
+      "isLightSource": false
     },
     {
+      "description": "Sliding patio doors spanning most of the rear wall, floor-to-ceiling glazing, leads to garden",
+      "type": "patio_doors",
+      "approximateWidthM": 2.4,
       "wall": "north",
-      "type": "sliding_patio",
-      "widthM": 1.8,
-      "slideDirection": "left",
-      "positionFromLeft": 0.4,
-      "leadsTo": "garden",
       "isGlazed": true,
-      "floorToCeiling": false
-    }
-  ],
-  "windows": [
+      "keepClearCm": 150,
+      "isLightSource": true
+    },
     {
+      "description": "Angular bay window, three panels, on front wall — large source of natural daylight",
+      "type": "window",
+      "approximateWidthM": 1.8,
       "wall": "west",
-      "type": "bay_angular",
-      "widthM": 1.8,
-      "positionFromLeft": 0.3
+      "isGlazed": true,
+      "keepClearCm": 0,
+      "isLightSource": true
     }
   ],
-  "hasFireplace": false,
-  "fireplaceWall": null,
-  "hasBuiltInStorage": false,
-  "hasStaircaseIntrusion": true,
-  "staircaseCorner": "south_east",
-  "recommendedCameraWall": "south",
-  "recommendedFacingWall": "north",
-  "focalPoint": "bay_window",
-  "confidence": 0.85,
-  "notes": "Victorian reception room with bay window on west wall, sliding patio doors to garden on north wall, and staircase intrusion in south-east corner"
+  "specialFeatures": [
+    {
+      "description": "Traditional chimney breast with fireplace, approximately 1.5m wide, centred on east wall. Creates alcoves on either side.",
+      "type": "fireplace",
+      "wall": "east",
+      "approximateSize": "1.5m wide × 0.3m deep",
+      "keepClearCm": 100,
+      "isFocalPoint": true
+    },
+    {
+      "description": "Staircase intrusion in south-east corner, approximately 1.2m × 1.0m rectangular cut-out of usable floor area",
+      "type": "staircase",
+      "corner": "south-east",
+      "approximateSize": "1.2m × 1.0m",
+      "keepClearCm": 0,
+      "isFocalPoint": false
+    }
+  ],
+  "lightingSources": [
+    "Angular bay window on west wall — large natural daylight source flooding in from the side",
+    "Sliding patio doors on north wall — extensive rear glazing, very bright source from the far direction"
+  ],
+  "furniturePlacementNotes": [
+    "Keep 100cm clear in front of the fireplace on the east wall",
+    "Keep 150cm clear in front of the sliding patio doors for garden access",
+    "Do not place furniture in or near the south-east staircase corner — this area is not usable floor space",
+    "Seating group should face the fireplace as the primary focal point",
+    "Alcoves either side of the chimney breast suit built-in shelving or cabinets"
+  ],
+  "recommendedCamera": {
+    "shootFromWall": "south wall (entrance door)",
+    "facingWall": "north-east (toward fireplace with patio doors visible beyond)",
+    "focalPoint": "fireplace on east wall",
+    "reasoning": "Standing at the entrance on the south wall gives the widest view. Angling slightly toward the fireplace makes it the focal point, while the patio doors behind provide natural backlighting and depth."
+  },
+  "limitations": "Staircase dimensions are estimated — no scale bar visible. Bay window projection depth not printed.",
+  "confidence": 0.82
 }
 
-IMPORTANT RULES:
-- Return ONLY the JSON, no other text
-- If you cannot determine something, use null
-- Confidence: 0.9+ if dimensions are printed clearly; 0.7–0.9 if you can infer well; 0.5–0.7 if uncertain; below 0.5 if very unclear
-- For usableAreaM2: subtract staircase area from total, bay window projections ADD to usable area
-- North = top of image (usually)
-- Hand-drawn or low-resolution plans should have lower confidence`;
+RULES:
+- Return ONLY the JSON — no markdown fences, no preamble, no trailing text
+- Set dimensions to 0 if not determinable; set confidence accordingly
+- Confidence: 0.9+ = dimensions printed and clear; 0.7–0.9 = well-inferred; 0.5–0.7 = uncertain; <0.5 = very unclear or hand-drawn
+- usableAreaM2: subtract staircase/built-in footprints; add bay window projection area
+- Describe each opening and feature in plain English — be specific about what you observe
+- Include EVERY window, door, and glazed opening in "openings" — even small ones
+- Mark every opening or feature that needs furniture kept clear with a keepClearCm value
+- List all constraints in furniturePlacementNotes — the AI rendering engine reads these directly
+- lightingSources: one entry per glazed opening that admits natural light, describing its location and character
+- If you cannot determine something, say so in "limitations" and lower confidence
+- North = top of the image unless labelled otherwise`;
 
 // ── Fallback ──────────────────────────────────────────────────────────────────
 
 const FALLBACK: FloorPlanAnalysis = {
-  shape: "rectangular",
-  irregularities: [],
-  dimensions: { lengthM: 0, widthM: 0, printedMeasurements: "Unable to read", usableAreaM2: 0 },
-  doors: [],
-  windows: [],
-  hasFireplace: false,
-  hasBuiltInStorage: false,
-  hasStaircaseIntrusion: false,
-  recommendedCameraWall: "south",
-  recommendedFacingWall: "north",
-  focalPoint: "main_wall",
+  overallDescription: "Unable to analyse floor plan — please enter room details manually",
+  shapeDescription: "Unknown",
+  dimensions: {
+    lengthM: 0,
+    widthM: 0,
+    printedMeasurements: "Unable to read",
+    usableAreaM2: 0,
+  },
+  openings: [],
+  specialFeatures: [],
+  lightingSources: [],
+  furniturePlacementNotes: [],
+  recommendedCamera: {
+    shootFromWall: "entrance wall",
+    facingWall: "far wall",
+    focalPoint: "far wall",
+    reasoning: "Default position — analysis failed",
+  },
+  limitations: "Analysis failed — please enter dimensions and room details manually",
   confidence: 0,
-  notes: "Analysis failed — please enter dimensions manually",
 };
 
 // ── Analysis model — separate from the image-generation model ─────────────────
@@ -192,7 +190,7 @@ export async function analyzeFloorPlan(
 ): Promise<FloorPlanAnalysis> {
   if (!config.ai.apiKey) {
     console.log("[FloorPlanAnalysis] No Gemini API key — skipping analysis");
-    return { ...FALLBACK, notes: "No AI key configured — enter dimensions manually" };
+    return { ...FALLBACK, limitations: "No AI key configured — enter dimensions manually" };
   }
 
   try {
@@ -212,9 +210,9 @@ export async function analyzeFloorPlan(
     const analysis = JSON.parse(cleaned) as FloorPlanAnalysis;
 
     console.log("[FloorPlanAnalysis] Done:", {
-      shape: analysis.shape,
-      irregularities: analysis.irregularities.length,
       confidence: analysis.confidence,
+      openings: analysis.openings.length,
+      specialFeatures: analysis.specialFeatures.length,
       dimensions: analysis.dimensions,
     });
 

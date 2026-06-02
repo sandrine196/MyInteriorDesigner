@@ -346,68 +346,70 @@ export function buildPrompt(
     }
   }
 
-  // ── 4b. ROOM IRREGULARITIES (from Gemini Vision analysis) ────────────────────
+  // ── 4b. FLOOR PLAN FEATURES (from Gemini Vision analysis) ────────────────────
   if (structuredFloorPlan) {
-    const staircases = structuredFloorPlan.irregularities.filter((i) => i.type === "staircase");
-    const chimneys   = structuredFloorPlan.irregularities.filter((i) => i.type === "chimney_breast");
-    const patioDoors = structuredFloorPlan.doors.filter((d) => d.type === "sliding_patio");
-    const bayIrreg   = structuredFloorPlan.irregularities.filter(
-      (i) => i.type === "bay_window" || i.type === "bow_window",
-    );
+    const sfp = structuredFloorPlan;
+    const staircases  = sfp.specialFeatures.filter((f) => f.type === "staircase");
+    const focalFeats  = sfp.specialFeatures.filter((f) => f.isFocalPoint && f.type !== "staircase");
+    const otherFeats  = sfp.specialFeatures.filter((f) => !f.isFocalPoint && f.type !== "staircase" && (f.keepClearCm ?? 0) > 0);
+    const lightOpenings = sfp.openings.filter((o) => o.isLightSource);
 
     if (staircases.length > 0) {
       lines.push("", "=== 4b. STAIRCASE INTRUSION ===");
       for (const s of staircases) {
         lines.push(
-          `⚠️ MANDATORY CONSTRAINT: STAIRCASE IN ${(s.corner ?? "corner").toUpperCase()} CORNER.`,
-          `  Size: approx ${s.widthM ?? "?"}m × ${s.depthM ?? "?"}m — this space does NOT exist as floor area.`,
-          `  DO NOT place any furniture in or near this corner. The corner must appear open/clear in the image.`,
-          `  The room is NOT a rectangle — the ${s.corner ?? "corner"} corner is cut away.`,
+          `⚠️ MANDATORY CONSTRAINT: STAIRCASE INTRUSION${s.corner ? ` IN ${s.corner.toUpperCase()} CORNER` : ""}.`,
+          `  ${s.description}`,
+          `  This space is NOT usable floor area — DO NOT place furniture here.`,
+          `  The room is NOT a full rectangle — this corner is physically cut away.`,
         );
       }
     }
 
-    if (chimneys.length > 0 && fireplaces.length === 0) {
-      lines.push("", "=== 4b. CHIMNEY BREAST ===");
-      for (const c of chimneys) {
-        lines.push(
-          `Chimney breast on ${c.wall ?? "?"} wall (${c.widthM ?? "?"}m wide). Creates alcoves on either side.`,
-          "  Alcoves suit built-in shelving or cabinets.",
-        );
+    // Focal features (fireplace, bay window, etc.) only when user hasn't mapped them via FloorPlanMapper
+    if (focalFeats.length > 0 && fireplaces.length === 0 && !bayEntry) {
+      lines.push("", "=== 4b. KEY ARCHITECTURAL FEATURES ===");
+      for (const feat of focalFeats) {
+        lines.push(...[
+          `⚠️ MANDATORY ARCHITECTURAL FEATURE: ${feat.description.toUpperCase()}`,
+          feat.approximateSize ? `  Size: ${feat.approximateSize}` : "",
+          feat.keepClearCm ? `  Keep ${feat.keepClearCm}cm clear directly in front of this feature.` : "",
+          `  This feature MUST be clearly visible in the final image — do not omit or obscure it.`,
+        ].filter(Boolean) as string[]);
       }
     }
 
-    if (!rf && bayIrreg.length > 0) {
-      lines.push("", "=== 4b. BAY WINDOW (detected) ===");
-      for (const b of bayIrreg) {
-        lines.push(
-          `⚠️ MANDATORY ARCHITECTURAL FEATURE: BAY WINDOW on ${b.wall ?? "?"} wall.`,
-          `  Width: ${b.widthM ?? "?"}m. Projects ${b.projectionM ?? "?"}m outward.`,
-          `  This is a key Victorian feature — it MUST be visible and prominent in the render.`,
-          `  Natural daylight streams through it. Do not hide it behind curtains or furniture.`,
-        );
+    // Other features with clearance requirements (chimney breasts, alcoves, storage)
+    if (otherFeats.length > 0) {
+      for (const feat of otherFeats) {
+        lines.push(`${feat.description}${feat.keepClearCm ? ` — keep ${feat.keepClearCm}cm clear.` : "."}`);
       }
     }
 
-    if (patioDoors.length > 0) {
-      lines.push("", "=== 4b. SLIDING PATIO DOORS ===");
-      for (const pd of patioDoors) {
-        const destination = pd.leadsTo === "garden" ? "garden" : pd.leadsTo === "balcony" ? "balcony" : "outside";
-        lines.push(
-          `⚠️ IMPORTANT FEATURE: SLIDING PATIO DOORS on ${pd.wall} wall (${pd.widthM}m wide).`,
-          `  Leads to: ${destination}. ${pd.floorToCeiling ? "Floor-to-ceiling glazing." : "Standard height glass."}`,
-          `  These are a MAJOR light source — bright daylight streams from the ${pd.wall} direction.`,
-          `  Keep 150cm clear in front of the doors for access — no furniture blocking them.`,
-          `  ${pd.leadsTo === "garden" ? "Show the suggestion of a garden view through the glass." : ""}`,
-          `  Arrange seating to enjoy the ${destination} view. Use light, airy materials near the doors.`,
-        );
+    // Light sources — only emit when no manual wall mapping (avoids duplication)
+    if (!rf && lightOpenings.length > 0) {
+      lines.push("", "=== 4b. NATURAL LIGHT SOURCES ===");
+      for (const opening of lightOpenings) {
+        lines.push(...[
+          `${opening.description}${opening.approximateWidthM ? ` (${opening.approximateWidthM}m wide)` : ""} — MAJOR LIGHT SOURCE from ${opening.wall ?? "unknown"} direction.`,
+          opening.keepClearCm && opening.keepClearCm > 0 ? `  Keep ${opening.keepClearCm}cm clear for access.` : "",
+          opening.type === "patio_doors" ? "  Show a suggestion of the view beyond the glass. Use light, airy materials nearby." : "",
+        ].filter(Boolean) as string[]);
       }
     }
 
-    if (structuredFloorPlan.dimensions.usableAreaM2 > 0) {
+    // Furniture placement constraints
+    if (sfp.furniturePlacementNotes.length > 0) {
+      lines.push("", "=== 4b. FLOOR PLAN PLACEMENT CONSTRAINTS ===");
+      for (const note of sfp.furniturePlacementNotes) {
+        lines.push(`- ${note}`);
+      }
+    }
+
+    if (sfp.dimensions.usableAreaM2 > 0) {
       lines.push(
         "",
-        `Usable floor area (after accounting for irregularities): ${structuredFloorPlan.dimensions.usableAreaM2.toFixed(1)}m²`,
+        `Usable floor area (after accounting for features): ${sfp.dimensions.usableAreaM2.toFixed(1)}m²`,
       );
     }
   }
