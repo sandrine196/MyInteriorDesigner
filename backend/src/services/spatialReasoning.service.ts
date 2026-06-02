@@ -358,6 +358,20 @@ export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
     }
   }
 
+  // Glazed door / patio door clearance — 150cm keep-clear zone in front
+  for (const role of allRoles) {
+    for (const f of walls[role].features) {
+      if (isGlazedDoor(f) && role !== "entrance") {
+        const d = f as DoorFeature;
+        const dest = d.leadsTo === "garden" ? "garden" : d.leadsTo === "balcony" ? "balcony" : "outside";
+        placementRules.push(
+          `⚠️ KEEP 150cm COMPLETELY CLEAR directly in front of the patio doors on the ${role} wall — this is the access zone to the ${dest} and must contain NO furniture whatsoever`
+        );
+        placementRules.push(`No tall furniture blocking the patio doors on the ${role} wall`);
+      }
+    }
+  }
+
   // Avoid blocking light sources with back of sofa
   const leftLight  = lightSources.find(ls => ls.inPhotoAs === "from_left");
   const rightLight = lightSources.find(ls => ls.inPhotoAs === "from_right");

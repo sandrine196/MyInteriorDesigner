@@ -133,6 +133,7 @@ function buildFeature(
     if (door.subtype === "sliding_patio") {
       feat.leadsTo = door.leadsTo;
       feat.isGlazed = true;
+      feat.floorToCeiling = door.floorToCeiling;
     }
     return feat;
   }
@@ -592,7 +593,9 @@ function FeaturePanel({
 
       {/* Picker — hidden once featureType is selected */}
       <div style={{ display: featureType === null ? "block" : "none" }}>
-        <p className="text-xs text-stone-500 mb-2">What&apos;s on this wall?</p>
+        <p className="text-xs text-stone-500 mb-2">
+          {wall.features.length > 0 ? "Add another feature, or mark this wall as done:" : "What’s on this wall?"}
+        </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {(["window", "door", "fireplace", "nothing"] as FeatureType[]).map((t) => (
             <button
@@ -607,6 +610,17 @@ function FeaturePanel({
             </button>
           ))}
         </div>
+        {wall.features.length > 0 && (
+          <button
+            onClick={onClose}
+            className="mt-3 w-full bg-prussian-blue text-white rounded-lg px-4 py-2.5 text-sm font-semibold hover:bg-prussian-blue/90 transition-colors flex items-center justify-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+            Done with {roleLabel(activeWall).toLowerCase()}
+          </button>
+        )}
       </div>
 
       {/* Forms — hidden when no featureType selected */}

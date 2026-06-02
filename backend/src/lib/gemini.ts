@@ -393,8 +393,17 @@ export function buildPrompt(
     const sfp = structuredFloorPlan;
     const staircases  = sfp.specialFeatures.filter((f) => f.type === "staircase");
     const focalFeats  = sfp.specialFeatures.filter((f) => f.isFocalPoint && f.type !== "staircase");
-    const otherFeats  = sfp.specialFeatures.filter((f) => !f.isFocalPoint && f.type !== "staircase" && (f.keepClearCm ?? 0) > 0);
+    // Include ALL non-staircase, non-focal features — nooks, alcoves, etc. even without clearance
+    const otherFeats  = sfp.specialFeatures.filter((f) => !f.isFocalPoint && f.type !== "staircase");
     const lightOpenings = sfp.openings.filter((o) => o.isLightSource);
+
+    // Room shape — critical for non-rectangular rooms
+    if (sfp.shapeDescription && sfp.shapeDescription !== "Unknown") {
+      lines.push("", "=== 4b. ROOM SHAPE ===");
+      lines.push(`⚠️ THIS ROOM IS NOT A SIMPLE RECTANGLE: ${sfp.shapeDescription}`);
+      if (sfp.overallDescription) lines.push(sfp.overallDescription);
+      lines.push("The rendered image MUST reflect this non-rectangular shape accurately — do not render a plain rectangular box.");
+    }
 
     if (staircases.length > 0) {
       lines.push("", "=== 4b. STAIRCASE INTRUSION ===");
@@ -421,10 +430,17 @@ export function buildPrompt(
       }
     }
 
-    // Other features with clearance requirements (chimney breasts, alcoves, storage)
+    // All other features — nooks, alcoves, chimney breasts, built-ins
     if (otherFeats.length > 0) {
+      lines.push("", "=== 4b. ROOM FEATURES ===");
       for (const feat of otherFeats) {
-        lines.push(`${feat.description}${feat.keepClearCm ? ` — keep ${feat.keepClearCm}cm clear.` : "."}`);
+        lines.push(...[
+          `${feat.description}`,
+          feat.approximateSize ? `  Size: ${feat.approximateSize}` : "",
+          feat.wall ? `  Location: ${feat.wall} wall` : "",
+          feat.corner ? `  Location: ${feat.corner} corner` : "",
+          feat.keepClearCm ? `  Keep ${feat.keepClearCm}cm clear.` : "",
+        ].filter(Boolean) as string[]);
       }
     }
 
