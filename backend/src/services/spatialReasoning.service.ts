@@ -47,6 +47,7 @@ export interface LightSource {
   inPhotoAs: "from_left" | "from_right" | "backlit" | "front_lit";
   quality: "ideal" | "dramatic" | "good" | "challenging";
   description: string;
+  sourceType: "window" | "glazed_door";
 }
 
 export interface SpatialAnalysis {
@@ -138,6 +139,51 @@ function lightQuality(role: WallRole): { inPhotoAs: LightSource["inPhotoAs"]; qu
   }
 }
 
+function isGlazedDoor(f: WallFeature): boolean {
+  if (f.type !== "door") return false;
+  const d = f as DoorFeature;
+  return d.subtype === "sliding_patio" || d.isGlazed === true;
+}
+
+function hasGlazedDoor(wall: { features: WallFeature[] }): boolean {
+  return wall.features.some(isGlazedDoor);
+}
+
+function getGlazedDoor(wall: { features: WallFeature[] }): DoorFeature | null {
+  return (wall.features.find(isGlazedDoor) as DoorFeature) ?? null;
+}
+
+function glazedDoorLightQuality(role: WallRole, door: DoorFeature): { inPhotoAs: LightSource["inPhotoAs"]; quality: LightSource["quality"]; description: string } {
+  const destination = door.leadsTo === "garden" ? "garden" : door.leadsTo === "balcony" ? "balcony" : "outside";
+  const typeLabel = door.subtype === "sliding_patio" ? "Sliding patio doors" : "Glazed doors";
+  switch (role) {
+    case "entrance":
+      return {
+        inPhotoAs: "front_lit",
+        quality: "ideal",
+        description: `${typeLabel} on the entrance wall admit natural light from behind the camera`,
+      };
+    case "far":
+      return {
+        inPhotoAs: "backlit",
+        quality: "dramatic",
+        description: `${typeLabel} on the far wall flood the room with ${destination} daylight — dramatic backlit glow with an outdoor view straight ahead`,
+      };
+    case "left":
+      return {
+        inPhotoAs: "from_left",
+        quality: "good",
+        description: `${typeLabel} on the left wall bring in strong ${destination} daylight from the left`,
+      };
+    case "right":
+      return {
+        inPhotoAs: "from_right",
+        quality: "good",
+        description: `${typeLabel} on the right wall bring in strong ${destination} daylight from the right`,
+      };
+  }
+}
+
 // ── Main analysis function ─────────────────────────────────────────────────────
 
 export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
@@ -203,10 +249,17 @@ export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
   }
 
   // ── Light sources ─────────────────────────────────────────────────────────────
+  // Windows first; glazed/patio doors also count as light sources when present
 
-  const lightSources: LightSource[] = allRoles
-    .filter((r) => hasWindow(walls[r]))
-    .map((r) => ({ wall: r, ...lightQuality(r) }));
+  const lightSources: LightSource[] = [];
+  for (const r of allRoles) {
+    if (hasWindow(walls[r])) {
+      lightSources.push({ wall: r, ...lightQuality(r), sourceType: "window" });
+    } else if (hasGlazedDoor(walls[r])) {
+      const gd = getGlazedDoor(walls[r])!;
+      lightSources.push({ wall: r, ...glazedDoorLightQuality(r, gd), sourceType: "glazed_door" });
+    }
+  }
 
   // ── Door relationship ──────────────────────────────────────────────────────────
 
@@ -235,21 +288,21 @@ export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
   // ── Cross-light note ───────────────────────────────────────────────────────────
 
   let crossLightNote: string | null = null;
-  const windowWalls = allRoles.filter((r) => hasWindow(walls[r]));
+  const lightSourceWalls = lightSources.map(ls => ls.wall);
 
-  if (windowWalls.includes("left") && windowWalls.includes("right")) {
+  if (lightSourceWalls.includes("left") && lightSourceWalls.includes("right")) {
     crossLightNote = "Cross-lighting from both left and right walls — the room will be evenly bathed in daylight with no harsh shadows.";
-  } else if (windowWalls.includes("left") && windowWalls.includes("far")) {
-    crossLightNote = "Windows on the far and left walls create a wrap-around light effect — the far wall glows while the left side receives directional light.";
-  } else if (windowWalls.includes("right") && windowWalls.includes("far")) {
-    crossLightNote = "Windows on the far and right walls create a wrap-around light effect — the far wall glows while the right side receives directional light.";
-  } else if (windowWalls.includes("entrance") && (windowWalls.includes("left") || windowWalls.includes("right"))) {
-    const side = windowWalls.includes("left") ? "left" : "right";
+  } else if (lightSourceWalls.includes("left") && lightSourceWalls.includes("far")) {
+    crossLightNote = "Light sources on the far and left walls create a wrap-around light effect — the far wall glows while the left side receives directional light.";
+  } else if (lightSourceWalls.includes("right") && lightSourceWalls.includes("far")) {
+    crossLightNote = "Light sources on the far and right walls create a wrap-around light effect — the far wall glows while the right side receives directional light.";
+  } else if (lightSourceWalls.includes("entrance") && (lightSourceWalls.includes("left") || lightSourceWalls.includes("right"))) {
+    const side = lightSourceWalls.includes("left") ? "left" : "right";
     crossLightNote = `Front-lit from the entrance and ${side} walls — excellent photography conditions, the room will be bright and evenly exposed.`;
-  } else if (windowWalls.length === 1) {
-    const sole = windowWalls[0];
-    const dir = { entrance: "from behind the camera", far: "straight ahead (backlit)", left: "from the left", right: "from the right" }[sole];
-    crossLightNote = `Single light source ${dir} — expect strong directional shadows that add depth and drama to the photograph.`;
+  } else if (lightSources.length === 1) {
+    const sole = lightSources[0];
+    const dir = { entrance: "from behind the camera", far: "straight ahead (backlit)", left: "from the left", right: "from the right" }[sole.wall];
+    crossLightNote = `Single light source ${dir} — expect strong directional light that adds depth and drama to the photograph.`;
   }
 
   // ── Placement rules ────────────────────────────────────────────────────────────
@@ -305,11 +358,15 @@ export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
   }
 
   // Avoid blocking light sources with back of sofa
-  if (lightSources.some(ls => ls.inPhotoAs === "from_left")) {
-    placementRules.push("Position sofa so its back does not block the left wall windows — allow light to wash across the room");
+  const leftLight  = lightSources.find(ls => ls.inPhotoAs === "from_left");
+  const rightLight = lightSources.find(ls => ls.inPhotoAs === "from_right");
+  if (leftLight) {
+    const src = leftLight.sourceType === "glazed_door" ? "glazed doors" : "windows";
+    placementRules.push(`Position sofa so its back does not block the left wall ${src} — allow light to wash across the room`);
   }
-  if (lightSources.some(ls => ls.inPhotoAs === "from_right")) {
-    placementRules.push("Position sofa so its back does not block the right wall windows — allow light to wash across the room");
+  if (rightLight) {
+    const src = rightLight.sourceType === "glazed_door" ? "glazed doors" : "windows";
+    placementRules.push(`Position sofa so its back does not block the right wall ${src} — allow light to wash across the room`);
   }
 
   // ── Prompt narrative ──────────────────────────────────────────────────────────
@@ -317,7 +374,7 @@ export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
   const lightDesc = lightSources.length === 0
     ? "an artificially lit room"
     : lightSources.length === 1
-      ? `natural light ${lightQuality(lightSources[0].wall).description.split("—")[0].trim()}`
+      ? `natural light — ${lightSources[0].description}`
       : `natural light from ${lightSources.map(ls => ls.wall).join(" and ")} walls`;
 
   const focalDesc = focalPoint ? focalPoint.description : "an open, well-proportioned far wall as the backdrop";
@@ -344,7 +401,12 @@ export function analyzeRoomSpatially(rf: RoomFeatures): SpatialAnalysis {
   const uiLight = lightSources.length === 0
     ? "No windows mapped — artificial lighting will be used"
     : lightSources.length === 1
-      ? { from_left: "Natural light from the left", from_right: "Natural light from the right", backlit: "Backlit — windows behind the furniture ahead", front_lit: "Front-lit — light comes from behind the camera" }[lightSources[0].inPhotoAs]
+      ? ({
+          from_left:  lightSources[0].sourceType === "glazed_door" ? "Natural light from the left (glazed doors)" : "Natural light from the left",
+          from_right: lightSources[0].sourceType === "glazed_door" ? "Natural light from the right (glazed doors)" : "Natural light from the right",
+          backlit:    lightSources[0].sourceType === "glazed_door" ? "Backlit — glazed doors ahead (outdoor view)" : "Backlit — windows behind the furniture ahead",
+          front_lit:  "Front-lit — light comes from behind the camera",
+        })[lightSources[0].inPhotoAs]
       : `Light from ${lightSources.map(ls => ({ from_left: "left", from_right: "right", backlit: "ahead (far wall)", front_lit: "behind (entrance)" })[ls.inPhotoAs]).join(" & ")}`;
 
   const uiFocalPoint = focalPoint

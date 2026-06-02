@@ -177,6 +177,9 @@ export function buildPrompt(
   const fireplaces: Array<{ role: WallRole; fp: FireplaceFeature }> = [];
   const regularWindows: Array<{ role: WallRole; w: WindowFeature }> = [];
 
+  // Glazed doors on non-entrance walls (patio/French/bifold) also act as light sources
+  const glazedDoorLightSources: Array<{ role: WallRole; door: DoorFeature }> = [];
+
   if (rf) {
     for (const role of ["entrance", "far", "left", "right"] as WallRole[]) {
       for (const f of rf.walls[role].features) {
@@ -185,9 +188,18 @@ export function buildPrompt(
           const w = f as WindowFeature;
           if (!["bay_angular", "bow", "box_bay"].includes(w.subtype)) regularWindows.push({ role, w });
         }
+        if (f.type === "door" && role !== "entrance") {
+          const d = f as DoorFeature;
+          if (d.subtype === "sliding_patio" || d.isGlazed) {
+            glazedDoorLightSources.push({ role, door: d });
+          }
+        }
       }
     }
   }
+
+  // True when the only natural light comes from glazed doors (no windows, no bay)
+  const hasOnlyGlazedDoorLight = glazedDoorLightSources.length > 0 && !bayEntry && regularWindows.length === 0;
 
   // Room shape & proportions
   const lengthM  = (room.length / 1000).toFixed(1);
@@ -290,7 +302,8 @@ export function buildPrompt(
 
   // ── 3. WINDOWS & NATURAL LIGHT ───────────────────────────────────────────────
   // Windows define the light — place them before surfaces and furniture.
-  if (bayEntry || regularWindows.length > 0) {
+  // Glazed patio/French doors on non-entrance walls also count as light sources.
+  if (bayEntry || regularWindows.length > 0 || glazedDoorLightSources.length > 0) {
     lines.push("", "=== 3. WINDOWS & NATURAL LIGHT ===");
   }
 
@@ -320,6 +333,30 @@ export function buildPrompt(
     lines.push(
       `${label} — ${PHOTO_POS[role]}: ${w.widthCm}cm wide × ${w.heightCm}cm tall, sill at ${w.heightFromFloorCm}cm from floor.` +
       (w.hasRadiatorBelow ? " Radiator below." : ""),
+    );
+  }
+
+  // Glazed doors as primary light sources — treat them exactly like large windows
+  for (const { role, door } of glazedDoorLightSources) {
+    const destination = door.leadsTo === "garden" ? "garden" : door.leadsTo === "balcony" ? "balcony" : "outside";
+    lines.push(...[
+      `⚠️ MAJOR LIGHT SOURCE: ${DOOR_LABELS[door.subtype].toUpperCase()} — ${PHOTO_POS[role].toUpperCase()}`,
+      `  ${door.widthCm}cm wide. Leads to: ${destination}. Treat this exactly like a large window for lighting purposes.`,
+      `  Bright ${destination} daylight streams in from the ${role} direction. Do NOT render this as a dark wall.`,
+      `  Keep 150cm clear in front of the doors for access.`,
+      door.leadsTo === "garden" ? "  Show the suggestion of a garden view through the glass." : "",
+      door.leadsTo === "balcony" ? "  Show the suggestion of a balcony/sky view through the glass." : "",
+    ].filter(Boolean) as string[]);
+  }
+
+  if (hasOnlyGlazedDoorLight) {
+    lines.push(
+      "",
+      "LIGHTING NOTE — NO TRADITIONAL WINDOWS IN THIS ROOM:",
+      "Natural light enters entirely through the glazed door(s) listed above.",
+      "Do NOT render this as a dark or artificially lit interior.",
+      "The glazed doors provide ample natural daylight — render with the same bright, airy quality as a windowed room.",
+      "Expect dramatic directional light, strong indoor/outdoor connection, and a beautiful view through the glass.",
     );
   }
 
