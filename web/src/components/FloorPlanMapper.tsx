@@ -571,14 +571,30 @@ function FeaturePanel({
   onClose, onRemoveFeature, onAddFeature,
 }: FeaturePanelProps) {
   const wall = walls[activeWall];
+  const hasFeatures = wall.features.length > 0;
   return (
     <div className="mt-4 bg-stone-50 border border-stone-200 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-stone-800 text-sm">{roleLabel(activeWall)} — features</h3>
-        <button onClick={onClose} className="text-stone-400 hover:text-stone-600 text-xs">Close ✕</button>
+        {/* Always-visible done button in header */}
+        <button
+          onClick={onClose}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+            hasFeatures
+              ? "bg-prussian-blue text-white hover:bg-prussian-blue/90"
+              : "text-stone-400 hover:text-stone-600"
+          }`}
+        >
+          {hasFeatures && (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          )}
+          {hasFeatures ? "Done ✓" : "Close ✕"}
+        </button>
       </div>
 
-      {wall.features.length > 0 && (
+      {hasFeatures && (
         <div className="mb-3 space-y-1.5">
           {wall.features.map((f, i) => (
             <div key={i} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-stone-200 text-sm">
@@ -594,7 +610,7 @@ function FeaturePanel({
       {/* Picker — hidden once featureType is selected */}
       <div style={{ display: featureType === null ? "block" : "none" }}>
         <p className="text-xs text-stone-500 mb-2">
-          {wall.features.length > 0 ? "Add another feature, or mark this wall as done:" : "What’s on this wall?"}
+          {hasFeatures ? "Add another feature to this wall:" : "What’s on this wall?"}
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {(["window", "door", "fireplace", "nothing"] as FeatureType[]).map((t) => (
@@ -610,17 +626,6 @@ function FeaturePanel({
             </button>
           ))}
         </div>
-        {wall.features.length > 0 && (
-          <button
-            onClick={onClose}
-            className="mt-3 w-full bg-prussian-blue text-white rounded-lg px-4 py-2.5 text-sm font-semibold hover:bg-prussian-blue/90 transition-colors flex items-center justify-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-            Done with {roleLabel(activeWall).toLowerCase()}
-          </button>
-        )}
       </div>
 
       {/* Forms — hidden when no featureType selected */}
