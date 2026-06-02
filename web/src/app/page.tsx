@@ -684,6 +684,27 @@ function Pricing() {
   );
 }
 
+// ── About ─────────────────────────────────────────────────────────────────────
+
+function About() {
+  return (
+    <section className="py-16 bg-stone-50 border-t border-stone-100" id="about">
+      <div className="max-w-2xl mx-auto px-6 text-center">
+        <h2 className="text-2xl font-bold text-stone-900 tracking-tight mb-4">
+          About MyInteriorDesigner
+        </h2>
+        <p className="text-stone-500 text-sm leading-relaxed mb-6">
+          MyInteriorDesigner is an AI-powered interior design tool for UK homeowners.
+          Upload your floor plan, choose your style, and let our AI generate beautiful
+          room designs with furniture recommendations that fit your space.
+        </p>
+        <p className="text-xs font-semibold tracking-widest text-stone-400 mb-5">HELLO AWIN</p>
+        <p className="text-sm text-stone-400">Built with love in the UK 🇬🇧</p>
+      </div>
+    </section>
+  );
+}
+
 // ── Footer ────────────────────────────────────────────────────────────────────
 
 function Footer() {
@@ -734,6 +755,7 @@ export default function LandingPage() {
         <SocialProof />
         <ExampleGallery />
         <Pricing />
+        <About />
       </main>
       <Footer />
     </div>
