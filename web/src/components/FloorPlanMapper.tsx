@@ -182,7 +182,7 @@ function AddButton({ ready, onAdd }: { ready: boolean; onAdd: () => void }) {
     <button
       onClick={onAdd}
       disabled={!ready}
-      className="mt-1 bg-prussian-blue text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40 hover:bg-prussian-blue/90 transition-colors"
+      className="mt-1 bg-mid-blue text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40 hover:bg-mid-blue/90 transition-colors"
     >
       Add to wall
     </button>
@@ -521,7 +521,7 @@ function WallStrip({ side, pos, entranceSide, walls, activeWall, mapping, onSele
     : needsDoor
     ? "bg-red-50/80 border-red-300 hover:border-red-400"
     : isEntrance
-    ? "bg-prussian-blue/10 border-prussian-blue/40 hover:border-prussian-blue/60"
+    ? "bg-mid-blue/10 border-mid-blue/40 hover:border-mid-blue/60"
     : "bg-stone-100/80 border-stone-300 hover:border-stone-400";
 
   return (
@@ -578,7 +578,7 @@ function FeaturePanel({
         <h3 className="font-semibold text-stone-800 text-sm">{roleLabel(activeWall)} — features</h3>
         <button
           onClick={onClose}
-          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-prussian-blue text-white hover:bg-prussian-blue/90 transition-colors"
+          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-mid-blue text-white hover:bg-mid-blue/90 transition-colors"
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -833,7 +833,7 @@ export default function FloorPlanMapper({ floorPlanUrl, initialFeatures, saving,
             <button
               onClick={handleSave}
               disabled={!canSave || saving}
-              className="bg-prussian-blue text-white rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-40 hover:bg-prussian-blue/90 transition-colors"
+              className="bg-mid-blue text-white rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-40 hover:bg-mid-blue/90 transition-colors"
             >
               {saving ? "Saving…" : "Save room layout →"}
             </button>
@@ -906,7 +906,7 @@ function Toggle({ options, value, onChange }: {
           type="button"
           onClick={() => onChange(opt.value)}
           className={`flex-1 px-3 py-1.5 transition-colors ${
-            value === opt.value ? "bg-prussian-blue text-white" : "bg-white text-stone-600 hover:bg-stone-50"
+            value === opt.value ? "bg-mid-blue text-white" : "bg-white text-stone-600 hover:bg-stone-50"
           }`}
         >
           {opt.label}
