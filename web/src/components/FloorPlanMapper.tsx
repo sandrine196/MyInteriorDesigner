@@ -576,21 +576,14 @@ function FeaturePanel({
     <div className="mt-4 bg-stone-50 border border-stone-200 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-stone-800 text-sm">{roleLabel(activeWall)} — features</h3>
-        {/* Always-visible done button in header */}
         <button
           onClick={onClose}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-            hasFeatures
-              ? "bg-prussian-blue text-white hover:bg-prussian-blue/90"
-              : "text-stone-400 hover:text-stone-600"
-          }`}
+          className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-prussian-blue text-white hover:bg-prussian-blue/90 transition-colors"
         >
-          {hasFeatures && (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-          )}
-          {hasFeatures ? "Done ✓" : "Close ✕"}
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+          Done ✓
         </button>
       </div>
 
