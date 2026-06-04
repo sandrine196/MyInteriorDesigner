@@ -12,7 +12,21 @@
       "Bash(curl *)",
       "Bash(python3 -c \" import sys, json try: d = json.load\\(sys.stdin\\) p = d.get\\('project', {}\\) print\\('floorPlanKey:', p.get\\('floorPlanKey'\\)\\) print\\('floorPlanUrl:', p.get\\('floorPlanUrl'\\)\\) print\\('designStyle:', p.get\\('designStyle'\\)\\) except: print\\('parse error'\\) \")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")",
-      "Bash(kill 50726)"
+      "Bash(kill 50726)",
+      "Bash(python3 *)",
+      "Bash(convert \"/Users/sandrineandre/Documents/App/web/public/MIDLogoPrussianBlue_Gold.png\" -format \"%[fx:p{5,5}.r*255],%[fx:p{5,5}.g*255],%[fx:p{5,5}.b*255],%[fx:p{5,5}.a*255]\" info:)",
+      "Bash(sips -g pixelWidth -g pixelHeight \"/Users/sandrineandre/Documents/App/web/public/MIDLogoPrussianBlue_Gold.png\")",
+      "Bash(xargs cat *)",
+      "Bash(GEMINI_MODEL=gemini-3.1-flash-image-preview node *)",
+      "Bash(git -C /Users/sandrineandre/Documents/App add backend/src/services/ai.service.ts backend/src/lib/gemini.ts backend/src/routes/projects.ts backend/prisma/seed.ts)",
+      "Bash(git -C /Users/sandrineandre/Documents/App commit -m ' *)",
+      "Bash(git -C /Users/sandrineandre/Documents/App push)",
+      "Bash(git -C /Users/sandrineandre/Documents/App add backend/src/services/ai.service.ts)",
+      "Bash(git -C /Users/sandrineandre/Documents/App add backend/src/lib/gemini.ts backend/src/services/ai.service.ts)",
+      "Bash(git -C /Users/sandrineandre/Documents/App add 'web/src/app/\\(app\\)/projects/page.tsx' 'web/src/app/\\(app\\)/projects/[id]/page.tsx' web/src/app/admin/page.tsx web/next.config.ts backend/.env.example web/.env.example)",
+      "Bash(git -C /Users/sandrineandre/Documents/App add 'web/src/app/\\(app\\)/projects/page.tsx' 'web/src/app/\\(app\\)/projects/[id]/page.tsx' web/src/app/admin/page.tsx web/next.config.ts backend/.env.example web/.env.example web/.gitignore)",
+      "Bash(git *)",
+      "Bash(npx plugins *)"
     ]
   }
 }

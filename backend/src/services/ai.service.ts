@@ -12,6 +12,7 @@ import {
   type RoomDimensionsMm,
   type PromptMeta,
 } from "../lib/gemini.js";
+import { interpretFloorPlan } from "./floorPlanAnalysis.service.js";
 
 // ── Interface ──────────────────────────────────────────────────────────────────
 
@@ -24,8 +25,12 @@ export type GenerateRoomImageOpts = {
 } & PromptMeta;
 
 export interface AIService {
-  /** Returns a PNG buffer and a flag indicating whether a real API call was made. */
-  generateRoomImage(opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }>;
+  generateRoomImage(opts: GenerateRoomImageOpts): Promise<{
+    buffer: Buffer;
+    alternativeBuffer?: Buffer;
+    floorPlanInterpretation?: string | null;
+    mock: boolean;
+  }>;
 }
 
 // ── Shared: GPT-4o Vision floor plan analysis ─────────────────────────────────
@@ -100,9 +105,15 @@ class GeminiAIService implements AIService {
     ? new OpenAI({ apiKey: config.ai.openaiKey })
     : null;
 
-  async generateRoomImage(opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }> {
+  async generateRoomImage(opts: GenerateRoomImageOpts): Promise<{
+    buffer: Buffer;
+    alternativeBuffer?: Buffer;
+    floorPlanInterpretation?: string | null;
+    mock: boolean;
+  }> {
     let floorPlan: { data: string; mimeType: string } | null = null;
     let floorPlanAnalysis: string | null = null;
+    let floorPlanInterpretation: string | null = null;
 
     if (opts.floorPlanKey) {
       const mimeType = opts.floorPlanKey.endsWith(".webp") ? "image/webp" : "image/jpeg";
@@ -111,8 +122,8 @@ class GeminiAIService implements AIService {
         console.log("[Gemini] OPENAI_API_KEY not set — skipping Vision pre-analysis");
       }
 
-      // Download the floor plan image and run GPT-4o Vision analysis in parallel.
-      const [imageBuffer, analysis] = await Promise.all([
+      // Step A: Download floor plan + run GPT-4o Vision analysis + run Gemini interpretation in parallel.
+      const [imageBuffer, analysis, interpretation] = await Promise.all([
         storage.download(opts.floorPlanKey).catch((err) => {
           console.error("[Gemini] Failed to load floor plan image:", err);
           return null;
@@ -120,6 +131,12 @@ class GeminiAIService implements AIService {
         this.openai
           ? analyzeFloorPlanWithVision(this.openai, opts.floorPlanKey, "Gemini")
           : Promise.resolve(null),
+        storage.download(opts.floorPlanKey).then((buf) => {
+          return interpretFloorPlan(buf, mimeType);
+        }).catch((err) => {
+          console.error("[Gemini] Failed to interpret floor plan:", err);
+          return null;
+        }),
       ]);
 
       if (imageBuffer) {
@@ -127,12 +144,31 @@ class GeminiAIService implements AIService {
         console.log(`[Gemini] Floor plan loaded for direct injection: ${opts.floorPlanKey}`);
       }
       floorPlanAnalysis = analysis;
+      floorPlanInterpretation = interpretation;
+
+      if (floorPlanInterpretation) {
+        console.log("[Gemini] Two-step render: floor plan interpretation ready");
+      }
     }
 
-    return geminiGenerateRoomImage(
-      { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region },
-      { ...opts, floorPlan, floorPlanAnalysis },
-    );
+    const sharedOpts = { ...opts, floorPlan, floorPlanAnalysis, floorPlanInterpretation };
+    const geminiCfg  = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region };
+
+    // Step B: Generate primary + secondary renders in parallel.
+    const [primary, secondary] = await Promise.all([
+      geminiGenerateRoomImage(geminiCfg, { ...sharedOpts, cameraAngle: "primary" }),
+      geminiGenerateRoomImage(geminiCfg, { ...sharedOpts, cameraAngle: "secondary" }).catch((err) => {
+        console.error("[Gemini] Secondary render failed — returning primary only:", err);
+        return null;
+      }),
+    ]);
+
+    return {
+      buffer:               primary.buffer,
+      alternativeBuffer:    secondary?.buffer ?? undefined,
+      floorPlanInterpretation,
+      mock:                 primary.mock,
+    };
   }
 }
 
@@ -146,7 +182,12 @@ class OpenAIService implements AIService {
     this.client = new OpenAI({ apiKey: config.ai.openaiKey });
   }
 
-  async generateRoomImage(opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }> {
+  async generateRoomImage(opts: GenerateRoomImageOpts): Promise<{
+    buffer: Buffer;
+    alternativeBuffer?: Buffer;
+    floorPlanInterpretation?: string | null;
+    mock: boolean;
+  }> {
     let floorPlanAnalysis: string | null = null;
     if (opts.floorPlanKey) {
       floorPlanAnalysis = await analyzeFloorPlanWithVision(this.client, opts.floorPlanKey, "OpenAI");
@@ -192,8 +233,14 @@ class OpenAIService implements AIService {
 // ── Mock (fast placeholder for development/testing) ────────────────────────────
 
 class MockAIService implements AIService {
-  async generateRoomImage(_opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }> {
-    return { buffer: await placeholderBuffer(), mock: true };
+  async generateRoomImage(_opts: GenerateRoomImageOpts): Promise<{
+    buffer: Buffer;
+    alternativeBuffer?: Buffer;
+    floorPlanInterpretation?: string | null;
+    mock: boolean;
+  }> {
+    const buf = await placeholderBuffer();
+    return { buffer: buf, alternativeBuffer: buf, mock: true };
   }
 }
 
@@ -202,8 +249,12 @@ class MockAIService implements AIService {
 // Useful if Gemini is unavailable in a specific region.
 
 class StabilityAIService implements AIService {
-  async generateRoomImage(_opts: GenerateRoomImageOpts): Promise<{ buffer: Buffer; mock: boolean }> {
-    // TODO: call https://api.stability.ai/v2beta/stable-image/generate/ultra
+  async generateRoomImage(_opts: GenerateRoomImageOpts): Promise<{
+    buffer: Buffer;
+    alternativeBuffer?: Buffer;
+    floorPlanInterpretation?: string | null;
+    mock: boolean;
+  }> {
     throw new Error(
       "Stability AI provider not yet implemented. Set AI_PROVIDER=gemini or AI_PROVIDER=mock."
     );

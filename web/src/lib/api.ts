@@ -163,6 +163,9 @@ export type Render = {
   status: "pending" | "done" | "failed";
   prompt: string;
   imageUrl: string | null;
+  alternativeImageUrl?: string | null;
+  floorPlanInterpretation?: string | null;
+  selectedRender?: number | null;
   errorMessage: string | null;
   products: RenderProduct[];
 };

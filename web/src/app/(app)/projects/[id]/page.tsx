@@ -1378,9 +1378,26 @@ function TrashIcon() {
   );
 }
 
+const LOADING_STEPS = [
+  "Analysing floor plan…",
+  "Generating designs…",
+  "Finding furniture…",
+];
+
 function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [selectedView, setSelectedView] = useState<1 | 2>(1);
+  const [loadingStep, setLoadingStep] = useState(0);
+
+  // Cycle through loading steps while pending
+  useEffect(() => {
+    if (render.status !== "pending") return;
+    const interval = setInterval(() => {
+      setLoadingStep((s) => (s + 1) % LOADING_STEPS.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [render.status]);
 
   async function handleDelete() {
     setDeleting(true);
@@ -1392,6 +1409,13 @@ function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Prom
     ? render.imageUrl.startsWith("http") ? render.imageUrl : `${API_BASE}${render.imageUrl}`
     : null;
 
+  const altSrc = render.alternativeImageUrl
+    ? render.alternativeImageUrl.startsWith("http") ? render.alternativeImageUrl : `${API_BASE}${render.alternativeImageUrl}`
+    : null;
+
+  const hasAlt = render.status === "done" && !!altSrc;
+  const activeSrc = selectedView === 2 && altSrc ? altSrc : imgSrc;
+
   const products = render.products ?? [];
   const hasProducts = render.status === "done" && products.length > 0;
   const total = products.reduce((s, p) => s + (p.priceGbp ?? 0), 0);
@@ -1399,14 +1423,27 @@ function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Prom
 
   return (
     <div id={`render-${render.id}`} className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
-      {imgSrc && render.status === "done" && (
+      {activeSrc && render.status === "done" && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imgSrc} alt="Room design" className="w-full h-72 object-cover" />
+        <img src={activeSrc} alt="Room design" className="w-full h-72 object-cover" />
       )}
       {render.status === "pending" && (
-        <div className="w-full h-72 bg-stone-50 flex flex-col items-center justify-center gap-3">
+        <div className="w-full h-72 bg-stone-50 flex flex-col items-center justify-center gap-4">
           <div className="w-6 h-6 rounded-full border-2 border-stone-200 border-t-mid-gold animate-spin" />
-          <p className="text-sm text-stone-400">Generating your design…</p>
+          <div className="flex flex-col items-center gap-1">
+            {LOADING_STEPS.map((step, i) => (
+              <p
+                key={step}
+                className="text-sm transition-all duration-500"
+                style={{
+                  color: i === loadingStep ? "#1B4965" : "#d4cfc9",
+                  fontWeight: i === loadingStep ? 500 : 400,
+                }}
+              >
+                {step}
+              </p>
+            ))}
+          </div>
         </div>
       )}
       {render.status === "failed" && !imgSrc && (
@@ -1414,6 +1451,27 @@ function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Prom
           <p className="text-xs text-red-400">Render failed</p>
         </div>
       )}
+
+      {/* View selector tabs for primary / alternative */}
+      {hasAlt && (
+        <div className="flex border-b border-stone-100">
+          {([1, 2] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setSelectedView(v)}
+              className="flex-1 py-2 text-xs font-medium transition-colors"
+              style={{
+                color: selectedView === v ? "#1B4965" : "#a8a29e",
+                borderBottom: selectedView === v ? "2px solid #1B4965" : "2px solid transparent",
+                background: "transparent",
+              }}
+            >
+              {v === 1 ? "View 1" : "View 2"}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="p-5">
         <p className="text-sm text-stone-600 line-clamp-2 leading-relaxed">{render.prompt}</p>
         {render.status === "failed" && (
@@ -1424,8 +1482,8 @@ function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Prom
         )}
         <div className="mt-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {render.status === "done" && imgSrc && (
-              <a href={imgSrc} target="_blank" rel="noopener noreferrer"
+            {render.status === "done" && activeSrc && (
+              <a href={activeSrc} target="_blank" rel="noopener noreferrer"
                 className="text-xs text-stone-400 hover:text-stone-600 transition-colors">
                 View full size
               </a>

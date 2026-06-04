@@ -198,6 +198,53 @@ const FALLBACK: FloorPlanAnalysis = {
 
 // ── Analysis model — separate from the image-generation model ─────────────────
 const ANALYSIS_MODEL = "gemini-2.0-flash";
+const INTERPRETATION_MODEL = "gemini-2.0-flash";
+
+const INTERPRETATION_PROMPT = `You are an expert interior designer and architectural analyst. You are looking at a floor plan image.
+
+Your job is to produce a rich, plain-English description of this room that will be used to generate a photorealistic interior render. Be specific and detailed — this description replaces the need to look at the floor plan during rendering.
+
+Describe:
+1. ROOM SHAPE: Is it a simple rectangle? If not, describe all nooks, alcoves, recesses, bay window projections, chimney breasts, and staircase cut-outs precisely. Say which corner or wall they occur on.
+2. WALLS: For each wall (north/south/east/west or left/right/far/entrance), describe what is on it: windows, doors, fireplaces, alcoves, plain plasterwork. Include approximate widths.
+3. NATURAL LIGHT: Where does light enter? Which direction? Large glazed areas (patio doors, floor-to-ceiling windows, bay windows) should be called out prominently.
+4. ACCESS ZONES: Note any doors that need clear space — especially patio/garden doors which need 150cm clear in front.
+5. ARCHITECTURAL CHARACTER: Period features, ceiling height impression, proportions, any unusual features.
+6. CAMERA POSITION RECOMMENDATION: From which corner or wall should the render camera be positioned to show the room to best advantage? What should be the focal point?
+
+Write in continuous prose, 150–250 words. Be concrete and specific — "angular bay window approximately 1.8m wide projecting 0.5m on the south wall" is better than "a bay window".`;
+
+// ── Interpretation export (plain-text rich description for render prompts) ────
+
+export async function interpretFloorPlan(
+  imageBuffer: Buffer,
+  mimeType: string = "image/webp",
+): Promise<string | null> {
+  if (!config.ai.apiKey) {
+    console.log("[FloorPlanInterpretation] No Gemini API key — skipping");
+    return null;
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: config.ai.apiKey });
+    const base64 = imageBuffer.toString("base64");
+
+    const response = await ai.models.generateContent({
+      model: INTERPRETATION_MODEL,
+      contents: [
+        { text: INTERPRETATION_PROMPT },
+        { inlineData: { mimeType, data: base64 } },
+      ],
+    });
+
+    const result = response.candidates?.[0]?.content?.parts?.find((p) => p.text)?.text?.trim() ?? null;
+    if (result) console.log("[FloorPlanInterpretation] Done:", result.substring(0, 120) + "...");
+    return result;
+  } catch (err) {
+    console.error("[FloorPlanInterpretation] Failed — proceeding without it:", err);
+    return null;
+  }
+}
 
 // ── Main export ───────────────────────────────────────────────────────────────
 

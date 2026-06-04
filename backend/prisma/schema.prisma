@@ -81,16 +81,19 @@ model Project {
 }
 
 model Render {
-  id               String   @id @default(cuid())
-  projectId        String
-  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  prompt           String
-  status           String   @default("pending")
-  imageKey         String?
-  errorMessage     String?
-  productsSnapshot String?
-  createdAt        DateTime @default(now())
-  deletedAt        DateTime?
+  id                      String   @id @default(cuid())
+  projectId               String
+  project                 Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  prompt                  String
+  status                  String   @default("pending")
+  imageKey                String?
+  alternativeImageKey     String?
+  floorPlanInterpretation String?
+  selectedRender          Int?     @default(1)
+  errorMessage            String?
+  productsSnapshot        String?
+  createdAt               DateTime @default(now())
+  deletedAt               DateTime?
 
   @@index([projectId])
   @@index([status])

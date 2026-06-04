@@ -128,6 +128,7 @@ function serializeProject(p: Record<string, unknown>) {
         return {
           ...rest,
           imageUrl: toImageUrl(r.imageKey as string | null),
+          alternativeImageUrl: toImageUrl(r.alternativeImageKey as string | null),
           products: (() => {
             try { return JSON.parse((productsSnapshot as string | null) ?? "[]"); }
             catch { return []; }
@@ -554,7 +555,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       track("render_created", u.sub, { renderId: render.id, projectId });
 
       try {
-        const { buffer, mock } = await aiService.generateRoomImage({
+        const { buffer, alternativeBuffer, floorPlanInterpretation, mock } = await aiService.generateRoomImage({
           userPrompt:           body.prompt,
           floorPlanKey:         project.floorPlanKey,
           projectName:          project.name,
@@ -583,13 +584,23 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
         });
 
         const imageKey = `renders/${render.id}.png`;
-        await storage.upload(imageKey, buffer);
+        let alternativeImageKey: string | null = null;
+
+        // Upload primary and alternative renders in parallel
+        const uploadTasks: Promise<void>[] = [storage.upload(imageKey, buffer)];
+        if (alternativeBuffer) {
+          alternativeImageKey = `renders/${render.id}-alt.png`;
+          uploadTasks.push(storage.upload(alternativeImageKey, alternativeBuffer));
+        }
+        await Promise.all(uploadTasks);
 
         await prisma.render.update({
           where: { id: render.id },
           data: {
             status: "done",
             imageKey,
+            alternativeImageKey,
+            floorPlanInterpretation: floorPlanInterpretation ?? null,
             errorMessage: mock ? "No AI key configured; placeholder image returned." : null,
           },
         });
@@ -607,7 +618,16 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           }
         }
 
-        return { render: { id: render.id, status: "done", imageUrl: storage.getUrl(imageKey), mock } };
+        return {
+          render: {
+            id: render.id,
+            status: "done",
+            imageUrl: storage.getUrl(imageKey),
+            alternativeImageUrl: alternativeImageKey ? storage.getUrl(alternativeImageKey) : null,
+            floorPlanInterpretation: floorPlanInterpretation ?? null,
+            mock,
+          },
+        };
       } catch (err) {
         const message = err instanceof Error ? err.message : "Render failed";
         await prisma.render.update({

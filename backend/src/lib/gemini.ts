@@ -105,9 +105,11 @@ export type PromptMeta = {
   designStyle?: string | null;
   wallColorPalette?: string | null;
   flooringType?: string | null;
-  floorPlanAnalysis?: string | null;       // GPT-4o free-text analysis (legacy)
-  roomFeatures?: RoomFeatures | null;       // user-mapped wall features
+  floorPlanAnalysis?: string | null;         // GPT-4o free-text analysis (legacy)
+  roomFeatures?: RoomFeatures | null;         // user-mapped wall features
   structuredFloorPlan?: FloorPlanAnalysis | null; // Gemini Vision structured analysis
+  floorPlanInterpretation?: string | null;   // plain-text rich description (Step A of two-step flow)
+  cameraAngle?: "primary" | "secondary";     // "secondary" = alternative viewpoint
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -169,7 +171,7 @@ export function buildPrompt(
   room: RoomDimensionsMm,
   meta: PromptMeta = {},
 ): string {
-  const { projectName, designStyle, wallColorPalette, flooringType, floorPlanAnalysis, roomFeatures, structuredFloorPlan } = meta;
+  const { projectName, designStyle, wallColorPalette, flooringType, floorPlanAnalysis, roomFeatures, structuredFloorPlan, floorPlanInterpretation, cameraAngle } = meta;
 
   const rf      = roomFeatures ?? null;
   const spatial = rf ? analyzeRoomSpatially(rf) : null;
@@ -253,6 +255,18 @@ export function buildPrompt(
     `Floor area: ${areaM2.toFixed(1)}m²`,
     "These proportions are exact. The photograph must reflect them accurately.",
   );
+
+  // ── 1b. FLOOR PLAN INTERPRETATION ─────────────────────────────────────────────
+  // Rich plain-text description from Step A of two-step render flow.
+  if (floorPlanInterpretation) {
+    lines.push(
+      "",
+      "=== 1b. FLOOR PLAN INTERPRETATION ===",
+      "⚠️ READ THIS CAREFULLY — this describes the exact spatial layout of this room:",
+      floorPlanInterpretation,
+      "The rendered photograph MUST accurately reflect all architectural features described above.",
+    );
+  }
 
   // ── 2. ENTRANCE & CAMERA ─────────────────────────────────────────────────────
   // Establish the viewpoint before placing any features.
@@ -525,6 +539,19 @@ export function buildPrompt(
     "- Windows are bare or have sheer curtains fully open and tied back — the window frame, shape, and type must be clearly visible",
     "- All mandatory features (fireplace, bay window, etc.) must be present and unobstructed in the final image",
   );
+
+  // ── SECONDARY CAMERA ANGLE ────────────────────────────────────────────────────
+  if (cameraAngle === "secondary") {
+    lines.push(
+      "",
+      "=== ALTERNATIVE CAMERA ANGLE ===",
+      "⚠️ DIFFERENT VIEWPOINT: Do NOT shoot from the entrance doorway.",
+      "Instead, shoot from the OPPOSITE corner — stand in the far corner of the room and look back toward the entrance door.",
+      "This gives a completely different perspective on the same room, furniture, and design.",
+      "The entrance door should now be visible in the background or to one side.",
+      "Same furniture, same surfaces, same lighting — but a fresh angle showing different aspects of the room.",
+    );
+  }
 
   return lines.join("\n");
 }
