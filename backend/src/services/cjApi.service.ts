@@ -4,24 +4,25 @@ const CJ_API_URL = "https://ads.api.cj.com/query";
 
 // ── CJ API types ──────────────────────────────────────────────────────────────
 
+interface CJPrice {
+  amount:   number;
+  currency: string;
+}
+
 interface CJProduct {
-  advertiserId:   string;
-  advertiserName: string;
-  title:          string;
-  description:    string;
-  price:          number;
-  salePrice?:     number;
-  currency:       string;
-  imageUrl:       string;
-  buyUrl:         string;
-  category:       string;
-  inStock:        boolean;
-  sku:            string;
-  brand?:         string;
+  id:          string;
+  title:       string;
+  description: string;
+  brand?:      string;
+  price:       CJPrice;
+  salePrice?:  CJPrice | null;
+  imageLink:   string;
+  link:        string;  // affiliate tracking URL
+  advertiser:  { id: string; name: string };
 }
 
 interface CJSearchResponse {
-  data: {
+  data?: {
     shoppingProducts: {
       totalCount: number;
       resultList: CJProduct[];
@@ -31,11 +32,10 @@ interface CJSearchResponse {
 }
 
 // ── Category mapping ──────────────────────────────────────────────────────────
-// Maps to the exact category strings used in ROOM_CATEGORIES in projects.ts
+// Title-only matching — CJ doesn't return a category field we can rely on yet.
 
-function mapCategory(cjCategory: string, title: string): string {
+function mapCategory(title: string): string {
   const t = title.toLowerCase();
-  const c = cjCategory.toLowerCase();
 
   if (t.match(/\bsofa\b|\bsofas\b|\bsectional\b|\bcouch\b/)) return "sofa";
   if (t.match(/\barmchair\b|\barmchairs\b|\boccasional chair\b|\baccent chair\b/)) return "armchair";
@@ -55,16 +55,6 @@ function mapCategory(cjCategory: string, title: string): string {
   if (t.match(/\blamp\b|\blamps\b|\bpendant\b|\bfloor light\b|\btable light\b|\bchandelier\b|\bwalllight\b|\bwall light\b/)) return "lighting";
   if (t.match(/\brug\b|\brugs\b|\bcarpet\b|\bcarpets\b/)) return "rug";
   if (t.match(/\bmirror\b|\bmirrors\b/)) return "mirror";
-
-  // Broad CJ category fallback
-  if (c.includes("sofa") || c.includes("sectional")) return "sofa";
-  if (c.includes("chair") && !c.includes("dining") && !c.includes("office")) return "armchair";
-  if (c.includes("coffee") || c.includes("side table")) return "coffee_table";
-  if (c.includes("dining")) return "dining_table";
-  if (c.includes("bed") && !c.includes("bedside") && !c.includes("bedroom")) return "bed";
-  if (c.includes("wardrobe") || c.includes("storage")) return "wardrobe";
-  if (c.includes("desk") || c.includes("office")) return "desk";
-  if (c.includes("lighting") || c.includes("lamp")) return "lighting";
 
   return "other";
 }
@@ -130,34 +120,40 @@ async function fetchCJProducts(
     throw new Error("CJ_CID or CJ_API_KEY environment variable is not set");
   }
 
-  const query = `{
-    shoppingProducts(
-      companyId: "${cid}"
-      advertiserIds: ${JSON.stringify(advertiserIds)}
-      partnerStatus: JOINED
-      limit: ${limit}
-      offset: ${offset}
-    ) {
-      totalCount
-      resultList {
-        advertiserId
-        advertiserName
-        title
-        description
-        price
-        salePrice
-        currency
-        imageUrl
-        buyUrl
-        category
-        inStock
-        sku
-        brand
+  const query = `
+    query SearchRaftProducts {
+      shoppingProducts(
+        companyId: "${cid}"
+        partnerIds: ${JSON.stringify(advertiserIds)}
+        limit: ${limit}
+        offset: ${offset}
+      ) {
+        totalCount
+        resultList {
+          id
+          title
+          description
+          brand
+          price {
+            amount
+            currency
+          }
+          salePrice {
+            amount
+            currency
+          }
+          imageLink
+          link
+          advertiser {
+            id
+            name
+          }
+        }
       }
     }
-  }`;
+  `;
 
-  console.log(`[CJ] POST ${CJ_API_URL} — CID:${cid} advertisers:${advertiserIds.join(",")}`);
+  console.log(`[CJ] POST ${CJ_API_URL} — CID:${cid} partnerIds:${advertiserIds.join(",")}`);
 
   const res = await fetch(CJ_API_URL, {
     method:  "POST",
@@ -190,13 +186,17 @@ async function fetchCJProducts(
     throw new Error("CJ API returned unexpected response shape — check logs");
   }
 
+  // Log first product on the first page so we can verify the field mapping
+  if (offset === 0 && result.resultList.length > 0) {
+    console.log("[CJ] First product sample:", JSON.stringify(result.resultList[0]));
+  }
+
   return result;
 }
 
 // ── Affiliate URL validation ──────────────────────────────────────────────────
 
 function isValidAffiliateUrl(url: string): boolean {
-  // CJ uses several domains for tracking links
   const cjDomains = ["cj.com", "anrdoezrs.net", "dpbolvw.net", "tkqlhce.net", "kqzyfj.com", "jdoqocy.com", "qksrv.net"];
   return cjDomains.some((d) => url.includes(d));
 }
@@ -215,7 +215,7 @@ export async function importRaftProducts(): Promise<ImportResult> {
   const advertiserId = process.env.CJ_RAFT_ADVERTISER_ID;
   if (!advertiserId) throw new Error("CJ_RAFT_ADVERTISER_ID is not set");
 
-  console.log("[CJ] Starting Raft Furniture import — advertiser:", advertiserId);
+  console.log("[CJ] Starting Raft Furniture import — partnerId:", advertiserId);
 
   let imported = 0, updated = 0, skipped = 0, withDimensions = 0;
   let offset = 0;
@@ -231,17 +231,16 @@ export async function importRaftProducts(): Promise<ImportResult> {
 
     for (const p of result.resultList) {
       try {
-        // Validate affiliate URL — log but don't skip
-        if (!isValidAffiliateUrl(p.buyUrl)) {
-          console.warn(`[CJ] Unusual buyUrl format for "${p.title}": ${p.buyUrl}`);
+        if (!isValidAffiliateUrl(p.link)) {
+          console.warn(`[CJ] Unusual link format for "${p.title}": ${p.link}`);
         }
 
-        const category = mapCategory(p.category, p.title);
-        const dims     = extractDimensions(p.description, p.title);
+        const category   = mapCategory(p.title);
+        const dims       = extractDimensions(p.description ?? "", p.title);
         if (dims.widthMm) withDimensions++;
 
-        const priceGbp    = p.salePrice ?? p.price;
-        const externalId  = p.sku || `cj-${p.buyUrl.slice(-32)}`;
+        const priceGbp   = p.salePrice?.amount ?? p.price.amount;
+        const externalId = p.id;  // CJ product ID — stable unique key
 
         const existing = await prisma.product.findUnique({
           where: { retailer_externalId: { retailer: "raft", externalId } },
@@ -253,10 +252,9 @@ export async function importRaftProducts(): Promise<ImportResult> {
             where: { id: existing.id },
             data: {
               priceGbp,
-              inStock:      p.inStock,
-              // Always refresh the affiliate URL — it may have new tracking params
-              affiliateUrl: p.buyUrl,
-              productUrl:   p.buyUrl,
+              // Always refresh the affiliate URL — CJ tracking params change
+              affiliateUrl: p.link,
+              productUrl:   p.link,
               ...(dims.widthMm ? {
                 widthMm:       dims.widthMm,
                 depthMm:       dims.depthMm,
@@ -273,14 +271,13 @@ export async function importRaftProducts(): Promise<ImportResult> {
               externalId,
               title:         p.title,
               description:   p.description || null,
-              imageUrl:      p.imageUrl,
-              productUrl:    p.buyUrl,
-              affiliateUrl:  p.buyUrl,
+              imageUrl:      p.imageLink,
+              productUrl:    p.link,
+              affiliateUrl:  p.link,
               priceGbp,
               category,
-              sku:           p.sku || null,
-              brand:         p.brand || "Raft",
-              inStock:       p.inStock,
+              brand:         p.brand || p.advertiser.name || "Raft",
+              inStock:       true,  // no inStock field in API yet — default true
               source:        "cj_api",
               widthMm:       dims.widthMm,
               depthMm:       dims.depthMm,
@@ -299,7 +296,6 @@ export async function importRaftProducts(): Promise<ImportResult> {
     offset += limit;
 
     if (offset < totalCount) {
-      // Be respectful of CJ rate limits
       await new Promise((r) => setTimeout(r, 300));
     }
   } while (offset < totalCount);
