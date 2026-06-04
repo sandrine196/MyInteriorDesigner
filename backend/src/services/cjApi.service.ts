@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 
-const CJ_API_URL = "https://product-search.api.cj.com/v2/product-search";
+const CJ_API_URL = "https://ads.api.cj.com/query";
 
 // ── CJ API types ──────────────────────────────────────────────────────────────
 
@@ -157,26 +157,40 @@ async function fetchCJProducts(
     }
   }`;
 
+  console.log(`[CJ] POST ${CJ_API_URL} — CID:${cid} advertisers:${advertiserIds.join(",")}`);
+
   const res = await fetch(CJ_API_URL, {
     method:  "POST",
     headers: {
       Authorization:  `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      Accept:         "application/json",
     },
     body: JSON.stringify({ query }),
   });
 
+  console.log(`[CJ] Response: ${res.status} ${res.statusText}`);
+
   if (!res.ok) {
-    throw new Error(`CJ API HTTP error: ${res.status} ${res.statusText}`);
+    const body = await res.text().catch(() => "(unreadable)");
+    console.error(`[CJ] Error body: ${body}`);
+    throw new Error(`CJ API HTTP error: ${res.status} ${res.statusText} — ${body}`);
   }
 
   const json = await res.json() as CJSearchResponse;
 
   if (json.errors?.length) {
+    console.error("[CJ] GraphQL errors:", JSON.stringify(json.errors));
     throw new Error(`CJ GraphQL error: ${json.errors.map((e) => e.message).join("; ")}`);
   }
 
-  return json.data.shoppingProducts;
+  const result = json.data?.shoppingProducts;
+  if (!result) {
+    console.error("[CJ] Unexpected response shape:", JSON.stringify(json).slice(0, 500));
+    throw new Error("CJ API returned unexpected response shape — check logs");
+  }
+
+  return result;
 }
 
 // ── Affiliate URL validation ──────────────────────────────────────────────────
