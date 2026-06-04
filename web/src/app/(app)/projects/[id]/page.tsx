@@ -37,10 +37,11 @@ const BUDGET_OPTIONS = [
 ];
 
 const SHOPS = [
+  { id: "raft",       label: "Raft Furniture" },
   { id: "john_lewis", label: "John Lewis" },
   { id: "wayfair",    label: "Wayfair" },
   { id: "habitat",    label: "Habitat" },
-  { id: "dunelm",      label: "Dunelm" },
+  { id: "dunelm",     label: "Dunelm" },
   { id: "la_redoute", label: "La Redoute" },
   { id: "muji",       label: "Muji" },
   { id: "amazon",     label: "Amazon" },

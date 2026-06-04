@@ -144,10 +144,11 @@ model ProductClick {
 }
 
 model Product {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid())
   retailer       String
   externalId     String
   title          String
+  description    String?
   imageUrl       String
   productUrl     String
   affiliateUrl   String?
@@ -159,6 +160,16 @@ model Product {
   category       String?
   /// JSON array of style tag IDs e.g. ["scandi","japandi"].
   styleTags      String?
+  sku            String?
+  brand          String?
+  inStock        Boolean  @default(true)
+  /// Import source: 'manual', 'cj_api'
+  source         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([retailer, externalId])
+  @@index([retailer])
+  @@index([category])
+  @@index([inStock])
 }

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { admin, type BackupEntry, type BackupStats, type SystemStats, type SystemHealth } from "@/lib/api";
+import { admin, type BackupEntry, type BackupStats, type SystemStats, type SystemHealth, type ProductSourceStats } from "@/lib/api";
 
 function SectionHeader({ title }: { title: string }) {
   return <h2 className="text-xs font-semibold uppercase tracking-widest text-stone-500 mb-4">{title}</h2>;
@@ -362,6 +362,118 @@ function HealthSection() {
   );
 }
 
+// ── Product sources section ─────────────────────────────────────────────────────
+
+function ProductSourcesSection() {
+  const [sources,   setSources]   = useState<ProductSourceStats[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [result,    setResult]    = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await admin.products.sources();
+      setSources(data.sources);
+    } catch {
+      // CJ keys may not be configured in dev
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function runImport() {
+    if (!confirm("Run Raft Furniture import now? This may take several minutes.")) return;
+    setImporting(true);
+    setResult(null);
+    try {
+      const r = await admin.products.importRaft();
+      setResult({ ok: true, msg: `Import complete — ${r.imported} new, ${r.updated} updated, ${r.skipped} skipped (${r.total} total, ${r.withDimensions} with dimensions)` });
+      load();
+    } catch (e) {
+      setResult({ ok: false, msg: e instanceof Error ? e.message : "Import failed — check Railway logs" });
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Product sources" />
+        <button onClick={load} disabled={loading} className="text-xs text-stone-500 hover:text-stone-300 transition-colors mb-4">
+          {loading ? "Loading…" : "↻ Refresh"}
+        </button>
+      </div>
+
+      {loading ? (
+        <Card><div className="py-4 text-center text-stone-600 text-sm">Loading…</div></Card>
+      ) : sources.length === 0 ? (
+        <Card><div className="py-4 text-center text-stone-600 text-sm">No product sources configured</div></Card>
+      ) : (
+        sources.map(s => (
+          <Card key={s.retailer}>
+            <div className="flex items-start justify-between flex-wrap gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm font-semibold text-white">{s.label}</p>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#1e3d54", color: "#93c5fd" }}>
+                    via {s.via}
+                  </span>
+                  {!s.configured && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-900/40 text-amber-400">
+                      Keys not set
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-5 text-xs text-stone-400 flex-wrap">
+                  <span><span className="text-white font-semibold">{s.total.toLocaleString()}</span> products</span>
+                  <span><span className="text-white font-semibold">{s.inStock.toLocaleString()}</span> in stock</span>
+                  <span><span className="text-white font-semibold">{s.total > 0 ? Math.round((s.withDimensions / s.total) * 100) : 0}%</span> with dimensions</span>
+                  <span>Last sync: <span className="text-stone-300">{s.lastSyncAt ? new Date(s.lastSyncAt).toLocaleString("en-GB") : "Never"}</span></span>
+                </div>
+                {Object.keys(s.byCategory).length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {Object.entries(s.byCategory)
+                      .sort(([, a], [, b]) => b - a)
+                      .slice(0, 8)
+                      .map(([cat, count]) => (
+                        <span key={cat} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#243d52", color: "#94a3b8" }}>
+                          {cat}: {count}
+                        </span>
+                      ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={runImport}
+                disabled={importing || !s.configured}
+                className="shrink-0 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-40"
+                style={{ background: importing ? "#1e3d54" : "#1B4965" }}
+              >
+                {importing ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full border-2 border-stone-400 border-t-white animate-spin" />
+                    Importing…
+                  </span>
+                ) : "Import Now"}
+              </button>
+            </div>
+            {result && (
+              <p className={`mt-3 text-sm font-medium ${result.ok ? "text-green-400" : "text-red-400"}`}>
+                {result.ok ? "✅" : "❌"} {result.msg}
+              </p>
+            )}
+          </Card>
+        ))
+      )}
+      <p className="text-xs text-stone-600">Auto-import runs daily at 03:00 London time.</p>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function SystemPage() {
@@ -371,6 +483,7 @@ export default function SystemPage() {
         <h1 className="text-2xl font-bold text-white">System</h1>
         <p className="text-stone-500 text-sm mt-1">Backups, database stats, and service health</p>
       </div>
+      <ProductSourcesSection />
       <BackupSection />
       <DbStatsSection />
       <HealthSection />

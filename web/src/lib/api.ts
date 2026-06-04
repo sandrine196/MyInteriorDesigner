@@ -481,4 +481,20 @@ export const admin = {
     stats:   () => request<BackupStats>("/admin/backups/stats"),
     restore: (backupKey: string) => request<{ success: boolean; rowsRestored: number }>("/admin/backups/restore", { method: "POST", body: JSON.stringify({ backupKey, confirm: "RESTORE" }) }),
   },
+  products: {
+    sources: () => request<{ sources: ProductSourceStats[] }>("/admin/products/sources"),
+    importRaft: () => request<{ success: boolean; imported: number; updated: number; skipped: number; total: number; withDimensions: number }>("/admin/products/import/raft", { method: "POST" }),
+  },
 };
+
+export interface ProductSourceStats {
+  retailer:       string;
+  label:          string;
+  via:            string;
+  total:          number;
+  inStock:        number;
+  withDimensions: number;
+  byCategory:     Record<string, number>;
+  lastSyncAt:     string | null;
+  configured:     boolean;
+}

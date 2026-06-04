@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { backupDatabase, listBackups, restoreDatabase, getBackupStats } from "../scripts/backup.js";
 import { Resend } from "resend";
 import { config } from "../config/index.js";
+import { importRaftProducts, getRaftSourceStats } from "../services/cjApi.service.js";
 
 const COST_PER_RENDER_GBP = 0.03;
 const PRO_PRICE_GBP = 9.99;
@@ -791,6 +792,23 @@ export async function adminRoutes(app: FastifyInstance) {
         code:  e.statusCode,
         info,
       });
+    }
+  });
+
+  // ── Product sources ──────────────────────────────────────────────────────
+
+  app.get("/admin/products/sources", auth, async () => {
+    const stats = await getRaftSourceStats();
+    return { sources: [stats] };
+  });
+
+  app.post("/admin/products/import/raft", auth, async (_req, reply) => {
+    try {
+      const result = await importRaftProducts();
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Import failed";
+      return reply.status(500).send({ success: false, error: message });
     }
   });
 

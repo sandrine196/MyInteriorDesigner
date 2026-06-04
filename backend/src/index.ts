@@ -18,6 +18,7 @@ import { productRoutes } from "./routes/products.js";
 import { projectRoutes } from "./routes/projects.js";
 import { adminRoutes } from "./routes/admin.js";
 import { backupDatabase } from "./scripts/backup.js";
+import { importRaftProducts } from "./services/cjApi.service.js";
 
 const isProd = config.env === "production";
 
@@ -196,6 +197,17 @@ cron.schedule("0 2 * * *", async () => {
     app.log.info({ result }, "Daily backup completed");
   } catch (err) {
     app.log.error({ err }, "Daily backup failed");
+  }
+}, { timezone: "Europe/London" });
+
+// ── Daily Raft Furniture product import at 03:00 London time ─────────────────
+cron.schedule("0 3 * * *", async () => {
+  app.log.info("Starting scheduled Raft Furniture import");
+  try {
+    const result = await importRaftProducts();
+    app.log.info({ result }, "Raft import completed");
+  } catch (err) {
+    app.log.error({ err }, "Raft import failed");
   }
 }, { timezone: "Europe/London" });
 
