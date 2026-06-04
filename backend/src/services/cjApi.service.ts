@@ -10,15 +10,16 @@ interface CJPrice {
 }
 
 interface CJProduct {
-  id:          string;
-  title:       string;
-  description: string;
-  brand?:      string;
-  price:       CJPrice;
-  salePrice?:  CJPrice | null;
-  imageLink:   string;
-  link:        string;  // affiliate tracking URL
-  advertiser:  { id: string; name: string };
+  id:             string;
+  title:          string;
+  description:    string;
+  brand?:         string;
+  price:          CJPrice;
+  salePrice?:     CJPrice | null;
+  imageLink:      string;
+  link:           string;  // affiliate tracking URL
+  advertiserId:   string;
+  advertiserName: string;
 }
 
 interface CJSearchResponse {
@@ -144,10 +145,8 @@ async function fetchCJProducts(
           }
           imageLink
           link
-          advertiser {
-            id
-            name
-          }
+          advertiserId
+          advertiserName
         }
       }
     }
@@ -276,7 +275,7 @@ export async function importRaftProducts(): Promise<ImportResult> {
               affiliateUrl:  p.link,
               priceGbp,
               category,
-              brand:         p.brand || p.advertiser.name || "Raft",
+              brand:         p.brand || p.advertiserName || "Raft",
               inStock:       true,  // no inStock field in API yet — default true
               source:        "cj_api",
               widthMm:       dims.widthMm,

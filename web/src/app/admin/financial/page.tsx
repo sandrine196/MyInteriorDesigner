@@ -17,7 +17,7 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-const REVENUE_SOURCES = ["Awin Affiliate", "Amazon Associates", "Premium Subscriptions", "Estate Agent Partners", "Other"];
+const REVENUE_SOURCES = ["CJ Affiliate", "Amazon Associates", "Premium Subscriptions", "Estate Agent Partners", "Other"];
 const REVENUE_TYPES   = ["Affiliate", "Subscription", "Partnership", "Other"];
 const STATUS_OPTIONS  = ["active", "pending", "inactive", "cancelled"];
 
@@ -158,7 +158,7 @@ export default function FinancialPage() {
 
   async function addRevenue() {
     const entry = await admin.revenues.create({
-      source: "Awin Affiliate", type: "Affiliate", amountGbp: 0,
+      source: "CJ Affiliate", type: "Affiliate", amountGbp: 0,
       month, year, notes: null,
     });
     setRevenues(prev => [...prev, entry.entry]);
