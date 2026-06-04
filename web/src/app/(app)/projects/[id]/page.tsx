@@ -107,6 +107,7 @@ export default function ProjectWorkspacePage() {
   // Room features
   const [savingFeatures, setSavingFeatures] = useState(false);
   const [editingFeatures, setEditingFeatures] = useState(false);
+  const [mapWallsMode, setMapWallsMode] = useState(false);
 
   // Render
   const [prompt, setPrompt] = useState("");
@@ -228,10 +229,21 @@ export default function ProjectWorkspacePage() {
   async function uploadFloorPlan(file: File) {
     setFloorError("");
     setFloorImgError(false);
+    setMapWallsMode(false);
     setUploadingFloor(true);
     try {
-      const { floorPlanKey, floorPlanUrl } = await api.uploadFloorPlan(id, file);
-      setProject((p) => (p ? { ...p, floorPlanKey, floorPlanUrl } : p));
+      const result = await api.uploadFloorPlan(id, file);
+      setProject((p) => p ? {
+        ...p,
+        floorPlanKey: result.floorPlanKey,
+        floorPlanUrl: result.floorPlanUrl,
+        floorPlanAnalysis: result.floorPlanAnalysis,
+        roomLengthMm:  result.roomLengthMm  ?? p.roomLengthMm,
+        roomWidthMm:   result.roomWidthMm   ?? p.roomWidthMm,
+      } : p);
+      // Auto-fill dimension inputs when AI detected them and user hadn't set them
+      if (result.roomLengthMm && !length)  setLength((result.roomLengthMm  / 1000).toFixed(2));
+      if (result.roomWidthMm  && !width)   setWidth( (result.roomWidthMm   / 1000).toFixed(2));
       setUploadedFileName(file.name);
     } catch (err) {
       setFloorError(err instanceof ApiError ? err.message : "Upload failed");
@@ -301,7 +313,7 @@ export default function ProjectWorkspacePage() {
     project.roomWidthMm != null &&
     project.ceilingHeightMm != null;
 
-  const hasWallMapping = !project.floorPlanKey || (() => {
+  const hasManualWallMapping = (() => {
     const rf = project.roomFeatures as RoomFeatures | null;
     if (!rf) return false;
     const roles: WallRole[] = ["entrance", "far", "left", "right"];
@@ -314,6 +326,8 @@ export default function ProjectWorkspacePage() {
     );
     return hasDoor && (hasWindow || hasGlazedDoor);
   })();
+  // Layout step is done if: no floor plan (nothing to analyse), OR analysis exists, OR user mapped walls manually
+  const hasWallMapping = !project.floorPlanKey || !!project.floorPlanAnalysis || hasManualWallMapping;
 
   async function saveFeatures(features: RoomFeatures) {
     setSavingFeatures(true);
@@ -560,8 +574,8 @@ export default function ProjectWorkspacePage() {
 
   const steps = [
     { n: 1, label: "Room size",    done: hasDimensions },
-    { n: 2, label: "Floor plan",   done: hasDimensions },
-    { n: 3, label: "Wall mapping", done: hasWallMapping },
+    { n: 2, label: "Floor plan",   done: !!project.floorPlanKey },
+    { n: 3, label: "Room layout",  done: hasWallMapping },
     { n: 4, label: "Furniture",    done: furnitureMode === "auto" || selectedProducts.size > 0 },
     { n: 5, label: "Generate",     done: project.renders.length > 0 },
   ];
@@ -1010,44 +1024,73 @@ export default function ProjectWorkspacePage() {
         )}
       </section>
 
-      {/* ── Step 3: Wall mapping ── */}
+      {/* ── Step 3: Room layout ── */}
       <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 3 ? "border-stone-300" : "border-stone-200"}`}>
         <div className="flex items-center gap-3 mb-5">
           <StepBadge n={3} done={hasWallMapping} current={currentStep === 3} />
           <div>
             <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 3 of 5</p>
             <h2 className="font-semibold text-stone-900">
-              Map your walls{" "}
-              <span className="text-stone-400 font-normal text-sm">
-                {!project.floorPlanKey ? "(upload floor plan first)" : "(optional)"}
-              </span>
+              Room layout{" "}
+              <span className="text-stone-400 font-normal text-sm">(optional)</span>
             </h2>
           </div>
         </div>
+
         {!project.floorPlanKey ? (
           <p className="text-sm text-stone-400">
-            Upload your floor plan in Step 2 to mark wall features — door position, windows, and fireplace.
-            This helps us position furniture correctly and choose the best camera angle.
+            Upload your floor plan in Step 2 — we&apos;ll automatically detect your room features and you can generate straight away.
           </p>
-        ) : hasWallMapping && !editingFeatures ? (
-          <RoomSummary
-            features={project.roomFeatures as RoomFeatures}
-            roomLengthMm={project.roomLengthMm}
-            roomWidthMm={project.roomWidthMm}
-            onEdit={() => setEditingFeatures(true)}
-            onContinue={() => document.getElementById("step-furniture")?.scrollIntoView({ behavior: "smooth" })}
+        ) : mapWallsMode || (!project.floorPlanAnalysis && hasManualWallMapping) ? (
+          /* ── Wall mapper (manually mapping mode) ── */
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-stone-500">Map each wall to correct or add room features.</p>
+              {project.floorPlanAnalysis && (
+                <button
+                  onClick={() => setMapWallsMode(false)}
+                  className="text-xs text-stone-400 hover:text-stone-700 underline underline-offset-2 transition-colors"
+                >
+                  ← Back to analysis
+                </button>
+              )}
+            </div>
+            {hasManualWallMapping && !editingFeatures ? (
+              <RoomSummary
+                features={project.roomFeatures as RoomFeatures}
+                roomLengthMm={project.roomLengthMm}
+                roomWidthMm={project.roomWidthMm}
+                onEdit={() => setEditingFeatures(true)}
+                onContinue={() => document.getElementById("step-furniture")?.scrollIntoView({ behavior: "smooth" })}
+              />
+            ) : (
+              <FloorPlanMapper
+                floorPlanUrl={project.floorPlanUrl ?? ""}
+                initialFeatures={project.roomFeatures}
+                saving={savingFeatures}
+                onSave={async (features) => {
+                  await saveFeatures(features);
+                  setEditingFeatures(false);
+                  setMapWallsMode(false);
+                }}
+              />
+            )}
+          </div>
+        ) : project.floorPlanAnalysis ? (
+          /* ── AI analysis card ── */
+          <FloorPlanAnalysisCard
+            analysis={project.floorPlanAnalysis}
+            onGenerate={() => document.getElementById("step-generate")?.scrollIntoView({ behavior: "smooth" })}
+            onEdit={() => { setMapWallsMode(true); setEditingFeatures(true); }}
           />
         ) : (
-          <FloorPlanMapper
-            floorPlanUrl={project.floorPlanUrl ?? ""}
-            initialFeatures={project.roomFeatures}
-            saving={savingFeatures}
-            onSave={async (features) => {
-              await saveFeatures(features);
-              setEditingFeatures(false);
-            }}
-          />
+          /* ── Floor plan uploaded but no analysis yet ── */
+          <div className="flex items-center gap-3 text-sm text-stone-400">
+            <div className="w-4 h-4 rounded-full border-2 border-stone-200 border-t-mid-gold animate-spin flex-shrink-0" />
+            Analysing your floor plan…
+          </div>
         )}
+
         {hasWallMapping && currentStep === 4 && (
           <p className="text-xs text-stone-400 mt-4">Next: choose your furniture below ↓</p>
         )}
@@ -1247,7 +1290,7 @@ export default function ProjectWorkspacePage() {
       </section>
 
       {/* ── Step 5: Generate render ── */}
-      <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 5 ? "border-stone-300" : "border-stone-200"}`}>
+      <section id="step-generate" className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 5 ? "border-stone-300" : "border-stone-200"}`}>
         <div className="flex items-center gap-3 mb-5">
           <StepBadge n={5} done={project.renders.length > 0} current={currentStep === 5} />
           <div>
@@ -1348,6 +1391,133 @@ export default function ProjectWorkspacePage() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function FloorPlanAnalysisCard({
+  analysis,
+  onGenerate,
+  onEdit,
+}: {
+  analysis: import("@/lib/api").FloorPlanAnalysis;
+  onGenerate: () => void;
+  onEdit: () => void;
+}) {
+  const conf = analysis.confidence;
+  const confLabel = conf >= 0.8 ? "High" : conf >= 0.6 ? "Medium" : "Low";
+  const confColor = conf >= 0.8 ? "#16a34a" : conf >= 0.6 ? "#d97706" : "#dc2626";
+  const confIcon  = conf >= 0.8 ? "✅" : conf >= 0.6 ? "⚠️" : "❌";
+
+  const doors    = analysis.openings.filter((o) => o.type === "door");
+  const windows  = analysis.openings.filter((o) => o.type === "window");
+  const glazed   = analysis.openings.filter((o) => ["patio_doors","french_doors","bifold_doors"].includes(o.type));
+  const features = analysis.specialFeatures;
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <p className="text-sm font-medium text-stone-700">Here&apos;s what we found in your floor plan:</p>
+        <span
+          className="text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 flex-shrink-0"
+          style={{ background: conf >= 0.8 ? "#dcfce7" : conf >= 0.6 ? "#fef3c7" : "#fee2e2", color: confColor }}
+        >
+          {confIcon} {confLabel} confidence
+        </span>
+      </div>
+
+      {/* Dimensions row */}
+      <div className="bg-stone-50 rounded-xl p-4 space-y-1">
+        <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">📐 Dimensions detected</p>
+        {analysis.dimensions.lengthM > 0 ? (
+          <p className="text-sm text-stone-800 font-medium">
+            {analysis.dimensions.lengthM.toFixed(1)}m × {analysis.dimensions.widthM.toFixed(1)}m
+            {analysis.dimensions.printedMeasurements && analysis.dimensions.printedMeasurements !== "Unable to read" && (
+              <span className="text-stone-400 font-normal ml-2 text-xs">({analysis.dimensions.printedMeasurements})</span>
+            )}
+          </p>
+        ) : (
+          <p className="text-sm text-amber-700">Not detected — please enter below in Step 1</p>
+        )}
+        {analysis.dimensions.usableAreaM2 > 0 && (
+          <p className="text-xs text-stone-400">{analysis.dimensions.usableAreaM2.toFixed(0)}m² usable area</p>
+        )}
+      </div>
+
+      {/* Openings */}
+      {(doors.length > 0 || windows.length > 0 || glazed.length > 0) && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider">🚪 Openings detected</p>
+          <ul className="space-y-1.5">
+            {[...doors, ...glazed, ...windows].map((o, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-stone-700">
+                <span className="mt-0.5 flex-shrink-0 text-stone-400">
+                  {o.type === "window" ? "🪟" : o.type === "door" ? "🚪" : "🌿"}
+                </span>
+                <span>
+                  {o.description}
+                  {o.wall && <span className="text-stone-400 text-xs ml-1">({o.wall} wall)</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Special features */}
+      {features.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider">🏠 Special features</p>
+          <ul className="space-y-1.5">
+            {features.map((f, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-stone-700">
+                <span className="mt-0.5 flex-shrink-0 text-stone-400">
+                  {f.type === "fireplace" || f.type === "chimney_breast" ? "🔥" :
+                   f.type === "staircase" ? "🪜" :
+                   f.type === "alcove" ? "📐" : "✦"}
+                </span>
+                <span>
+                  {f.description}
+                  {f.wall && <span className="text-stone-400 text-xs ml-1">({f.wall} wall)</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {conf < 0.6 && (
+        <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3">
+          <p className="text-xs text-amber-700">
+            Confidence is low — this may be a hand-drawn plan or low-resolution image.
+            You can still generate a design, or use &ldquo;Add or correct features&rdquo; to manually specify your room layout.
+          </p>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex flex-col sm:flex-row gap-3 pt-1">
+        <button
+          onClick={onGenerate}
+          className="flex-1 rounded-xl py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-95 flex items-center justify-center gap-2"
+          style={{ background: "#1B4965", color: "#ffffff" }}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+          Generate My Design!
+        </button>
+        <button
+          onClick={onEdit}
+          className="flex-1 rounded-xl py-3 text-sm font-medium border border-stone-200 text-stone-700 hover:border-stone-400 hover:bg-stone-50 transition-colors flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+          </svg>
+          Add or correct features
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function StepBadge({ n, done, current }: { n: number; done: boolean; current: boolean }) {
   return (

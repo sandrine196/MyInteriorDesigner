@@ -358,42 +358,45 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
         await storage.delete(project.floorPlanKey).catch(() => {});
       }
 
-      await storage.upload(newKey, webpBuffer, "image/webp");
+      // Upload the image and run analysis in parallel — both are needed before we respond
+      const [, analysis] = await Promise.all([
+        storage.upload(newKey, webpBuffer, "image/webp"),
+        analyzeFloorPlan(webpBuffer, "image/webp").catch((err) => {
+          console.error(`[FloorPlan] Analysis failed for project ${projectId}:`, err);
+          return null;
+        }),
+      ]);
 
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { floorPlanKey: newKey },
-      });
+      // Persist floor plan key + analysis + auto-populated dimensions
+      const updateData: Parameters<typeof prisma.project.update>[0]["data"] = {
+        floorPlanKey: newKey,
+        floorPlanAnalysis: analysis ? (analysis as object) : undefined,
+      };
 
-      // Run Gemini Vision analysis fire-and-forget — never blocks the upload response
-      void (async () => {
-        try {
-          const analysis = await analyzeFloorPlan(webpBuffer, "image/webp");
-          const updateData: Parameters<typeof prisma.project.update>[0]["data"] = {
-            floorPlanAnalysis: analysis as object,
-          };
-          // Auto-populate dimensions if not already set by the user and Gemini found them
-          if (analysis.confidence >= 0.7 && analysis.dimensions.lengthM > 0) {
-            const current = await prisma.project.findUnique({
-              where: { id: projectId },
-              select: { roomLengthMm: true, roomWidthMm: true },
-            });
-            if (!current?.roomLengthMm) {
-              updateData.roomLengthMm = Math.round(analysis.dimensions.lengthM * 1000);
-            }
-            if (!current?.roomWidthMm) {
-              updateData.roomWidthMm = Math.round(analysis.dimensions.widthM * 1000);
-            }
-          }
-          await prisma.project.update({ where: { id: projectId }, data: updateData });
-          console.log(`[FloorPlan] Analysis saved for project ${projectId}`);
-        } catch (err) {
-          console.error(`[FloorPlan] Analysis save failed for project ${projectId}:`, err);
+      // Auto-populate dimensions from analysis when not already set by the user
+      let roomLengthMm: number | null = null;
+      let roomWidthMm: number | null = null;
+      if (analysis && analysis.confidence >= 0.5 && analysis.dimensions.lengthM > 0) {
+        if (!project.roomLengthMm) {
+          updateData.roomLengthMm = Math.round(analysis.dimensions.lengthM * 1000);
+          roomLengthMm = updateData.roomLengthMm as number;
         }
-      })();
+        if (!project.roomWidthMm) {
+          updateData.roomWidthMm = Math.round(analysis.dimensions.widthM * 1000);
+          roomWidthMm = updateData.roomWidthMm as number;
+        }
+      }
 
-      // Return both the key (for state update) and the resolved URL (for direct display)
-      return { floorPlanKey: newKey, floorPlanUrl: storage.getUrl(newKey) };
+      await prisma.project.update({ where: { id: projectId }, data: updateData });
+      console.log(`[FloorPlan] Upload complete for project ${projectId} — analysis confidence: ${analysis?.confidence ?? "n/a"}`);
+
+      return {
+        floorPlanKey: newKey,
+        floorPlanUrl: storage.getUrl(newKey),
+        floorPlanAnalysis: analysis ?? null,
+        roomLengthMm,
+        roomWidthMm,
+      };
     }
   );
 

@@ -314,7 +314,13 @@ export const projects = {
   uploadFloorPlan: (id: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
-    return request<{ floorPlanKey: string; floorPlanUrl: string }>(`/projects/${id}/floor-plan`, {
+    return request<{
+      floorPlanKey: string;
+      floorPlanUrl: string;
+      floorPlanAnalysis: FloorPlanAnalysis | null;
+      roomLengthMm: number | null;
+      roomWidthMm: number | null;
+    }>(`/projects/${id}/floor-plan`, {
       method: "POST",
       body: form,
     });
