@@ -435,7 +435,11 @@ function ProductSourcesSection() {
     setStyleResult(null);
     try {
       const r = await admin.products.importRaft();
-      setResult({ ok: true, msg: `Import complete — ${r.imported} new, ${r.updated} updated, ${r.skipped} skipped (${r.total} total, ${r.withDimensions} with dimensions, ${r.stylesAssigned} tagged)` });
+      const allSkipped = r.skipped > 0 && r.imported === 0 && r.updated === 0;
+      const msg = allSkipped
+        ? `⚠️ ${r.skipped}/${r.total} products skipped — all failed. First error: ${r.firstError ?? "unknown"}`
+        : `${r.imported} new, ${r.updated} updated${r.skipped > 0 ? `, ${r.skipped} skipped` : ""} (${r.total} total, ${r.withDimensions} with dims, ${r.stylesAssigned} tagged)`;
+      setResult({ ok: !allSkipped, msg });
       load();
     } catch (e) {
       setResult({ ok: false, msg: e instanceof Error ? e.message : "Import failed — check Railway logs" });

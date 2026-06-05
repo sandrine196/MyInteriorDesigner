@@ -210,6 +210,7 @@ export interface ImportResult {
   total:          number;
   withDimensions: number;
   stylesAssigned: number;
+  firstError?:    string;
 }
 
 export async function importRaftProducts(): Promise<ImportResult> {
@@ -219,6 +220,7 @@ export async function importRaftProducts(): Promise<ImportResult> {
   console.log("[CJ] Starting Raft Furniture import — partnerId:", advertiserId);
 
   let imported = 0, updated = 0, skipped = 0, withDimensions = 0;
+  let firstError: string | undefined;
   let offset = 0;
   const limit = 100;
   let totalCount = 0;
@@ -289,7 +291,9 @@ export async function importRaftProducts(): Promise<ImportResult> {
           imported++;
         }
       } catch (err) {
-        console.error(`[CJ] Failed to import "${p.title}":`, err instanceof Error ? err.message : err);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[CJ] Failed to import "${p.title}": ${msg}`);
+        if (!firstError) firstError = `"${p.title}": ${msg}`;
         skipped++;
       }
     }
@@ -305,7 +309,7 @@ export async function importRaftProducts(): Promise<ImportResult> {
 
   const { processed: stylesAssigned } = await assignMissingStyles();
 
-  return { imported, updated, skipped, total: totalCount, withDimensions, stylesAssigned };
+  return { imported, updated, skipped, total: totalCount, withDimensions, stylesAssigned, firstError };
 }
 
 // ── Source stats (for admin dashboard) ───────────────────────────────────────

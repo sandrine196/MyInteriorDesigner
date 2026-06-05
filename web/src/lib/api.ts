@@ -483,7 +483,7 @@ export const admin = {
   },
   products: {
     sources:      () => request<{ sources: ProductSourceStats[] }>("/admin/products/sources"),
-    importRaft:   () => request<{ success: boolean; imported: number; updated: number; skipped: number; total: number; withDimensions: number; stylesAssigned: number }>("/admin/products/import/raft", { method: "POST" }),
+    importRaft:   () => request<{ success: boolean; imported: number; updated: number; skipped: number; total: number; withDimensions: number; stylesAssigned: number; firstError?: string }>("/admin/products/import/raft", { method: "POST" }),
     assignStyles: () => request<{ success: boolean; processed: number; skipped: number; byStyle: Record<string, number> }>("/admin/products/assign-styles", { method: "POST" }),
     dbCheck:      () => request<{ total: number; byRetailer: { retailer: string; source: string | null; _count: { _all: number } }[]; databaseUrl: string }>("/admin/products/db-check"),
   },
