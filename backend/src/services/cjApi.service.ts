@@ -6,7 +6,7 @@ const CJ_API_URL = "https://ads.api.cj.com/query";
 // ── CJ API types ──────────────────────────────────────────────────────────────
 
 interface CJPrice {
-  amount:   number;
+  amount:   number | string;  // API returns a string e.g. "197.00"
   currency: string;
 }
 
@@ -242,7 +242,7 @@ export async function importRaftProducts(): Promise<ImportResult> {
         const dims       = extractDimensions(p.description ?? "", p.title);
         if (dims.widthMm) withDimensions++;
 
-        const priceGbp   = p.salePrice?.amount ?? p.price.amount;
+        const priceGbp   = parseFloat(String(p.salePrice?.amount ?? p.price.amount));
         const externalId = p.id;  // CJ product ID — stable unique key
 
         const existing = await prisma.product.findUnique({
