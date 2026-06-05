@@ -194,11 +194,11 @@ async function fetchCJProducts(
   return result;
 }
 
-// ── Affiliate URL validation ──────────────────────────────────────────────────
+// ── Affiliate URL construction ────────────────────────────────────────────────
 
-function isValidAffiliateUrl(url: string): boolean {
-  const cjDomains = ["cj.com", "anrdoezrs.net", "dpbolvw.net", "tkqlhce.net", "kqzyfj.com", "jdoqocy.com", "qksrv.net"];
-  return cjDomains.some((d) => url.includes(d));
+function buildAffiliateUrl(productUrl: string, cid: string, advertiserId: string): string {
+  // CJ standard deep-link format: dpbolvw.net/click-{publisherId}-{advertiserId}?url={encodedUrl}
+  return `https://www.dpbolvw.net/click-${cid}-${advertiserId}?url=${encodeURIComponent(productUrl)}`;
 }
 
 // ── Main import function ──────────────────────────────────────────────────────
@@ -215,7 +215,9 @@ export interface ImportResult {
 
 export async function importRaftProducts(): Promise<ImportResult> {
   const advertiserId = process.env.CJ_RAFT_ADVERTISER_ID;
+  const cid          = process.env.CJ_CID;
   if (!advertiserId) throw new Error("CJ_RAFT_ADVERTISER_ID is not set");
+  if (!cid)          throw new Error("CJ_CID is not set");
 
   console.log("[CJ] Starting Raft Furniture import — partnerId:", advertiserId);
 
@@ -234,9 +236,7 @@ export async function importRaftProducts(): Promise<ImportResult> {
 
     for (const p of result.resultList) {
       try {
-        if (!isValidAffiliateUrl(p.link)) {
-          console.warn(`[CJ] Unusual link format for "${p.title}": ${p.link}`);
-        }
+        const affiliateUrl = buildAffiliateUrl(p.link, cid, advertiserId);
 
         const category   = mapCategory(p.title);
         const dims       = extractDimensions(p.description ?? "", p.title);
@@ -255,9 +255,8 @@ export async function importRaftProducts(): Promise<ImportResult> {
             where: { id: existing.id },
             data: {
               priceGbp,
-              // Always refresh the affiliate URL — CJ tracking params change
-              affiliateUrl: p.link,
-              productUrl:   p.link,
+              affiliateUrl,
+              productUrl: p.link,
               ...(dims.widthMm ? {
                 widthMm:       dims.widthMm,
                 depthMm:       dims.depthMm,
@@ -276,7 +275,7 @@ export async function importRaftProducts(): Promise<ImportResult> {
               description:   p.description || null,
               imageUrl:      p.imageLink,
               productUrl:    p.link,
-              affiliateUrl:  p.link,
+              affiliateUrl,
               priceGbp,
               category,
               brand:         p.brand || p.advertiserName || "Raft",
