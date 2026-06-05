@@ -365,10 +365,12 @@ function HealthSection() {
 // ── Product sources section ─────────────────────────────────────────────────────
 
 function ProductSourcesSection() {
-  const [sources,   setSources]   = useState<ProductSourceStats[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [importing, setImporting] = useState(false);
-  const [result,    setResult]    = useState<{ ok: boolean; msg: string } | null>(null);
+  const [sources,        setSources]        = useState<ProductSourceStats[]>([]);
+  const [loading,        setLoading]        = useState(true);
+  const [importing,      setImporting]      = useState(false);
+  const [assigning,      setAssigning]      = useState(false);
+  const [result,         setResult]         = useState<{ ok: boolean; msg: string } | null>(null);
+  const [styleResult,    setStyleResult]    = useState<{ processed: number; byStyle: Record<string, number> } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -388,14 +390,29 @@ function ProductSourcesSection() {
     if (!confirm("Run Raft Furniture import now? This may take several minutes.")) return;
     setImporting(true);
     setResult(null);
+    setStyleResult(null);
     try {
       const r = await admin.products.importRaft();
-      setResult({ ok: true, msg: `Import complete — ${r.imported} new, ${r.updated} updated, ${r.skipped} skipped (${r.total} total, ${r.withDimensions} with dimensions)` });
+      setResult({ ok: true, msg: `Import complete — ${r.imported} new, ${r.updated} updated, ${r.skipped} skipped (${r.total} total, ${r.withDimensions} with dimensions, ${r.stylesAssigned} tagged)` });
       load();
     } catch (e) {
       setResult({ ok: false, msg: e instanceof Error ? e.message : "Import failed — check Railway logs" });
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function runAssignStyles() {
+    setAssigning(true);
+    setStyleResult(null);
+    try {
+      const r = await admin.products.assignStyles();
+      setStyleResult({ processed: r.processed, byStyle: r.byStyle });
+      load();
+    } catch (e) {
+      setResult({ ok: false, msg: e instanceof Error ? e.message : "Style assignment failed — check Railway logs" });
+    } finally {
+      setAssigning(false);
     }
   }
 
@@ -447,24 +464,53 @@ function ProductSourcesSection() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={runImport}
-                disabled={importing || !s.configured}
-                className="shrink-0 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-40"
-                style={{ background: importing ? "#1e3d54" : "#1B4965" }}
-              >
-                {importing ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full border-2 border-stone-400 border-t-white animate-spin" />
-                    Importing…
-                  </span>
-                ) : "Import Now"}
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={runAssignStyles}
+                  disabled={assigning || importing}
+                  className="px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+                  style={{ background: "#1e3d20", color: "#86efac", border: "1px solid #166534" }}
+                >
+                  {assigning ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full border-2 border-green-400 border-t-white animate-spin" />
+                      Tagging…
+                    </span>
+                  ) : "Assign Styles"}
+                </button>
+                <button
+                  onClick={runImport}
+                  disabled={importing || !s.configured}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-40"
+                  style={{ background: importing ? "#1e3d54" : "#1B4965" }}
+                >
+                  {importing ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full border-2 border-stone-400 border-t-white animate-spin" />
+                      Importing…
+                    </span>
+                  ) : "Import Now"}
+                </button>
+              </div>
             </div>
             {result && (
               <p className={`mt-3 text-sm font-medium ${result.ok ? "text-green-400" : "text-red-400"}`}>
                 {result.ok ? "✅" : "❌"} {result.msg}
               </p>
+            )}
+            {styleResult && (
+              <div className="mt-3 space-y-2">
+                <p className="text-sm font-medium text-green-400">✅ {styleResult.processed} products tagged with styles</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(styleResult.byStyle)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([style, count]) => (
+                      <span key={style} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#243d52", color: "#94a3b8" }}>
+                        {style}: {count}
+                      </span>
+                    ))}
+                </div>
+              </div>
             )}
           </Card>
         ))

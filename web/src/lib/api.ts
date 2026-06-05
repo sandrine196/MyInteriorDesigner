@@ -482,8 +482,9 @@ export const admin = {
     restore: (backupKey: string) => request<{ success: boolean; rowsRestored: number }>("/admin/backups/restore", { method: "POST", body: JSON.stringify({ backupKey, confirm: "RESTORE" }) }),
   },
   products: {
-    sources: () => request<{ sources: ProductSourceStats[] }>("/admin/products/sources"),
-    importRaft: () => request<{ success: boolean; imported: number; updated: number; skipped: number; total: number; withDimensions: number }>("/admin/products/import/raft", { method: "POST" }),
+    sources:      () => request<{ sources: ProductSourceStats[] }>("/admin/products/sources"),
+    importRaft:   () => request<{ success: boolean; imported: number; updated: number; skipped: number; total: number; withDimensions: number; stylesAssigned: number }>("/admin/products/import/raft", { method: "POST" }),
+    assignStyles: () => request<{ success: boolean; processed: number; skipped: number; byStyle: Record<string, number> }>("/admin/products/assign-styles", { method: "POST" }),
   },
 };
 

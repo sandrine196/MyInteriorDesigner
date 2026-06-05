@@ -4,6 +4,7 @@ import { backupDatabase, listBackups, restoreDatabase, getBackupStats } from "..
 import { Resend } from "resend";
 import { config } from "../config/index.js";
 import { importRaftProducts, getRaftSourceStats } from "../services/cjApi.service.js";
+import { assignMissingStyles } from "../services/styleDetection.service.js";
 
 const COST_PER_RENDER_GBP = 0.03;
 const PRO_PRICE_GBP = 9.99;
@@ -808,6 +809,16 @@ export async function adminRoutes(app: FastifyInstance) {
       return { success: true, ...result };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Import failed";
+      return reply.status(500).send({ success: false, error: message });
+    }
+  });
+
+  app.post("/admin/products/assign-styles", auth, async (_req, reply) => {
+    try {
+      const result = await assignMissingStyles();
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Style assignment failed";
       return reply.status(500).send({ success: false, error: message });
     }
   });

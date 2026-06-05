@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { assignMissingStyles } from "./styleDetection.service.js";
 
 const CJ_API_URL = "https://ads.api.cj.com/query";
 
@@ -208,6 +209,7 @@ export interface ImportResult {
   skipped:        number;
   total:          number;
   withDimensions: number;
+  stylesAssigned: number;
 }
 
 export async function importRaftProducts(): Promise<ImportResult> {
@@ -301,7 +303,9 @@ export async function importRaftProducts(): Promise<ImportResult> {
 
   console.log(`[CJ] Import complete — total:${totalCount} imported:${imported} updated:${updated} skipped:${skipped} withDims:${withDimensions}`);
 
-  return { imported, updated, skipped, total: totalCount, withDimensions };
+  const { processed: stylesAssigned } = await assignMissingStyles();
+
+  return { imported, updated, skipped, total: totalCount, withDimensions, stylesAssigned };
 }
 
 // ── Source stats (for admin dashboard) ───────────────────────────────────────
