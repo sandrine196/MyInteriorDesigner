@@ -364,6 +364,48 @@ function HealthSection() {
 
 // ── Product sources section ─────────────────────────────────────────────────────
 
+function DbCheckSection() {
+  const [result,  setResult]  = useState<{ total: number; byRetailer: { retailer: string; source: string | null; _count: { _all: number } }[]; databaseUrl: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function run() {
+    setLoading(true);
+    try {
+      const r = await admin.products.dbCheck();
+      setResult(r);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Check failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Live DB diagnostic" />
+        <button onClick={run} disabled={loading} className="text-xs px-3 py-1.5 rounded-lg font-medium text-white mb-4 disabled:opacity-40" style={{ background: "#1B4965" }}>
+          {loading ? "Checking…" : "Run Check"}
+        </button>
+      </div>
+      {result && (
+        <Card>
+          <p className="text-xs text-stone-400 font-mono mb-3 break-all">{result.databaseUrl}</p>
+          <p className="text-sm text-white font-semibold mb-2">Total products: {result.total}</p>
+          <div className="space-y-1">
+            {result.byRetailer.map((r) => (
+              <div key={`${r.retailer}-${r.source}`} className="flex justify-between text-xs">
+                <span className="text-stone-300">{r.retailer} <span className="text-stone-600">{r.source ? `(${r.source})` : "(manual)"}</span></span>
+                <span className="text-white font-semibold">{r._count._all}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function ProductSourcesSection() {
   const [sources,        setSources]        = useState<ProductSourceStats[]>([]);
   const [loading,        setLoading]        = useState(true);
@@ -529,6 +571,7 @@ export default function SystemPage() {
         <h1 className="text-2xl font-bold text-white">System</h1>
         <p className="text-stone-500 text-sm mt-1">Backups, database stats, and service health</p>
       </div>
+      <DbCheckSection />
       <ProductSourcesSection />
       <BackupSection />
       <DbStatsSection />

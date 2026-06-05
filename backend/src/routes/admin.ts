@@ -803,6 +803,23 @@ export async function adminRoutes(app: FastifyInstance) {
     return { sources: [stats] };
   });
 
+  // Diagnostic: what does the live server's DB actually contain?
+  app.get("/admin/products/db-check", auth, async () => {
+    const [total, byRetailer] = await Promise.all([
+      prisma.product.count(),
+      prisma.product.groupBy({
+        by: ["retailer", "source"],
+        _count: { _all: true },
+        orderBy: { _count: { retailer: "desc" } },
+      }),
+    ]);
+    return {
+      total,
+      byRetailer,
+      databaseUrl: process.env.DATABASE_URL?.replace(/:[^:@]+@/, ":REDACTED@"),
+    };
+  });
+
   app.post("/admin/products/import/raft", auth, async (_req, reply) => {
     try {
       const result = await importRaftProducts();
