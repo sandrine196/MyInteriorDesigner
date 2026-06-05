@@ -582,6 +582,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
             depthMm:       p.depthMm,
             heightMm:      p.heightMm,
             dimensionsRaw: p.dimensionsRaw,
+            description:   p.description,
           })),
           room: {
             length:        project.roomLengthMm!,

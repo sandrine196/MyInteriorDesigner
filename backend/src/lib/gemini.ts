@@ -16,6 +16,7 @@ export type ProductForPrompt = {
   depthMm: number | null;
   heightMm: number | null;
   dimensionsRaw: string | null;
+  description: string | null;
 };
 
 export type RoomDimensionsMm = {
@@ -163,6 +164,49 @@ const WINDOW_LABELS: Record<"single" | "double" | "triple" | "sash" | "floor_to_
   floor_to_ceiling:"Floor-to-ceiling window",
 };
 
+// ── Visual description extractor ─────────────────────────────────────────────
+// Pulls material, colour, and finish cues from a product description so Gemini
+// gets a visual brief rather than just a product name.
+
+const MATERIAL_KEYWORDS = [
+  // Timbers
+  "teak","oak","walnut","pine","birch","beech","ash","mahogany","rosewood","bamboo",
+  "reclaimed wood","solid wood","hardwood","mdf","plywood","rattan","wicker",
+  // Metals
+  "brass","copper","chrome","steel","iron","aluminium","gold","bronze","nickel","pewter",
+  // Upholstery
+  "velvet","linen","cotton","wool","leather","faux leather","boucle","bouclé",
+  "fabric","suede","chenille","tweed","silk","mohair",
+  // Other materials
+  "glass","marble","granite","concrete","stone","ceramic","acrylic","resin",
+  "mirrored","lacquered","painted","powder-coated",
+  // Colours / finishes
+  "white","black","grey","gray","navy","cream","beige","charcoal","natural","nude",
+  "sage","green","blush","pink","blue","tan","brown","dark","pale",
+  "matte","gloss","brushed","smoked","bleached","distressed","oiled","waxed",
+];
+
+function extractVisualDescription(title: string, raw: string | null): string | null {
+  // Strip HTML tags and decode entities from description, then combine with title
+  const cleanDesc = (raw ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ").trim();
+
+  const text = `${title} ${cleanDesc}`.toLowerCase();
+
+  const found: string[] = [];
+  for (const kw of MATERIAL_KEYWORDS) {
+    if (text.includes(kw) && !found.includes(kw)) found.push(kw);
+  }
+
+  if (found.length === 0) return null;
+
+  // Cap at 6 cues to keep the prompt tight
+  return found.slice(0, 6).join(", ");
+}
+
 // ── Prompt builder ────────────────────────────────────────────────────────────
 
 export function buildPrompt(
@@ -230,18 +274,20 @@ export function buildPrompt(
 
   // Furniture lines
   const productLines = products.map((p) => {
-    const price   = p.priceGbp != null ? ` (£${p.priceGbp.toFixed(0)})` : "";
-    const cat     = p.category ? p.category.replace(/_/g, " ") : null;
-    const dims    = p.widthMm && p.depthMm && p.heightMm
+    const price    = p.priceGbp != null ? ` (£${p.priceGbp.toFixed(0)})` : "";
+    const cat      = p.category ? p.category.replace(/_/g, " ") : null;
+    const dims     = p.widthMm && p.depthMm && p.heightMm
       ? `${(p.widthMm / 1000).toFixed(2)}m wide × ${(p.depthMm / 1000).toFixed(2)}m deep × ${(p.heightMm / 1000).toFixed(2)}m tall`
       : p.dimensionsRaw ?? null;
-    const tags    = p.styleTags.length > 0 ? p.styleTags.join(", ") : null;
-    const details = [
-      cat  ? `type: ${cat}`     : null,
-      dims ? `size: ${dims}`    : null,
-      tags ? `style: ${tags}`   : null,
+    const tags     = p.styleTags.length > 0 ? p.styleTags.join(", ") : null;
+    const visuals  = extractVisualDescription(p.title, p.description);
+    const details  = [
+      cat     ? `type: ${cat}`          : null,
+      dims    ? `size: ${dims}`         : null,
+      visuals ? `materials: ${visuals}` : null,
+      tags    ? `style: ${tags}`        : null,
     ].filter(Boolean).join(" | ");
-    return `- "${p.title}" by ${p.retailer}${price}${details ? `\n  [${details}]` : ""}`;
+    return `- "${p.title}"${price}${details ? `\n  [${details}]` : ""}`;
   });
 
   const lines: string[] = [];
