@@ -46,10 +46,21 @@ const STYLE_KEYWORDS: Record<string, string[]> = {
   ],
 };
 
+// ── HTML stripping ────────────────────────────────────────────────────────────
+
+function stripHtml(raw: string): string {
+  return raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&").replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, " ").replace(/&#\d+;/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
 // ── Pure text detection ───────────────────────────────────────────────────────
 
 export function detectStylesFromText(title: string, description = ""): string[] {
-  const text = `${title} ${description}`.toLowerCase();
+  const text = `${title} ${stripHtml(description)}`.toLowerCase();
   const scores: Record<string, number> = {};
 
   for (const [style, keywords] of Object.entries(STYLE_KEYWORDS)) {
@@ -70,7 +81,34 @@ export function detectStylesFromText(title: string, description = ""): string[] 
   return top.length > 0 ? top : ["contemporary"];
 }
 
-// ── Bulk assignment ───────────────────────────────────────────────────────────
+// ── Force retag all products for a specific retailer ─────────────────────────
+
+export async function retagRetailer(retailer: string): Promise<{
+  processed: number;
+  byStyle:   Record<string, number>;
+}> {
+  const products = await prisma.product.findMany({
+    where:  { retailer },
+    select: { id: true, title: true, description: true },
+  });
+
+  console.log(`[StyleDetection] Force-retagging ${products.length} ${retailer} products`);
+
+  let processed = 0;
+  const byStyle: Record<string, number> = {};
+
+  for (const p of products) {
+    const styles = detectStylesFromText(p.title, p.description ?? "");
+    await prisma.product.update({ where: { id: p.id }, data: { styleTags: JSON.stringify(styles) } });
+    for (const s of styles) byStyle[s] = (byStyle[s] ?? 0) + 1;
+    processed++;
+  }
+
+  console.log(`[StyleDetection] Retagged ${processed} products`);
+  return { processed, byStyle };
+}
+
+// ── Bulk assignment (untagged only) ──────────────────────────────────────────
 
 export async function assignMissingStyles(): Promise<{
   processed: number;
