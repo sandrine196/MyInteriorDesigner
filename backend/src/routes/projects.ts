@@ -92,31 +92,35 @@ async function autoSelectProducts(project: {
 
   const candidates = await prisma.product.findMany({ where, take: 100, orderBy: { title: "asc" } });
 
-  // Prefer products matching the design style, fall back to all if none match
-  let pool = candidates;
-  if (project.designStyle) {
-    const styled = candidates.filter((p) => {
-      try { return (JSON.parse(p.styleTags ?? "[]") as string[]).includes(project.designStyle!); }
-      catch { return false; }
-    });
-    if (styled.length > 0) pool = styled;
-  }
-
   // Pick one per category using the explicit room type
   const roomKey = project.roomType ?? "living_room";
   const categoryPriority = ROOM_CATEGORIES[roomKey] ?? ROOM_CATEGORIES["living_room"];
 
-  const byCategory = new Map<string, typeof pool>();
-  for (const p of pool) {
+  const byCategory = new Map<string, typeof candidates>();
+  for (const p of candidates) {
     if (p.category) {
       if (!byCategory.has(p.category)) byCategory.set(p.category, []);
       byCategory.get(p.category)!.push(p);
     }
   }
-  const picked: typeof pool = [];
+
+  function hasStyle(p: { styleTags: string | null }, style: string): boolean {
+    try { return (JSON.parse(p.styleTags ?? "[]") as string[]).includes(style); }
+    catch { return false; }
+  }
+
+  // Per category: prefer a style-matched product, fall back to any product if none tagged
+  const picked: typeof candidates = [];
   for (const cat of categoryPriority) {
     const options = byCategory.get(cat);
-    if (options?.length) picked.push(options[Math.floor(Math.random() * options.length)]);
+    if (!options?.length) continue;
+    if (project.designStyle) {
+      const styled = options.filter((p) => hasStyle(p, project.designStyle!));
+      const pool   = styled.length > 0 ? styled : options;
+      picked.push(pool[Math.floor(Math.random() * pool.length)]);
+    } else {
+      picked.push(options[Math.floor(Math.random() * options.length)]);
+    }
   }
   return picked;
 }
