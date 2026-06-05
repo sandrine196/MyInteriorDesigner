@@ -39,21 +39,21 @@ interface CJSearchResponse {
 function mapCategory(title: string): string {
   const t = title.toLowerCase();
 
-  if (t.match(/\bsofa\b|\bsofas\b|\bsectional\b|\bcouch\b/)) return "sofa";
-  if (t.match(/\barmchair\b|\barmchairs\b|\boccasional chair\b|\baccent chair\b/)) return "armchair";
-  if (t.match(/\bcoffee table\b|\bcoffee tables\b/)) return "coffee_table";
+  if (t.match(/\bsofa\b|\bsofas\b|\bsectional\b|\bcouch\b|\blove seat\b|\bloveseat\b|\bcorner unit\b/)) return "sofa";
+  if (t.match(/\barmchair\b|\barmchairs\b|\boccasional chair\b|\baccent chair\b|\bcocktail chair\b|\blounge chair\b/)) return "armchair";
+  if (t.match(/\bcoffee table\b|\bcoffee tables\b|\bottoman\b/)) return "coffee_table";
   if (t.match(/\bside table\b|\bend table\b|\blamp table\b/)) return "side_table";
   if (t.match(/\btv unit\b|\btv stand\b|\bmedia unit\b|\bmedia console\b|\bentertainment unit\b/)) return "tv_unit";
   if (t.match(/\bdining table\b|\bdining tables\b|\beating table\b/)) return "dining_table";
-  if (t.match(/\bdining chair\b|\bdining chairs\b|\beating chair\b/)) return "dining_chair";
+  if (t.match(/\bdining chair\b|\bdining chairs\b|\beating chair\b|\bbar stool\b|\bbarstool\b|\bdining stool\b/)) return "dining_chair";
   if (t.match(/\bsideboard\b|\bsideboards\b|\bbuffet\b/)) return "sideboard";
   if (t.match(/\bbed frame\b|\bbed frames\b|\bdivan\b|\bsleigh bed\b/) || (t.includes("bed") && !t.includes("bedside") && !t.includes("bedroom"))) return "bed";
-  if (t.match(/\bwardrobe\b|\bwardrobes\b/)) return "wardrobe";
+  if (t.match(/\bwardrobe\b|\bwardrobes\b|\bstorage screen\b/)) return "wardrobe";
   if (t.match(/\bbedside\b|\bnight stand\b|\bnightstand\b|\bbedside table\b/)) return "bedside_table";
-  if (t.match(/\bchest of drawers\b|\bchest of drawer\b|\bdresser\b|\bdrawers\b/)) return "chest_of_drawers";
+  if (t.match(/\bchest of drawers\b|\bchest of drawer\b|\bdresser\b|\bdrawers\b|\bblanket box\b/)) return "chest_of_drawers";
   if (t.match(/\bdesk\b|\bdesks\b|\bwriting table\b/)) return "desk";
   if (t.match(/\boffice chair\b|\bdesk chair\b/)) return "office_chair";
-  if (t.match(/\bbookcase\b|\bbookcases\b|\bbookshelf\b|\bbookshelves\b/)) return "bookcase";
+  if (t.match(/\bbookcase\b|\bbookcases\b|\bbookshelf\b|\bbookshelves\b|\bdisplay unit\b|\bdisplay cabinet\b|\bcabinet with shelves\b/)) return "bookcase";
   if (t.match(/\blamp\b|\blamps\b|\bpendant\b|\bfloor light\b|\btable light\b|\bchandelier\b|\bwalllight\b|\bwall light\b/)) return "lighting";
   if (t.match(/\brug\b|\brugs\b|\bcarpet\b|\bcarpets\b/)) return "rug";
   if (t.match(/\bmirror\b|\bmirrors\b/)) return "mirror";
