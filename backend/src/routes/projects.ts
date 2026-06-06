@@ -68,13 +68,41 @@ function parseRetailers(raw: string | null): string[] {
   try { return JSON.parse(raw) as string[]; } catch { return []; }
 }
 
-const ROOM_CATEGORIES: Record<string, string[]> = {
-  living_room:       ["sofa", "sofas", "armchair", "armchairs", "coffee_table", "side_table", "tv_unit", "lighting"],
-  living_dining:     ["sofa", "sofas", "armchair", "armchairs", "coffee_table", "dining_table", "dining_chair", "dining_chairs", "lighting"],
-  dining_room:       ["dining_table", "dining_chair", "dining_chairs", "lighting"],
-  bedroom_primary:   ["bed", "beds", "wardrobe", "wardrobes", "bedside_table", "lighting"],
-  bedroom_secondary: ["bed", "beds", "wardrobe", "wardrobes", "bedside_table", "chest_of_drawers", "lighting"],
-  home_office:       ["desk", "office_chair", "bookcase", "shelving", "lighting"],
+// ── Room-type product selection ───────────────────────────────────────────────
+
+function normalizeRoomType(projectRoomType: string | null): string {
+  switch (projectRoomType) {
+    case "bedroom_primary":
+    case "bedroom_secondary":
+      return "bedroom";
+    case "living_dining":
+    case "living_room":
+      return "living_room";
+    case "dining_room":
+    case "home_office":
+      return projectRoomType;
+    default:
+      return "living_room";
+  }
+}
+
+const ROOM_PRIORITIES: Record<string, { primary: string[]; secondary: string[] }> = {
+  dining_room: {
+    primary:   ["dining table", "extending table", "round dining", "oval dining", "kitchen table"],
+    secondary: ["dining chair", "dining bench", "sideboard", "buffet", "bar stool"],
+  },
+  living_room: {
+    primary:   ["sofa", "couch", "settee", "armchair", "corner unit", "love seat"],
+    secondary: ["coffee table", "side table", "tv unit", "shelving", "bookcase", "footstool", "ottoman"],
+  },
+  bedroom: {
+    primary:   ["bed frame", "ottoman bed", "double bed", "king size", "super king", "single bed", "divan", "sleigh bed"],
+    secondary: ["wardrobe", "chest of drawers", "bedside", "dressing table", "blanket box"],
+  },
+  home_office: {
+    primary:   ["desk", "office desk", "writing desk", "computer desk"],
+    secondary: ["office chair", "bookcase", "bookshelf", "shelving", "filing cabinet"],
+  },
 };
 
 async function autoSelectProducts(project: {
@@ -83,25 +111,14 @@ async function autoSelectProducts(project: {
   budgetMax: number | null;
   designStyle: string | null;
 }) {
-  const retailers = parseRetailers(project.preferredRetailers);
-  const where: Record<string, unknown> = {};
+  const roomCategory = normalizeRoomType(project.roomType);
+  const priorities   = ROOM_PRIORITIES[roomCategory] ?? ROOM_PRIORITIES["living_room"];
+  const retailers    = parseRetailers(project.preferredRetailers);
+
+  const where: Record<string, unknown> = { category: roomCategory };
   if (retailers.length > 0) where.retailer = { in: retailers };
   if (project.budgetMax != null) {
     where.priceGbp = { lte: Math.max(Math.round(project.budgetMax * 0.4), 500) };
-  }
-
-  const candidates = await prisma.product.findMany({ where, take: 100, orderBy: { title: "asc" } });
-
-  // Pick one per category using the explicit room type
-  const roomKey = project.roomType ?? "living_room";
-  const categoryPriority = ROOM_CATEGORIES[roomKey] ?? ROOM_CATEGORIES["living_room"];
-
-  const byCategory = new Map<string, typeof candidates>();
-  for (const p of candidates) {
-    if (p.category) {
-      if (!byCategory.has(p.category)) byCategory.set(p.category, []);
-      byCategory.get(p.category)!.push(p);
-    }
   }
 
   function hasStyle(p: { styleTags: string | null }, style: string): boolean {
@@ -109,20 +126,32 @@ async function autoSelectProducts(project: {
     catch { return false; }
   }
 
-  // Per category: prefer a style-matched product, fall back to any product if none tagged
-  const picked: typeof candidates = [];
-  for (const cat of categoryPriority) {
-    const options = byCategory.get(cat);
-    if (!options?.length) continue;
-    if (project.designStyle) {
-      const styled = options.filter((p) => hasStyle(p, project.designStyle!));
-      const pool   = styled.length > 0 ? styled : options;
-      picked.push(pool[Math.floor(Math.random() * pool.length)]);
-    } else {
-      picked.push(options[Math.floor(Math.random() * options.length)]);
-    }
+  function isPrimary(title: string): boolean {
+    const t = title.toLowerCase();
+    return priorities.primary.some((kw) => t.includes(kw));
   }
-  return picked;
+
+  function shuffle<T>(arr: T[]): T[] {
+    return arr.sort(() => Math.random() - 0.5);
+  }
+
+  async function fetchSorted(withStyle: boolean) {
+    const candidates = await prisma.product.findMany({ where, take: 200, orderBy: { title: "asc" } });
+    let pool = candidates;
+    if (withStyle && project.designStyle) {
+      const styled = candidates.filter((p) => hasStyle(p, project.designStyle!));
+      if (styled.length >= 3) pool = styled;
+    }
+    const primary   = shuffle(pool.filter((p) => isPrimary(p.title)));
+    const secondary = shuffle(pool.filter((p) => !isPrimary(p.title)));
+    return [...primary, ...secondary].slice(0, 6);
+  }
+
+  let products = await fetchSorted(true);
+  if (products.length < 3 && project.designStyle) {
+    products = await fetchSorted(false);
+  }
+  return products;
 }
 
 function serializeProject(p: Record<string, unknown>) {
@@ -550,6 +579,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           depthMm: p.depthMm,
           heightMm: p.heightMm,
           category: p.category,
+          styleTags: (() => { try { return JSON.parse(p.styleTags ?? "[]") as string[]; } catch { return []; } })(),
           fitResult: hasDims
             ? checkFurnitureFit(project.roomLengthMm!, project.roomWidthMm!, p)
             : null,

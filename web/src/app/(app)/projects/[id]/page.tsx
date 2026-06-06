@@ -1376,6 +1376,7 @@ export default function ProjectWorkspacePage() {
               <RenderCard
                 key={r.id}
                 render={r}
+                roomType={project.roomType}
                 onDelete={async () => {
                   await api.deleteRender(id, r.id);
                   setProject((p) =>
@@ -1555,7 +1556,7 @@ const LOADING_STEPS = [
   "Finding furniture…",
 ];
 
-function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Promise<void> }) {
+function RenderCard({ render, roomType, onDelete }: { render: Render; roomType: string | null; onDelete: () => Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedView, setSelectedView] = useState<1 | 2>(1);
@@ -1689,56 +1690,185 @@ function RenderCard({ render, onDelete }: { render: Render; onDelete: () => Prom
         </div>
 
         {hasProducts && (
-          <div className="mt-5 pt-5 border-t border-stone-100">
-            <h3 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#062C3D" }}>
-              Furniture &amp; Decor Selections
-            </h3>
-            <ul className="space-y-3">
-              {products.map((p) => (
-                <FurnitureRow key={p.id} product={p} />
-              ))}
-            </ul>
-            {hasTotal && (
-              <div className="mt-4 pt-4 border-t border-stone-100 flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Total</span>
-                <span className="text-base font-bold" style={{ color: "#D4A574" }}>
-                  £{total.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-            )}
-          </div>
+          <ShopThisStyle products={products} hasTotal={hasTotal} total={total} roomType={roomType} />
         )}
       </div>
     </div>
   );
 }
 
-function FurnitureRow({ product: p }: { product: RenderProduct }) {
+// ── Room headings and product filter config ───────────────────────────────────
+
+const ROOM_HEADINGS: Record<string, { icon: string; title: string; subtitle: string }> = {
+  dining_room:       { icon: "🍽️", title: "Shop Dining Room Furniture", subtitle: "Tables and chairs to complete your space" },
+  living_room:       { icon: "🛋️", title: "Shop Living Room Furniture", subtitle: "Sofas and accessories for your style" },
+  living_dining:     { icon: "🛋️", title: "Shop Living & Dining Furniture", subtitle: "Sofas, tables and chairs for your space" },
+  bedroom_primary:   { icon: "🛏️", title: "Shop Bedroom Furniture", subtitle: "Beds and storage for your room" },
+  bedroom_secondary: { icon: "🛏️", title: "Shop Bedroom Furniture", subtitle: "Beds and storage for your room" },
+  home_office:       { icon: "💻", title: "Shop Home Office Furniture", subtitle: "Desks and storage for your workspace" },
+};
+
+const FILTER_PILLS = [
+  { id: "all",      label: "All" },
+  { id: "Sofas",    label: "Sofas" },
+  { id: "Chairs",   label: "Chairs" },
+  { id: "Tables",   label: "Tables" },
+  { id: "Beds",     label: "Beds" },
+  { id: "Storage",  label: "Storage" },
+  { id: "Lighting", label: "Lighting" },
+];
+
+function productTypeLabel(title: string): string {
+  const t = title.toLowerCase();
+  if (/\bsofa\b|settee|\bcouch\b|corner unit|love seat/.test(t)) return "Sofas";
+  if (/armchair|cocktail chair|accent chair|lounge chair|dining chair|bar stool|counter stool/.test(t)) return "Chairs";
+  if (/coffee table|side table|dining table|round table|extending table|console table/.test(t)) return "Tables";
+  if (/\bbed\b|bed frame|ottoman bed|sleigh bed|divan/.test(t)) return "Beds";
+  if (/wardrobe|chest of drawers|bookcase|sideboard|display unit|cabinet|blanket box|shelv/.test(t)) return "Storage";
+  if (/lamp|pendant|\blight\b/.test(t)) return "Lighting";
+  return "Other";
+}
+
+function fitIcon(fits: string | undefined) {
+  if (fits === "perfect") return { icon: "✅", label: "Fits perfectly", color: "#15803d" };
+  if (fits === "tight")   return { icon: "⚠️", label: "Tight fit",     color: "#92400e" };
+  if (fits === "too_large") return { icon: "❌", label: "Too large",   color: "#b91c1c" };
+  return null;
+}
+
+function retailerLabel(retailer: string): string {
+  const shop = SHOPS.find((s) => s.id === retailer);
+  return shop?.label ?? retailer.replace(/_/g, " ");
+}
+
+function ShopThisStyle({
+  products,
+  hasTotal,
+  total,
+  roomType,
+}: {
+  products: RenderProduct[];
+  hasTotal: boolean;
+  total: number;
+  roomType: string | null;
+}) {
+  const [activeFilter, setActiveFilter] = useState("all");
+
+  const filteredProducts = activeFilter === "all"
+    ? products
+    : products.filter((p) => productTypeLabel(p.title) === activeFilter);
+
+  const availableFilters = FILTER_PILLS.filter(
+    (f) => f.id === "all" || products.some((p) => productTypeLabel(p.title) === f.label),
+  );
+
+  const heading = ROOM_HEADINGS[roomType ?? "living_room"] ?? ROOM_HEADINGS["living_room"];
+
   return (
-    <li className="flex items-center gap-3">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={p.imageUrl}
-        alt={p.title}
-        className="w-12 h-12 object-cover rounded-lg border border-stone-100 flex-shrink-0 bg-stone-50"
-      />
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-stone-800 leading-snug line-clamp-2">{p.title}</p>
-        <p className="text-xs text-stone-400 mt-0.5 capitalize">{p.retailer.replace(/_/g, " ")}</p>
+    <div className="mt-6 pt-5 border-t border-stone-100">
+      <div className="mb-3">
+        <h3 className="text-sm font-bold tracking-tight" style={{ color: "#062C3D" }}>
+          {heading.icon} {heading.title}
+        </h3>
+        <p className="text-xs text-stone-400 mt-0.5">{heading.subtitle}</p>
       </div>
-      <div className="flex items-center gap-2.5 flex-shrink-0">
-        {p.priceGbp != null && (
-          <span className="text-sm font-semibold text-stone-700">£{p.priceGbp.toFixed(0)}</span>
+
+      {/* Category filter pills */}
+      {availableFilters.length > 2 && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {availableFilters.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setActiveFilter(f.id)}
+              className="px-2.5 py-1 rounded-full text-xs font-medium transition-colors"
+              style={{
+                background: activeFilter === f.id ? "#1B4965" : "#f5f5f4",
+                color: activeFilter === f.id ? "#ffffff" : "#78716c",
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Product grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {filteredProducts.map((p) => (
+          <ProductCard key={p.id} product={p} />
+        ))}
+      </div>
+
+      {/* Total */}
+      {hasTotal && activeFilter === "all" && (
+        <div className="mt-4 pt-4 border-t border-stone-100 flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Estimated total</span>
+          <span className="text-base font-bold" style={{ color: "#D4A574" }}>
+            £{total.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      )}
+
+      {/* Affiliate disclaimer */}
+      <p className="text-xs text-stone-400 mt-3 leading-relaxed">
+        Links may be affiliate links. Prices are approximate and subject to change.
+      </p>
+    </div>
+  );
+}
+
+function ProductCard({ product: p }: { product: RenderProduct }) {
+  const fit = p.fitResult ? fitIcon(p.fitResult.fits) : null;
+  const hasDims = p.widthMm != null;
+  const dimStr = hasDims
+    ? `W${Math.round(p.widthMm! / 10)}${p.depthMm ? ` × D${Math.round(p.depthMm / 10)}` : ""}${p.heightMm ? ` × H${Math.round(p.heightMm / 10)}` : ""}cm`
+    : null;
+
+  return (
+    <div className="flex flex-col rounded-xl border border-stone-100 overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
+      {/* Product image */}
+      <div className="relative aspect-square bg-stone-50">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={p.imageUrl}
+          alt={p.title}
+          className="w-full h-full object-cover"
+        />
+        {/* Fit indicator badge */}
+        {fit && (
+          <span
+            className="absolute top-2 left-2 text-xs font-semibold px-1.5 py-0.5 rounded-full bg-white/90 backdrop-blur-sm shadow-sm"
+            title={`${fit.label}: ${p.fitResult?.message ?? ""}`}
+            style={{ color: fit.color }}
+          >
+            {fit.icon} {fit.label}
+          </span>
         )}
-        <ProductLink
-          id={p.id}
-          href={p.affiliateUrl ?? p.productUrl}
-          className="text-xs font-medium hover:underline transition-colors"
-          style={{ color: "#062C3D" }}
-        >
-          Shop →
-        </ProductLink>
       </div>
-    </li>
+
+      {/* Card body */}
+      <div className="p-2.5 flex flex-col flex-1 gap-1">
+        <p className="text-xs text-stone-400 capitalize">{retailerLabel(p.retailer)}</p>
+        <p className="text-xs font-semibold text-stone-800 leading-snug line-clamp-2 flex-1">{p.title}</p>
+        {dimStr && (
+          <p className="text-xs text-stone-400">{dimStr}</p>
+        )}
+        <div className="flex items-center justify-between mt-1.5 gap-1">
+          {p.priceGbp != null ? (
+            <span className="text-sm font-bold text-stone-700">£{p.priceGbp.toFixed(0)}</span>
+          ) : (
+            <span />
+          )}
+          <ProductLink
+            id={p.id}
+            href={p.affiliateUrl ?? p.productUrl}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg text-white transition-opacity hover:opacity-80 flex-shrink-0"
+            style={{ background: "#1B4965" }}
+          >
+            View →
+          </ProductLink>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -33,32 +33,48 @@ interface CJSearchResponse {
   errors?: Array<{ message: string }>;
 }
 
-// ── Category mapping ──────────────────────────────────────────────────────────
-// Title-only matching — CJ doesn't return a category field we can rely on yet.
+// ── Room category mapping ─────────────────────────────────────────────────────
+// Maps a product title + description to which room it belongs.
+// Exported so the admin recategorise endpoint can re-run this on existing products.
 
-function mapCategory(title: string): string {
-  const t = title.toLowerCase();
+export function mapToRoomCategory(title: string, description = ""): string {
+  const text = `${title} ${description}`.toLowerCase();
 
-  if (t.match(/\bsofa\b|\bsofas\b|\bsectional\b|\bcouch\b|\blove seat\b|\bloveseat\b|\bcorner unit\b/)) return "sofa";
-  if (t.match(/\barmchair\b|\barmchairs\b|\boccasional chair\b|\baccent chair\b|\bcocktail chair\b|\blounge chair\b/)) return "armchair";
-  if (t.match(/\bcoffee table\b|\bcoffee tables\b|\bottoman\b/)) return "coffee_table";
-  if (t.match(/\bside table\b|\bend table\b|\blamp table\b/)) return "side_table";
-  if (t.match(/\btv unit\b|\btv stand\b|\bmedia unit\b|\bmedia console\b|\bentertainment unit\b/)) return "tv_unit";
-  if (t.match(/\bdining table\b|\bdining tables\b|\beating table\b/)) return "dining_table";
-  if (t.match(/\bdining chair\b|\bdining chairs\b|\beating chair\b|\bbar stool\b|\bbarstool\b|\bdining stool\b/)) return "dining_chair";
-  if (t.match(/\bsideboard\b|\bsideboards\b|\bbuffet\b/)) return "sideboard";
-  if (t.match(/\bbed frame\b|\bbed frames\b|\bdivan\b|\bsleigh bed\b/) || (t.includes("bed") && !t.includes("bedside") && !t.includes("bedroom"))) return "bed";
-  if (t.match(/\bwardrobe\b|\bwardrobes\b|\bstorage screen\b/)) return "wardrobe";
-  if (t.match(/\bbedside\b|\bnight stand\b|\bnightstand\b|\bbedside table\b/)) return "bedside_table";
-  if (t.match(/\bchest of drawers\b|\bchest of drawer\b|\bdresser\b|\bdrawers\b|\bblanket box\b/)) return "chest_of_drawers";
-  if (t.match(/\bdesk\b|\bdesks\b|\bwriting table\b/)) return "desk";
-  if (t.match(/\boffice chair\b|\bdesk chair\b/)) return "office_chair";
-  if (t.match(/\bbookcase\b|\bbookcases\b|\bbookshelf\b|\bbookshelves\b|\bdisplay unit\b|\bdisplay cabinet\b|\bcabinet with shelves\b/)) return "bookcase";
-  if (t.match(/\blamp\b|\blamps\b|\bpendant\b|\bfloor light\b|\btable light\b|\bchandelier\b|\bwalllight\b|\bwall light\b/)) return "lighting";
-  if (t.match(/\brug\b|\brugs\b|\bcarpet\b|\bcarpets\b/)) return "rug";
-  if (t.match(/\bmirror\b|\bmirrors\b/)) return "mirror";
+  // Dining room first — most specific keywords
+  const diningKeywords = [
+    "dining table", "dining chair", "dining set",
+    "kitchen table", "kitchen chair",
+    "sideboard", "buffet",
+    "dining bench", "bar stool", "bar chair",
+    "counter stool", "breakfast bar",
+    "extending table", "round dining", "oval dining",
+  ];
+  if (diningKeywords.some((k) => text.includes(k))) return "dining_room";
 
-  return "other";
+  // Bedroom
+  const bedroomKeywords = [
+    "bed frame", "bedframe", "headboard",
+    "wardrobe", "chest of drawers",
+    "bedside table", "bedside cabinet",
+    "dressing table", "ottoman bed",
+    "mattress", "bed base", "bed set",
+    "bedroom", "king size", "queen size",
+    "double bed", "single bed", "super king",
+    "blanket box", "storage screen",
+  ];
+  if (bedroomKeywords.some((k) => text.includes(k))) return "bedroom";
+
+  // Home office
+  const officeKeywords = [
+    "office desk", "computer desk", "writing desk",
+    "office chair", "filing cabinet",
+    "home office", "study desk",
+  ];
+  // Standalone "desk" only if not "bedside" etc.
+  if (officeKeywords.some((k) => text.includes(k)) || /\bdesk\b/.test(text)) return "home_office";
+
+  // Everything else — sofas, armchairs, coffee tables, lamps, accessories
+  return "living_room";
 }
 
 // ── Dimension extraction ──────────────────────────────────────────────────────
@@ -238,7 +254,7 @@ export async function importRaftProducts(): Promise<ImportResult> {
       try {
         const affiliateUrl = buildAffiliateUrl(p.link, cid, advertiserId);
 
-        const category   = mapCategory(p.title);
+        const category   = mapToRoomCategory(p.title, p.description ?? "");
         const dims       = extractDimensions(p.description ?? "", p.title);
         if (dims.widthMm) withDimensions++;
 

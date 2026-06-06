@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { backupDatabase, listBackups, restoreDatabase, getBackupStats } from "../scripts/backup.js";
 import { Resend } from "resend";
 import { config } from "../config/index.js";
-import { importRaftProducts, getRaftSourceStats } from "../services/cjApi.service.js";
+import { importRaftProducts, getRaftSourceStats, mapToRoomCategory } from "../services/cjApi.service.js";
 import { assignMissingStyles } from "../services/styleDetection.service.js";
 
 const COST_PER_RENDER_GBP = 0.03;
@@ -836,6 +836,32 @@ export async function adminRoutes(app: FastifyInstance) {
       return { success: true, ...result };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Style assignment failed";
+      return reply.status(500).send({ success: false, error: message });
+    }
+  });
+
+  app.post("/admin/products/recategorise", auth, async (_req, reply) => {
+    try {
+      const products = await prisma.product.findMany({
+        where: { retailer: "raft" },
+        select: { id: true, title: true, description: true, category: true },
+      });
+      let processed = 0, skipped = 0;
+      const byCategory: Record<string, number> = {};
+      for (const p of products) {
+        const newCategory = mapToRoomCategory(p.title, p.description ?? "");
+        if (newCategory !== p.category) {
+          await prisma.product.update({ where: { id: p.id }, data: { category: newCategory } });
+          processed++;
+        } else {
+          skipped++;
+        }
+        byCategory[newCategory] = (byCategory[newCategory] ?? 0) + 1;
+      }
+      console.log(`[Recategorise] processed:${processed} skipped:${skipped}`);
+      return { success: true, processed, skipped, byCategory };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Recategorisation failed";
       return reply.status(500).send({ success: false, error: message });
     }
   });

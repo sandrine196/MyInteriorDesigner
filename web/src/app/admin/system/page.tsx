@@ -407,12 +407,14 @@ function DbCheckSection() {
 }
 
 function ProductSourcesSection() {
-  const [sources,        setSources]        = useState<ProductSourceStats[]>([]);
-  const [loading,        setLoading]        = useState(true);
-  const [importing,      setImporting]      = useState(false);
-  const [assigning,      setAssigning]      = useState(false);
-  const [result,         setResult]         = useState<{ ok: boolean; msg: string } | null>(null);
-  const [styleResult,    setStyleResult]    = useState<{ processed: number; byStyle: Record<string, number> } | null>(null);
+  const [sources,          setSources]          = useState<ProductSourceStats[]>([]);
+  const [loading,          setLoading]          = useState(true);
+  const [importing,        setImporting]        = useState(false);
+  const [assigning,        setAssigning]        = useState(false);
+  const [recategorising,   setRecategorising]   = useState(false);
+  const [result,           setResult]           = useState<{ ok: boolean; msg: string } | null>(null);
+  const [styleResult,      setStyleResult]      = useState<{ processed: number; byStyle: Record<string, number> } | null>(null);
+  const [catResult,        setCatResult]        = useState<{ processed: number; byCategory: Record<string, number> } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -459,6 +461,21 @@ function ProductSourcesSection() {
       setResult({ ok: false, msg: e instanceof Error ? e.message : "Style assignment failed — check Railway logs" });
     } finally {
       setAssigning(false);
+    }
+  }
+
+  async function runRecategorise() {
+    setRecategorising(true);
+    setCatResult(null);
+    setResult(null);
+    try {
+      const r = await admin.products.recategorise();
+      setCatResult({ processed: r.processed, byCategory: r.byCategory });
+      load();
+    } catch (e) {
+      setResult({ ok: false, msg: e instanceof Error ? e.message : "Recategorisation failed — check Railway logs" });
+    } finally {
+      setRecategorising(false);
     }
   }
 
@@ -510,7 +527,20 @@ function ProductSourcesSection() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <button
+                  onClick={runRecategorise}
+                  disabled={recategorising || importing}
+                  className="px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+                  style={{ background: "#2d1f3d", color: "#c4b5fd", border: "1px solid #5b21b6" }}
+                >
+                  {recategorising ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full border-2 border-purple-400 border-t-white animate-spin" />
+                      Fixing…
+                    </span>
+                  ) : "Fix Categories"}
+                </button>
                 <button
                   onClick={runAssignStyles}
                   disabled={assigning || importing}
@@ -553,6 +583,20 @@ function ProductSourcesSection() {
                     .map(([style, count]) => (
                       <span key={style} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#243d52", color: "#94a3b8" }}>
                         {style}: {count}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+            {catResult && (
+              <div className="mt-3 space-y-2">
+                <p className="text-sm font-medium text-purple-400">✅ {catResult.processed} products recategorised</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(catResult.byCategory)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([cat, count]) => (
+                      <span key={cat} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#243d52", color: "#94a3b8" }}>
+                        {cat}: {count}
                       </span>
                     ))}
                 </div>
