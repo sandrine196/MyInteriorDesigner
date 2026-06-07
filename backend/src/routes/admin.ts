@@ -796,6 +796,58 @@ export async function adminRoutes(app: FastifyInstance) {
     }
   });
 
+  // ── CJ raw diagnostic — shows exactly what the CJ API returns ───────────
+  app.get("/admin/products/cj-raw-test", auth, async (_req, reply) => {
+    const cid          = process.env.CJ_CID;
+    const apiKey       = process.env.CJ_API_KEY;
+    const advertiserId = process.env.CJ_RAFT_ADVERTISER_ID;
+
+    if (!cid || !apiKey || !advertiserId) {
+      return reply.status(500).send({ error: "CJ env vars not set", cid: !!cid, apiKey: !!apiKey, advertiserId: !!advertiserId });
+    }
+
+    const query = `
+      query RawTest {
+        shoppingProducts(
+          companyId: "${cid}"
+          partnerIds: ${JSON.stringify([advertiserId])}
+          limit: 3
+          offset: 0
+        ) {
+          totalCount
+          resultList {
+            id
+            title
+            link
+            imageLink
+            price { amount currency }
+            salePrice { amount currency }
+            advertiserId
+            advertiserName
+          }
+        }
+      }
+    `;
+
+    const res = await fetch("https://ads.api.cj.com/query", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const json = await res.json() as Record<string, unknown>;
+    return {
+      httpStatus: res.status,
+      cid,
+      advertiserId,
+      rawResponse: json,
+    };
+  });
+
   // ── Product sources ──────────────────────────────────────────────────────
 
   app.get("/admin/products/sources", auth, async () => {

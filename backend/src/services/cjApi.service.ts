@@ -211,10 +211,16 @@ async function fetchCJProducts(
 }
 
 // ── Affiliate URL construction ────────────────────────────────────────────────
+// CJ deep links require the publisher's WEBSITE ID (not the company CID).
+// Set CJ_WEBSITE_ID in environment variables once you've confirmed it in
+// the CJ publisher interface (Account → My Websites → Website ID / PID).
+// Until then, productUrl is used directly so links are at least functional.
 
-function buildAffiliateUrl(productUrl: string, cid: string, advertiserId: string): string {
-  // CJ standard deep-link format: dpbolvw.net/click-{publisherId}-{advertiserId}?url={encodedUrl}
-  return `https://www.dpbolvw.net/click-${cid}-${advertiserId}?url=${encodeURIComponent(productUrl)}`;
+function buildAffiliateUrl(productUrl: string, advertiserId: string): string | null {
+  const websiteId = process.env.CJ_WEBSITE_ID;
+  if (!websiteId) return null;  // fall back to direct productUrl
+  // Standard CJ deep-link format using the publisher's website/property ID
+  return `https://www.dpbolvw.net/click-${websiteId}-${advertiserId}?url=${encodeURIComponent(productUrl)}`;
 }
 
 // ── Main import function ──────────────────────────────────────────────────────
@@ -252,7 +258,7 @@ export async function importRaftProducts(): Promise<ImportResult> {
 
     for (const p of result.resultList) {
       try {
-        const affiliateUrl = buildAffiliateUrl(p.link, cid, advertiserId);
+        const affiliateUrl = buildAffiliateUrl(p.link, advertiserId);
 
         const category   = mapToRoomCategory(p.title, p.description ?? "");
         const dims       = extractDimensions(p.description ?? "", p.title);
