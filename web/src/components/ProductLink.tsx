@@ -14,11 +14,16 @@ export default function ProductLink({ id, href, className, style, onClick, child
   async function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
     e.preventDefault();
     onClick?.();
+    // Open window synchronously within the click handler so browsers don't
+    // treat the later window.open() call (after the async API round-trip) as a popup.
+    const win = window.open("", "_blank", "noopener,noreferrer");
     try {
       const { url } = await products.click(id);
-      window.open(url ?? href, "_blank", "noopener,noreferrer");
+      if (win) win.location.href = url ?? href;
+      else window.open(url ?? href, "_blank", "noopener,noreferrer");
     } catch {
-      window.open(href, "_blank", "noopener,noreferrer");
+      if (win) win.location.href = href;
+      else window.open(href, "_blank", "noopener,noreferrer");
     }
   }
 

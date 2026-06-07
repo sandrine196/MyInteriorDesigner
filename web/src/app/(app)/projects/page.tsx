@@ -45,6 +45,7 @@ export default function ProjectsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     api.list()
       .then((r) => setList(r.projects))
       .finally(() => setLoading(false));

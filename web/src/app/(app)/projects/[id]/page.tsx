@@ -1596,8 +1596,18 @@ function RenderCard({ render, roomType, onDelete }: { render: Render; roomType: 
   return (
     <div id={`render-${render.id}`} className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
       {activeSrc && render.status === "done" && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={activeSrc} alt="Room design" className="w-full h-72 object-cover" />
+        <div className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={activeSrc}
+            alt={`AI-generated interior design inspiration for ${roomType?.replace(/_/g, " ") ?? "your room"}`}
+            title="This is an AI-generated design inspiration image, not a photograph of real furniture."
+            className="w-full h-72 object-cover"
+          />
+          <div className="absolute bottom-0 left-0 right-0 px-3 py-2 text-xs text-white text-center leading-snug" style={{ background: "rgba(0,0,0,0.55)" }}>
+            ✨ AI-generated design inspiration &nbsp;·&nbsp; Furniture shown is illustrative only
+          </div>
+        </div>
       )}
       {render.status === "pending" && (
         <div className="w-full h-72 bg-stone-50 flex flex-col items-center justify-center gap-4">
@@ -1771,6 +1781,17 @@ function ShopThisStyle({
           {heading.icon} {heading.title}
         </h3>
         <p className="text-xs text-stone-400 mt-0.5">{heading.subtitle}</p>
+      </div>
+
+      {/* Inspiration notice */}
+      <div className="flex items-start gap-3 rounded-xl px-3 py-2.5 mb-4 text-xs" style={{ background: "#f0f9ff", border: "1px solid #bae6fd" }}>
+        <span className="text-base leading-none mt-0.5">🎨</span>
+        <div>
+          <p className="font-semibold" style={{ color: "#0c4a6e" }}>Shop products that match this style</p>
+          <p className="mt-0.5" style={{ color: "#0369a1" }}>
+            The render above is AI-generated inspiration. The furniture below is real and available to buy.
+          </p>
+        </div>
       </div>
 
       {/* Category filter pills */}
