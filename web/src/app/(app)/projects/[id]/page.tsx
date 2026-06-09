@@ -133,6 +133,8 @@ export default function ProjectWorkspacePage() {
   const [editingPrefs, setEditingPrefs] = useState(false);
 
   useEffect(() => {
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     usageApi.get().then(setUsageData).catch(() => {});
     api.get(id)
       .then(({ project: p }) => {
@@ -202,6 +204,7 @@ export default function ProjectWorkspacePage() {
       const { project: p } = await api.updateSetup(id, data);
       setProject(p);
       setEditingPrefs(false);
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     } catch (err) {
       setSetupError(err instanceof ApiError ? err.message : "Failed to save preferences");
     } finally {
