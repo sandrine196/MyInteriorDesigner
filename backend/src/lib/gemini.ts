@@ -106,7 +106,6 @@ export type PromptMeta = {
   designStyle?: string | null;
   wallColorPalette?: string | null;
   flooringType?: string | null;
-  floorPlanAnalysis?: string | null;         // GPT-4o free-text analysis (legacy)
   roomFeatures?: RoomFeatures | null;         // user-mapped wall features
   structuredFloorPlan?: FloorPlanAnalysis | null; // Gemini Vision structured analysis
   floorPlanInterpretation?: string | null;   // plain-text rich description (Step A of two-step flow)
@@ -215,7 +214,7 @@ export function buildPrompt(
   room: RoomDimensionsMm,
   meta: PromptMeta = {},
 ): string {
-  const { projectName, designStyle, wallColorPalette, flooringType, floorPlanAnalysis, roomFeatures, structuredFloorPlan, floorPlanInterpretation, cameraAngle } = meta;
+  const { projectName, designStyle, wallColorPalette, flooringType, roomFeatures, structuredFloorPlan, floorPlanInterpretation, cameraAngle } = meta;
 
   const rf      = roomFeatures ?? null;
   const spatial = rf ? analyzeRoomSpatially(rf) : null;
@@ -565,16 +564,6 @@ export function buildPrompt(
     for (const rule of spatial.placementRules) lines.push(`- ${rule}`);
   }
 
-  // Legacy fallback: no wall mapping but a floor plan analysis exists
-  if (!rf && floorPlanAnalysis) {
-    lines.push(
-      "",
-      "SPATIAL LAYOUT:",
-      floorPlanAnalysis,
-      "Enforce all positions exactly — LEFT features on LEFT, RIGHT features on RIGHT, FAR WALL straight ahead.",
-    );
-  }
-
   // ── OUTPUT REQUIREMENTS ───────────────────────────────────────────────────────
   lines.push(
     "",
@@ -626,7 +615,6 @@ export async function generateRoomImage(
     designStyle:         opts.designStyle,
     wallColorPalette:    opts.wallColorPalette,
     flooringType:        opts.flooringType,
-    floorPlanAnalysis:   opts.floorPlanAnalysis,
     roomFeatures:        opts.roomFeatures,
     structuredFloorPlan: opts.structuredFloorPlan,
   });
