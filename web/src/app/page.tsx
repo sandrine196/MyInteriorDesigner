@@ -238,21 +238,42 @@ function Hero() {
               you buy anything.
             </p>
 
-            {/* CTAs */}
-            <div className="flex flex-wrap gap-4 items-center mb-10">
-              <Link
-                href="/register"
-                className="inline-flex items-center gap-2 font-semibold px-7 py-3.5 rounded-xl text-sm transition-all shadow-lg hover:shadow-xl active:scale-95"
-                style={{ background: "#D4A574", color: "#1B3050" }}
-              >
-                Start designing for free →
-              </Link>
-              <a
-                href="#how-it-works"
-                className="inline-flex items-center gap-2 font-medium px-6 py-3.5 rounded-xl text-sm border border-white/30 text-white hover:bg-white/10 transition-colors"
-              >
-                See how it works
-              </a>
+            {/* Two-path CTA */}
+            <div className="grid sm:grid-cols-2 gap-4 mb-10">
+              {/* Homeowner card */}
+              <div className="bg-white/10 border border-white/20 rounded-2xl p-5 flex flex-col gap-3 hover:bg-white/15 transition-colors">
+                <span className="text-2xl">🏠</span>
+                <div>
+                  <h3 className="text-white font-semibold text-base mb-1">I&apos;m a homeowner</h3>
+                  <p className="text-blue-100/70 text-sm leading-relaxed">
+                    Design your new space and shop furniture that fits perfectly
+                  </p>
+                </div>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center justify-center font-semibold px-5 py-2.5 rounded-xl text-sm transition-all shadow-md hover:shadow-lg active:scale-95 mt-auto"
+                  style={{ background: "#D4A574", color: "#1B3050" }}
+                >
+                  Design my room →
+                </Link>
+              </div>
+
+              {/* Agent card */}
+              <div className="bg-white/10 border border-white/20 rounded-2xl p-5 flex flex-col gap-3 hover:bg-white/15 transition-colors">
+                <span className="text-2xl">🏢</span>
+                <div>
+                  <h3 className="text-white font-semibold text-base mb-1">I&apos;m an estate agent or developer</h3>
+                  <p className="text-blue-100/70 text-sm leading-relaxed">
+                    Help your clients visualise their new home before they move in
+                  </p>
+                </div>
+                <Link
+                  href="/agents"
+                  className="inline-flex items-center justify-center font-semibold px-5 py-2.5 rounded-xl text-sm transition-all border border-white/40 text-white hover:bg-white/10 active:scale-95 mt-auto"
+                >
+                  Partner with us →
+                </Link>
+              </div>
             </div>
 
             {/* Trust indicators */}

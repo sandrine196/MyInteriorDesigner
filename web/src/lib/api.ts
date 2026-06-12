@@ -50,11 +50,11 @@ export type User = { id: string; email: string; tier: "free" | "pro"; isAdmin?: 
 export type AuthResponse = { token: string; user: User };
 
 export const auth = {
-  register: (email: string, password: string, marketingConsent = false) =>
+  register: (email: string, password: string, marketingConsent = false, referredBy?: string) =>
     request<AuthResponse>("/auth/register", {
       method: "POST",
       auth: false,
-      body: JSON.stringify({ email, password, marketingConsent }),
+      body: JSON.stringify({ email, password, marketingConsent, ...(referredBy ? { referredBy } : {}) }),
     }),
   login: (email: string, password: string) =>
     request<AuthResponse>("/auth/login", {
@@ -494,6 +494,40 @@ export const admin = {
     dbCheck:       () => request<{ total: number; byRetailer: { retailer: string; source: string | null; _count: { _all: number } }[]; databaseUrl: string }>("/admin/products/db-check"),
     recategorise:  () => request<{ success: boolean; processed: number; skipped: number; byCategory: Record<string, number> }>("/admin/products/recategorise", { method: "POST" }),
   },
+  agents: {
+    list:         () => request<{ agents: Array<{ id: string; name: string; agencyName: string; email: string; referralCode: string; status: string; clientsReferred: number; designsCreated: number; createdAt: string }> }>("/admin/agents"),
+    updateStatus: (id: string, status: string) => request<{ ok: boolean; status: string }>(`/admin/agents/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  },
+};
+
+// ── Agents ────────────────────────────────────────────────────────────────────
+
+export type AgentRegistration = {
+  name: string;
+  agencyName: string;
+  email: string;
+  phone?: string;
+};
+
+export type AgentDashboard = {
+  name: string;
+  agencyName: string;
+  referralCode: string;
+  referralUrl: string;
+  clientsReferred: number;
+  designsCreated: number;
+  status: string;
+  qrDataUrl: string;
+};
+
+export const agents = {
+  register: (data: AgentRegistration) =>
+    request<{ ok: boolean; agent: { id: string; name: string; agencyName: string; referralCode: string; referralUrl: string; dashboardUrl: string } }>(
+      "/agents/register",
+      { method: "POST", auth: false, body: JSON.stringify(data) }
+    ),
+  dashboard: (code: string) =>
+    request<AgentDashboard>(`/agents/dashboard?code=${encodeURIComponent(code)}`, { auth: false }),
 };
 
 export interface ProductSourceStats {

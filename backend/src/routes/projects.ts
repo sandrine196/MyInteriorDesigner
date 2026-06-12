@@ -591,6 +591,18 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       });
       track("render_created", u.sub, { renderId: render.id, projectId });
 
+      // Increment the referring agent's designsCreated counter (fire-and-forget)
+      void prisma.user.findUnique({ where: { id: u.sub }, select: { referredBy: true } })
+        .then((usr) => {
+          if (usr?.referredBy) {
+            return prisma.agent.update({
+              where: { referralCode: usr.referredBy },
+              data:  { designsCreated: { increment: 1 } },
+            });
+          }
+        })
+        .catch((err) => console.error("[Agents] Failed to increment designsCreated:", err));
+
       try {
         const { buffer, alternativeBuffer, floorPlanInterpretation, mock } = await aiService.generateRoomImage({
           userPrompt:           body.prompt,

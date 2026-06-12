@@ -17,6 +17,7 @@ import { authRoutes } from "./routes/auth.js";
 import { productRoutes } from "./routes/products.js";
 import { projectRoutes } from "./routes/projects.js";
 import { adminRoutes } from "./routes/admin.js";
+import { agentRoutes } from "./routes/agents.js";
 import { backupDatabase } from "./scripts/backup.js";
 import { importRaftProducts } from "./services/cjApi.service.js";
 
@@ -159,6 +160,7 @@ await authRoutes(app, env);
 await productRoutes(app);
 await projectRoutes(app, env);
 await adminRoutes(app);
+await agentRoutes(app);
 
 app.get(
   "/me/usage",

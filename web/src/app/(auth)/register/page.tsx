@@ -1,23 +1,33 @@
 "use client";
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, FormEvent, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { auth, saveToken, ApiError } from "@/lib/api";
 
-export default function RegisterPage() {
-  const router = useRouter();
-  const [email,             setEmail]             = useState("");
-  const [password,          setPassword]          = useState("");
-  const [marketingConsent,  setMarketingConsent]  = useState(false);
-  const [error,             setError]             = useState("");
-  const [loading,           setLoading]           = useState(false);
+function RegisterForm() {
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const refCode      = searchParams.get("ref") ?? "";
+
+  const [email,            setEmail]            = useState("");
+  const [password,         setPassword]         = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [error,            setError]            = useState("");
+  const [loading,          setLoading]          = useState(false);
+
+  // Persist ref code in sessionStorage so it survives page navigation
+  useEffect(() => {
+    if (refCode) sessionStorage.setItem("mid_ref", refCode);
+  }, [refCode]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
+    const storedRef = sessionStorage.getItem("mid_ref") ?? refCode ?? undefined;
     try {
-      const { token } = await auth.register(email, password, marketingConsent);
+      const { token } = await auth.register(email, password, marketingConsent, storedRef || undefined);
+      if (storedRef) sessionStorage.removeItem("mid_ref");
       saveToken(token);
       router.push("/projects");
     } catch (err) {
@@ -25,6 +35,8 @@ export default function RegisterPage() {
       setLoading(false);
     }
   }
+
+  const isReferred = !!(refCode || (typeof window !== "undefined" && sessionStorage.getItem("mid_ref")));
 
   return (
     <div
@@ -36,8 +48,24 @@ export default function RegisterPage() {
           <div className="text-center pb-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/MIDLogo.png" alt="My Interior Designer" className="h-12 mx-auto mb-5 object-contain" />
-            <h1 className="text-xl font-bold tracking-tight" style={{ color: "#1B4965" }}>Create your account</h1>
-            <p className="text-sm text-stone-500 mt-1">5 free renders per month · No credit card needed</p>
+            {isReferred ? (
+              <>
+                <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-3">
+                  <span className="text-lg">🎁</span>
+                  <span className="text-sm font-semibold text-amber-800">Gift from your estate agent</span>
+                </div>
+                <h1 className="text-xl font-bold tracking-tight" style={{ color: "#1B4965" }}>Create your free account</h1>
+                <p className="text-sm text-stone-500 mt-1 leading-relaxed">
+                  Your estate agent has given you free access to AI interior design.
+                  Get started and see your new home come to life.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-xl font-bold tracking-tight" style={{ color: "#1B4965" }}>Create your account</h1>
+                <p className="text-sm text-stone-500 mt-1">5 free renders per month · No credit card needed</p>
+              </>
+            )}
           </div>
 
           {error && (
@@ -78,7 +106,7 @@ export default function RegisterPage() {
               className="mt-0.5 w-4 h-4 shrink-0 rounded accent-mid-blue cursor-pointer"
             />
             <span className="text-xs text-stone-500 leading-relaxed group-hover:text-stone-700 transition-colors">
-              I'd like to receive design tips and exclusive furniture deals{" "}
+              I&apos;d like to receive design tips and exclusive furniture deals{" "}
               <span className="text-stone-400">(optional)</span>
             </span>
           </label>
@@ -86,7 +114,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full disabled:opacity-50 rounded-xl py-2.5 text-sm font-semibold transition-all hover:bg-mid-gold-dark active:scale-95"
+            className="w-full disabled:opacity-50 rounded-xl py-2.5 text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
             style={{ background: "#D4A574", color: "#1B4965" }}
           >
             {loading ? "Creating account…" : "Create account →"}
@@ -101,5 +129,13 @@ export default function RegisterPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

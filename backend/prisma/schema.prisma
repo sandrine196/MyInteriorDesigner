@@ -17,8 +17,27 @@ model User {
   createdAt            DateTime             @default(now())
   marketingConsent     Boolean              @default(false)
   marketingConsentDate DateTime?
+  referredBy           String?
   projects             Project[]
   resetTokens          PasswordResetToken[]
+
+  @@index([referredBy])
+}
+
+model Agent {
+  id              String   @id @default(cuid())
+  name            String
+  agencyName      String
+  email           String   @unique
+  phone           String?
+  referralCode    String   @unique
+  status          String   @default("pending")
+  createdAt       DateTime @default(now())
+  clientsReferred Int      @default(0)
+  designsCreated  Int      @default(0)
+
+  @@index([referralCode])
+  @@index([status])
 }
 
 model AnalyticsEvent {

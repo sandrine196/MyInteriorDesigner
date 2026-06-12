@@ -18,6 +18,7 @@ const registerBody = z.object({
   email:             z.string().email(),
   password:          passwordSchema,
   marketingConsent:  z.boolean().optional().default(false),
+  referredBy:        z.string().optional(),
 });
 
 const loginBody = z.object({
@@ -56,6 +57,13 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
     if (existing) {
       return reply.status(409).send({ error: "Email already registered" });
     }
+    // Validate referral code if provided (silently ignore invalid codes)
+    let validReferralCode: string | undefined;
+    if (body.referredBy) {
+      const agent = await prisma.agent.findUnique({ where: { referralCode: body.referredBy } });
+      if (agent) validReferralCode = agent.referralCode;
+    }
+
     const passwordHash = await hashPassword(body.password);
     const user = await prisma.user.create({
       data: {
@@ -63,11 +71,20 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
         passwordHash,
         marketingConsent:     body.marketingConsent,
         marketingConsentDate: body.marketingConsent ? new Date() : null,
+        referredBy:           validReferralCode,
       },
       select: { id: true, email: true, tier: true, isAdmin: true, marketingConsent: true },
     });
-    track("user_signup", user.id, { email: user.email });
+    track("user_signup", user.id, { email: user.email, referredBy: validReferralCode });
     void emailService.sendWelcome(user.email);
+
+    // Increment agent's clientsReferred count
+    if (validReferralCode) {
+      void prisma.agent.update({
+        where: { referralCode: validReferralCode },
+        data:  { clientsReferred: { increment: 1 } },
+      });
+    }
     const token = await reply.jwtSign({ sub: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin });
     return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin, marketingConsent: user.marketingConsent } };
   });

@@ -176,6 +176,57 @@ export const emailService = {
     }
   },
 
+  async sendAgentWelcome(to: string, name: string, referralCode: string, qrPngBuffer: Buffer): Promise<void> {
+    const referralUrl = `${config.server.frontendUrl}?ref=${referralCode}`;
+    const { provider, apiKey, from } = config.email;
+    if (provider !== "resend" || !apiKey) {
+      console.log("[Email] Skipping agent welcome (no provider configured)");
+      return;
+    }
+    try {
+      const resend = new Resend(apiKey);
+      await resend.emails.send({
+        from, to,
+        subject: "Welcome to MyInteriorDesigner Partners!",
+        html: `<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#062C3D;">Welcome to the partner programme, ${name}!</h2>
+          <p>You're all set. Here's everything you need to get started:</p>
+          <h3 style="color:#062C3D;">Your unique referral link</h3>
+          <p style="background:#f5f5f5;padding:12px 16px;border-radius:8px;font-family:monospace;word-break:break-all;">
+            <a href="${referralUrl}" style="color:#062C3D;">${referralUrl}</a>
+          </p>
+          <p>Share this link with your buyers — when they visit it, they'll get a free AI interior design session as a gift from you.</p>
+          <h3 style="color:#062C3D;">Your QR code</h3>
+          <p>Your personal QR code is attached as a PNG. Print it, add it to your completion packs, or share it digitally.</p>
+          <p>When buyers scan it:</p>
+          <ul style="line-height:1.8;">
+            <li>🎁 They get a free design session — a memorable gift from you</li>
+            <li>📐 They upload their floor plan and choose their style</li>
+            <li>🛋️ They get AI renders with real UK furniture</li>
+            <li>📊 You can track usage from your partner dashboard</li>
+          </ul>
+          <h3 style="color:#062C3D;">Your partner dashboard</h3>
+          <p>Track how many clients have used your link and created designs:</p>
+          <div style="margin:20px 0;">
+            <a href="${config.server.frontendUrl}/agent-dashboard?code=${referralCode}"
+              style="background:#D4A574;color:#062C3D;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:500;">
+              View my dashboard →
+            </a>
+          </div>
+          <p style="color:#666;font-size:14px;margin-top:40px;">Questions? Email us at hello@myinteriordesigner.co.uk — we're happy to help.</p>
+        </div>`,
+        attachments: [{
+          filename: `mid-qr-${referralCode}.png`,
+          content: qrPngBuffer.toString("base64"),
+        }],
+      });
+      console.log("[Email] Agent welcome sent to", to);
+    } catch (err) {
+      console.error("[Email] Agent welcome failed:", err);
+      // Non-fatal — agent record is already created
+    }
+  },
+
   async sendAccountDeleted(to: string): Promise<void> {
     // Intentionally no unsubscribe footer — account is already gone
     const { provider, apiKey, from } = config.email;
