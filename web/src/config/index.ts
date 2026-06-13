@@ -1,8 +1,12 @@
 // Centralised frontend config.
 // All environment access goes through here so regional changes are one-line edits.
 
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+// Strip trailing slash so every path can safely start with "/"
+const apiUrl = rawApiUrl.replace(/\/$/, "");
+
 export const config = {
-  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000",
+  apiUrl,
 
   // NEXT_PUBLIC_REGION signals which deployment the user is talking to.
   // Used to show region-specific UI (e.g. cookie consent banner in EU).
