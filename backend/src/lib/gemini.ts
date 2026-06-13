@@ -661,23 +661,54 @@ export async function virtualStageRoom(
   console.log("[Staging] Gemini description (first 300 chars):");
   console.log(stagingDescription.slice(0, 300));
 
-  // ── Step 2: Reve generates the staged image ──────────────────────────────────
-  console.log("[Staging] Step 2: Reve generating staged image…");
+  // ── Step 2: Reve generates the staged image (falls back to Gemini if not configured) ──
+  if (cfg.reveApiKey) {
+    console.log("[Staging] Step 2: Reve generating staged image…");
 
-  const imageBuffer = Buffer.from(opts.photoData, "base64");
-  const stagedImageUrl = await stageWithReve(imageBuffer, stagingDescription, cfg.reveApiKey);
+    const imageBuffer = Buffer.from(opts.photoData, "base64");
+    const stagedImageUrl = await stageWithReve(imageBuffer, stagingDescription, cfg.reveApiKey);
 
-  // Fetch the image from the URL and convert to PNG buffer for storage
-  const fetchRes = await fetch(stagedImageUrl);
-  if (!fetchRes.ok) throw new Error(`[Staging] Failed to download staged image from Reve: ${fetchRes.status}`);
-  const arrayBuffer = await fetchRes.arrayBuffer();
+    const fetchRes = await fetch(stagedImageUrl);
+    if (!fetchRes.ok) throw new Error(`[Staging] Failed to download staged image from Reve: ${fetchRes.status}`);
+    const arrayBuffer = await fetchRes.arrayBuffer();
 
-  const buffer = await sharp(Buffer.from(arrayBuffer))
+    const buffer = await sharp(Buffer.from(arrayBuffer))
+      .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
+      .png()
+      .toBuffer();
+
+    console.log(`[Staging] Complete via Reve — ${buffer.length} bytes`);
+    return { buffer, mock: false };
+  }
+
+  // Reve not configured — fall back to Gemini image generation using the analysis description
+  console.log("[Staging] REVE_API_KEY not set — falling back to Gemini image generation");
+
+  const geminiImageResponse = await ai.models.generateContent({
+    model: cfg.model,
+    contents: [
+      { text: stagingDescription },
+      { inlineData: { mimeType: opts.photoMimeType, data: opts.photoData } },
+    ],
+    config: { responseModalities: ["IMAGE"] },
+  });
+
+  const parts = geminiImageResponse.candidates?.[0]?.content?.parts ?? [];
+  let imageBase64: string | undefined;
+  for (const part of parts) {
+    if (part.inlineData?.data) { imageBase64 = part.inlineData.data; break; }
+  }
+
+  if (!imageBase64) {
+    throw new Error("[Staging] Gemini returned no image. Check model name and API access.");
+  }
+
+  const buffer = await sharp(Buffer.from(imageBase64, "base64"))
     .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
     .png()
     .toBuffer();
 
-  console.log(`[Staging] Complete — ${buffer.length} bytes`);
+  console.log(`[Staging] Complete via Gemini fallback — ${buffer.length} bytes`);
   return { buffer, mock: false };
 }
 
@@ -734,7 +765,7 @@ async function stageWithReve(
   console.log("[Staging] Calling Reve API…");
   console.log("[Staging] Prompt length:", stagingPrompt.length);
 
-  const response = await fetch("https://api.reve.com/v1/edit", {
+  const response = await fetch("https://api.reve.com/v1/image/edit", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${reveApiKey}`,
