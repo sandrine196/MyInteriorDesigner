@@ -122,6 +122,31 @@ function AgentDashboardContent() {
               )}
             </div>
 
+            {/* Virtual staging CTA — top of dashboard */}
+            <div
+              className="rounded-2xl p-6 border flex flex-col sm:flex-row items-start sm:items-center gap-5"
+              style={{ background: "linear-gradient(135deg, #062C3D 0%, #0D3F52 100%)", borderColor: "#1B5272" }}
+            >
+              <div className="flex-1">
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest rounded-full px-2.5 py-1 mb-2"
+                  style={{ background: "rgba(212,165,116,0.2)", color: "#D4A574", border: "1px solid rgba(212,165,116,0.3)" }}>
+                  AGENT EXCLUSIVE
+                </div>
+                <h2 className="font-bold text-white text-base mb-1">Virtual staging for your listings</h2>
+                <p className="text-blue-100/70 text-sm leading-relaxed">
+                  Upload a photo of an empty room, write a brief — AI stages it with furniture, art and plants in seconds.
+                  Perfect for listing photos and buyer packs.
+                </p>
+              </div>
+              <Link
+                href="/agent-dashboard/staging"
+                className="inline-flex items-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-all shrink-0 active:scale-95"
+                style={{ background: "#D4A574", color: "#1B3050" }}
+              >
+                Stage a room →
+              </Link>
+            </div>
+
             {/* Stats */}
             <div className="grid grid-cols-2 gap-4">
               <StatCard label="Clients referred" value={data.clientsReferred} sub="buyers who signed up via your link" />
@@ -178,31 +203,6 @@ function AgentDashboardContent() {
                   </p>
                 </div>
               </div>
-            </div>
-
-            {/* Virtual staging CTA */}
-            <div
-              className="rounded-2xl p-6 border flex flex-col sm:flex-row items-start sm:items-center gap-5"
-              style={{ background: "linear-gradient(135deg, #062C3D 0%, #0D3F52 100%)", borderColor: "#1B5272" }}
-            >
-              <div className="flex-1">
-                <div className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest rounded-full px-2.5 py-1 mb-2"
-                  style={{ background: "rgba(212,165,116,0.2)", color: "#D4A574", border: "1px solid rgba(212,165,116,0.3)" }}>
-                  NEW — AGENT EXCLUSIVE
-                </div>
-                <h2 className="font-bold text-white text-base mb-1">Virtual staging for your listings</h2>
-                <p className="text-blue-100/70 text-sm leading-relaxed">
-                  Generate photorealistic furnished room renders for empty properties — no real furniture needed.
-                  Perfect for listing photos and buyer packs. 15 styles available.
-                </p>
-              </div>
-              <Link
-                href="/agent-dashboard/staging"
-                className="inline-flex items-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-all shrink-0 active:scale-95"
-                style={{ background: "#D4A574", color: "#1B3050" }}
-              >
-                Stage a room →
-              </Link>
             </div>
 
             {/* How it works reminder */}
