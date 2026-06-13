@@ -666,13 +666,9 @@ export async function virtualStageRoom(
     console.log("[Staging] Step 2: Reve generating staged image…");
 
     const imageBuffer = Buffer.from(opts.photoData, "base64");
-    const stagedImageUrl = await stageWithReve(imageBuffer, stagingDescription, cfg.reveApiKey);
+    const reveBuffer = await stageWithReve(imageBuffer, stagingDescription, cfg.reveApiKey);
 
-    const fetchRes = await fetch(stagedImageUrl);
-    if (!fetchRes.ok) throw new Error(`[Staging] Failed to download staged image from Reve: ${fetchRes.status}`);
-    const arrayBuffer = await fetchRes.arrayBuffer();
-
-    const buffer = await sharp(Buffer.from(arrayBuffer))
+    const buffer = await sharp(reveBuffer)
       .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
       .png()
       .toBuffer();
@@ -757,7 +753,7 @@ async function stageWithReve(
   imageBuffer: Buffer,
   stagingPrompt: string,
   reveApiKey?: string
-): Promise<string> {
+): Promise<Buffer> {
   if (!reveApiKey) {
     throw new Error("[Staging] REVE_API_KEY not configured — add it to Railway environment variables");
   }
@@ -770,6 +766,7 @@ async function stageWithReve(
     headers: {
       Authorization: `Bearer ${reveApiKey}`,
       "Content-Type": "application/json",
+      "Accept": "application/json",
     },
     body: JSON.stringify({
       image: imageBuffer.toString("base64"),
@@ -787,24 +784,18 @@ async function stageWithReve(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = await response.json() as Record<string, any>;
 
-  // Log full response so we can confirm correct field names
-  console.log("[Staging] FULL REVE RESPONSE:", JSON.stringify(data, null, 2));
+  // Log full response keys so we can confirm field names if anything goes wrong
+  console.log("[Staging] Reve response keys:", Object.keys(data));
 
-  const imageUrl =
-    data.output?.[0] ??
-    data.image_url ??
-    data.url ??
-    data.images?.[0] ??
-    data.result?.url ??
-    data.data?.[0]?.url ??
-    data.data?.[0]?.b64_json;
+  // Reve returns the image as base64-encoded PNG in the `image` field
+  const base64 = data.image as string | undefined;
 
-  if (!imageUrl) {
-    console.error("[Staging] Could not find image URL in Reve response:", data);
-    throw new Error("No image URL in Reve response — check Railway logs for FULL REVE RESPONSE");
+  if (!base64) {
+    console.error("[Staging] Unexpected Reve response shape:", JSON.stringify(data, null, 2));
+    throw new Error("No image in Reve response — check Railway logs");
   }
 
-  return imageUrl;
+  return Buffer.from(base64, "base64");
 }
 
 /** Generate a room image using the Gemini API. Returns a PNG buffer. */
