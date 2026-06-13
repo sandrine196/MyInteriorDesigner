@@ -769,9 +769,8 @@ async function stageWithReve(
       "Accept": "application/json",
     },
     body: JSON.stringify({
-      image: imageBuffer.toString("base64"),
+      input_image: imageBuffer.toString("base64"),
       edit_instruction: stagingPrompt,
-      preserve_background: true,
     }),
   });
 
