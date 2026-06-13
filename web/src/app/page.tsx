@@ -279,7 +279,6 @@ function Hero() {
             {/* Trust indicators */}
             <div className="flex flex-wrap gap-6 text-sm text-white/60">
               {[
-                { icon: "✦", label: "5 free renders/month" },
                 { icon: "⚡", label: "2 min average time" },
                 { icon: "🛍", label: "6 top UK retailers" },
               ].map(({ icon, label }) => (
@@ -379,15 +378,6 @@ const FEATURES = [
     icon: (
       <svg className="w-5 h-5 text-[#062C3D]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    title: "Free to Try",
-    desc: "Get 5 free AI renders every month. No credit card required to get started today.",
-    icon: (
-      <svg className="w-5 h-5 text-[#062C3D]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
       </svg>
     ),
   },
@@ -620,91 +610,6 @@ function ExampleGallery() {
   );
 }
 
-// ── Pricing ───────────────────────────────────────────────────────────────────
-
-function Pricing() {
-  const freeFeatures = [
-    "5 AI renders per month",
-    "All 8 design styles",
-    "Full furniture catalogue",
-    "Budget filtering",
-    "One-click shopping links",
-  ];
-  const proFeatures = [
-    "Unlimited AI renders",
-    "Priority generation",
-    "Everything in Free",
-    "Early access to new features",
-  ];
-
-  return (
-    <section className="py-20 bg-white" id="pricing">
-      <div className="max-w-3xl mx-auto px-6">
-        <div className="text-center mb-14">
-          <h2 className="text-3xl font-bold text-stone-900 tracking-tight mb-3">Simple, honest pricing</h2>
-          <p className="text-stone-500 text-sm">Start free. Upgrade when you need more.</p>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-5">
-          <div className="rounded-3xl p-8 flex flex-col border-2" style={{ background: "#E5F0F4", borderColor: "#AECFDB" }}>
-            <span className="inline-flex self-start text-xs font-semibold px-2.5 py-1 rounded-full mb-3" style={{ background: "#C5E0EB", color: "#062C3D" }}>
-              Most popular
-            </span>
-            <h3 className="text-2xl font-bold text-stone-900 mb-1">Free</h3>
-            <p className="text-stone-500 text-sm mb-6">Perfect for getting started</p>
-            <div className="mb-8">
-              <span className="text-5xl font-bold text-stone-900">£0</span>
-              <span className="text-stone-400 ml-1 text-sm">/ month</span>
-            </div>
-            <ul className="space-y-3 mb-8 flex-1">
-              {freeFeatures.map((f) => (
-                <li key={f} className="flex items-center gap-2.5 text-sm text-stone-700">
-                  <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: "#062C3D" }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
-                  {f}
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/register"
-              className="block text-center font-medium py-3 rounded-xl transition-all hover:opacity-90 text-white"
-              style={{ background: "#062C3D" }}
-            >
-              Start for free →
-            </Link>
-          </div>
-
-          <div className="bg-stone-900 rounded-3xl p-8 flex flex-col">
-            <div className="h-7 mb-3" />
-            <h3 className="text-2xl font-bold text-white mb-1">Pro</h3>
-            <p className="text-stone-400 text-sm mb-6">For anyone who loves great design</p>
-            <div className="mb-8">
-              <span className="text-5xl font-bold text-white">£9.99</span>
-              <span className="text-stone-400 ml-1 text-sm">/ month</span>
-            </div>
-            <ul className="space-y-3 mb-8 flex-1">
-              {proFeatures.map((f) => (
-                <li key={f} className="flex items-center gap-2.5 text-sm text-stone-300">
-                  <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: "#D4A574" }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
-                  {f}
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/register"
-              className="block text-center bg-white hover:bg-stone-100 text-stone-900 font-medium py-3 rounded-xl transition-colors"
-            >
-              Get started →
-            </Link>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ── About ─────────────────────────────────────────────────────────────────────
 
 function About() {
@@ -719,7 +624,6 @@ function About() {
           Upload your floor plan, choose your style, and let our AI generate beautiful
           room designs with furniture recommendations that fit your space.
         </p>
-        <p className="text-xs font-semibold tracking-widest text-stone-400 mb-5">HELLO AWIN</p>
         <p className="text-sm text-stone-400">Built with love in the UK 🇬🇧</p>
       </div>
     </section>
@@ -745,7 +649,6 @@ function Footer() {
               <p className="text-blue-200/40 text-xs font-semibold uppercase tracking-wider">Product</p>
               <Link href="/register" className="block hover:text-white transition-colors">Get started</Link>
               <Link href="/login" className="block hover:text-white transition-colors">Sign in</Link>
-              <a href="#pricing" className="block hover:text-white transition-colors">Pricing</a>
             </div>
             <div className="space-y-3">
               <p className="text-blue-200/40 text-xs font-semibold uppercase tracking-wider">Legal</p>
@@ -775,7 +678,6 @@ export default function LandingPage() {
         <HowItWorks />
         <SocialProof />
         <ExampleGallery />
-        <Pricing />
         <About />
       </main>
       <Footer />
