@@ -1,9 +1,9 @@
 "use client";
-import { useState, FormEvent, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, FormEvent, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { agents, ApiError, type StagingRender } from "@/lib/api";
+import { agents, ApiError, getAgentToken, clearAgentToken, type StagingRender } from "@/lib/api";
 import { config } from "@/config";
 
 // ── Style catalogue (extended for virtual staging — no product constraints) ────
@@ -117,8 +117,12 @@ function RenderCard({ render, index }: { render: StagingRender; index: number })
 // ── Main form ─────────────────────────────────────────────────────────────────
 
 function StagingContent() {
-  const searchParams = useSearchParams();
-  const code = searchParams.get("code") ?? "";
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!getAgentToken()) router.replace("/agent-login");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [roomType,         setRoomType]         = useState(ROOM_TYPES[0]);
   const [customRoomType,   setCustomRoomType]    = useState("");
@@ -143,14 +147,12 @@ function StagingContent() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!code) { setError("No partner code — please use your dashboard link."); return; }
     setError("");
     setLoading(true);
     setRenders(null);
     try {
       const effectiveRoomType = roomType === "Other" ? (customRoomType || "room") : roomType;
       const res = await agents.staging({
-        code,
         roomType:         effectiveRoomType,
         designStyles:     selectedStyles,
         wallColorPalette: wallPalette,
@@ -161,7 +163,12 @@ function StagingContent() {
       });
       setRenders(res.renders);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong — please try again");
+      if (err instanceof ApiError && err.status === 401) {
+        clearAgentToken();
+        router.replace("/agent-login");
+      } else {
+        setError(err instanceof ApiError ? err.message : "Something went wrong — please try again");
+      }
     } finally {
       setLoading(false);
     }
@@ -177,14 +184,12 @@ function StagingContent() {
             <Image src="/MIDLogo.png" alt="My Interior Designer" width={120} height={84} className="h-9 w-auto object-contain" priority />
             <span className="font-semibold text-[#062C3D] tracking-tight hidden sm:block text-sm">Virtual Staging</span>
           </Link>
-          {code && (
-            <Link
-              href={`/agent-dashboard?code=${encodeURIComponent(code)}`}
-              className="text-sm text-stone-500 hover:text-stone-900 transition-colors"
-            >
-              ← Dashboard
-            </Link>
-          )}
+          <Link
+            href="/agent-dashboard"
+            className="text-sm text-stone-500 hover:text-stone-900 transition-colors"
+          >
+            ← Dashboard
+          </Link>
         </div>
       </header>
 
@@ -202,13 +207,6 @@ function StagingContent() {
             Download and use directly in your property listing.
           </p>
         </div>
-
-        {!code && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center mb-8">
-            <p className="text-sm text-amber-800 mb-2 font-medium">No partner code detected</p>
-            <p className="text-xs text-amber-700">Use your dashboard link to access virtual staging, or enter your code below.</p>
-          </div>
-        )}
 
         <div className="grid lg:grid-cols-[1fr_420px] gap-8 items-start">
 
@@ -398,9 +396,5 @@ function StagingContent() {
 }
 
 export default function AgentStagingPage() {
-  return (
-    <Suspense>
-      <StagingContent />
-    </Suspense>
-  );
+  return <StagingContent />;
 }

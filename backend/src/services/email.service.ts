@@ -176,6 +176,30 @@ export const emailService = {
     }
   },
 
+  async sendAgentMagicLink(to: string, name: string, magicUrl: string): Promise<void> {
+    try {
+      await send(
+        "Your sign-in link — My Interior Designer Partners",
+        to,
+        `<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#062C3D;">Sign in to your partner dashboard</h2>
+          <p>Hi ${name},</p>
+          <p>Click the button below to sign in. This link expires in <strong>15 minutes</strong>.</p>
+          <div style="margin:30px 0;">
+            <a href="${magicUrl}" style="background:#D4A574;color:#062C3D;padding:14px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px;">
+              Sign in to my dashboard →
+            </a>
+          </div>
+          <p style="color:#666;font-size:13px;">Or copy this link into your browser:</p>
+          <p style="background:#f5f5f5;padding:10px 14px;border-radius:6px;font-family:monospace;font-size:12px;word-break:break-all;color:#333;">${magicUrl}</p>
+          <p style="color:#999;font-size:12px;margin-top:32px;">If you didn't request this, you can safely ignore this email. No action needed.</p>
+        </div>`,
+      );
+    } catch {
+      // Non-fatal — agent sees a generic success message regardless
+    }
+  },
+
   async sendAgentWelcome(to: string, name: string, referralCode: string, qrPngBuffer: Buffer): Promise<void> {
     const referralUrl = `${config.server.frontendUrl}?ref=${referralCode}`;
     const { provider, apiKey, from } = config.email;
@@ -206,11 +230,11 @@ export const emailService = {
             <li>📊 You can track usage from your partner dashboard</li>
           </ul>
           <h3 style="color:#062C3D;">Your partner dashboard</h3>
-          <p>Track how many clients have used your link and created designs:</p>
+          <p>Track how many clients have used your link and created designs. Sign in with your email — no password needed:</p>
           <div style="margin:20px 0;">
-            <a href="${config.server.frontendUrl}/agent-dashboard?code=${referralCode}"
+            <a href="${config.server.frontendUrl}/agent-login"
               style="background:#D4A574;color:#062C3D;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:500;">
-              View my dashboard →
+              Sign in to my dashboard →
             </a>
           </div>
           <p style="color:#666;font-size:14px;margin-top:40px;">Questions? Email us at hello@myinteriordesigner.co.uk — we're happy to help.</p>

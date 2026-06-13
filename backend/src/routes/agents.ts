@@ -74,17 +74,82 @@ export async function agentRoutes(app: FastifyInstance) {
     });
   });
 
-  // ── GET /agents/dashboard?code= ───────────────────────────────────────────
-  app.get("/agents/dashboard", async (request, reply) => {
-    const { code } = request.query as { code?: string };
-    if (!code) return reply.status(400).send({ error: "Missing code" });
+  // ── POST /agents/magic-link — request a sign-in email ────────────────────
+  app.post("/agents/magic-link", async (request, reply) => {
+    const { email } = request.body as { email?: string };
+    if (!email || !email.includes("@")) {
+      return reply.status(400).send({ error: "Valid email required" });
+    }
 
-    const agent = await prisma.agent.findUnique({ where: { referralCode: code } });
-    if (!agent) return reply.status(404).send({ error: "Agent not found" });
+    const agent = await prisma.agent.findUnique({ where: { email: email.toLowerCase().trim() } });
+
+    // Always return 200 — don't reveal whether the email is registered
+    if (!agent) {
+      return { ok: true };
+    }
+
+    if (agent.status === "suspended") {
+      // Still return 200 — suspended message shown on dashboard after login
+      return { ok: true };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const magicToken = (app.jwt.sign as any)(
+      { type: "agent_magic", agentId: agent.id, email: agent.email },
+      { expiresIn: "15m" }
+    ) as string;
+    const magicUrl = `${config.server.frontendUrl}/agent-auth?token=${magicToken}`;
+
+    void emailService.sendAgentMagicLink(agent.email, agent.name, magicUrl);
+
+    return { ok: true };
+  });
+
+  // ── GET /agents/auth?token= — exchange magic token for session JWT ─────────
+  app.get("/agents/auth", async (request, reply) => {
+    const { token } = request.query as { token?: string };
+    if (!token) return reply.status(400).send({ error: "Missing token" });
+
+    let payload: Record<string, unknown>;
+    try {
+      payload = app.jwt.verify(token) as Record<string, unknown>;
+    } catch {
+      return reply.status(401).send({ error: "This sign-in link has expired or already been used. Please request a new one." });
+    }
+
+    if (payload.type !== "agent_magic" || typeof payload.agentId !== "string") {
+      return reply.status(401).send({ error: "Invalid sign-in link." });
+    }
+
+    const agent = await prisma.agent.findUnique({ where: { id: payload.agentId } });
+    if (!agent) return reply.status(404).send({ error: "Agent not found." });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sessionToken = (app.jwt.sign as any)(
+      { type: "agent_session", agentId: agent.id, email: agent.email, referralCode: agent.referralCode },
+      { expiresIn: "30d" }
+    ) as string;
+
+    return {
+      ok: true,
+      token: sessionToken,
+      agent: {
+        name:         agent.name,
+        agencyName:   agent.agencyName,
+        referralCode: agent.referralCode,
+        status:       agent.status,
+      },
+    };
+  });
+
+  // ── GET /agents/dashboard — authenticated ─────────────────────────────────
+  app.get("/agents/dashboard", { preHandler: [app.authenticateAgent] }, async (request) => {
+    const { agentId } = request.agentSession!;
+    const agent = await prisma.agent.findUnique({ where: { id: agentId } });
+    if (!agent) return { error: "Agent not found" };
 
     const referralUrl = `${config.server.frontendUrl}?ref=${agent.referralCode}`;
 
-    // Generate QR data URL for display in the browser
     let qrDataUrl = "";
     try {
       qrDataUrl = await QRCode.toDataURL(referralUrl, {
@@ -97,9 +162,9 @@ export async function agentRoutes(app: FastifyInstance) {
     }
 
     return {
-      name:           agent.name,
-      agencyName:     agent.agencyName,
-      referralCode:   agent.referralCode,
+      name:            agent.name,
+      agencyName:      agent.agencyName,
+      referralCode:    agent.referralCode,
       referralUrl,
       clientsReferred: agent.clientsReferred,
       designsCreated:  agent.designsCreated,
@@ -157,7 +222,6 @@ export async function agentRoutes(app: FastifyInstance) {
   // Generate virtual staging renders for a property listing.
   // Gemini imagines the furniture freely — no affiliate product catalogue needed.
   const stagingBody = z.object({
-    code:             z.string().min(1),
     roomType:         z.string().min(1).max(100),
     designStyles:     z.array(z.string()).min(1).max(3),
     wallColorPalette: z.string().optional(),
@@ -167,16 +231,17 @@ export async function agentRoutes(app: FastifyInstance) {
     ceilingHeightMm:  z.number().int().min(2000).max(6000),
   });
 
-  app.post("/agents/staging", async (request, reply) => {
+  app.post("/agents/staging", { preHandler: [app.authenticateAgent] }, async (request, reply) => {
     const parsed = stagingBody.safeParse(request.body);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "Invalid request";
       return reply.status(400).send({ error: msg });
     }
-    const { code, roomType, designStyles, wallColorPalette, flooringType, roomLengthMm, roomWidthMm, ceilingHeightMm } = parsed.data;
+    const { roomType, designStyles, wallColorPalette, flooringType, roomLengthMm, roomWidthMm, ceilingHeightMm } = parsed.data;
 
-    const agent = await prisma.agent.findUnique({ where: { referralCode: code } });
-    if (!agent) return reply.status(404).send({ error: "Agent not found. Check your partner code." });
+    const { agentId } = request.agentSession!;
+    const agent = await prisma.agent.findUnique({ where: { id: agentId } });
+    if (!agent) return reply.status(404).send({ error: "Agent not found." });
     if (agent.status === "suspended") return reply.status(403).send({ error: "This partner account is suspended." });
 
     const room = { length: roomLengthMm, width: roomWidthMm, ceilingHeight: ceilingHeightMm };
@@ -209,7 +274,7 @@ export async function agentRoutes(app: FastifyInstance) {
 
     // Fire-and-forget: count each staging job as a design
     void prisma.agent.update({
-      where: { referralCode: code },
+      where: { id: agentId },
       data:  { designsCreated: { increment: designStyles.length } },
     }).catch((err) => console.error("[Agents] Failed to increment designsCreated:", err));
 

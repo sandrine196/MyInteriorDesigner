@@ -17,6 +17,33 @@ export function clearToken() {
   localStorage.removeItem("rv_token");
 }
 
+// ── Agent session token (separate from user token) ────────────────────────────
+
+const AGENT_TOKEN_KEY = "mid_agent_token";
+
+export function getAgentToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(AGENT_TOKEN_KEY);
+}
+
+export function saveAgentToken(t: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(AGENT_TOKEN_KEY, t);
+}
+
+export function clearAgentToken() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(AGENT_TOKEN_KEY);
+}
+
+function agentRequest<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const headers = new Headers(opts.headers);
+  if (opts.body != null) headers.set("Content-Type", "application/json");
+  const t = getAgentToken();
+  if (t) headers.set("Authorization", `Bearer ${t}`);
+  return request<T>(path, { ...opts, headers, auth: false });
+}
+
 async function request<T>(
   path: string,
   opts: RequestInit & { auth?: boolean } = {}
@@ -521,7 +548,6 @@ export type AgentDashboard = {
 };
 
 export type StagingRequest = {
-  code: string;
   roomType: string;
   designStyles: string[];
   wallColorPalette?: string;
@@ -543,12 +569,22 @@ export const agents = {
       "/agents/register",
       { method: "POST", auth: false, body: JSON.stringify(data) }
     ),
-  dashboard: (code: string) =>
-    request<AgentDashboard>(`/agents/dashboard?code=${encodeURIComponent(code)}`, { auth: false }),
+  requestMagicLink: (email: string) =>
+    request<{ ok: boolean }>(
+      "/agents/magic-link",
+      { method: "POST", auth: false, body: JSON.stringify({ email }) }
+    ),
+  exchangeMagicToken: (token: string) =>
+    request<{ ok: boolean; token: string; agent: { name: string; agencyName: string; referralCode: string; status: string } }>(
+      `/agents/auth?token=${encodeURIComponent(token)}`,
+      { auth: false }
+    ),
+  dashboard: () =>
+    agentRequest<AgentDashboard>("/agents/dashboard"),
   staging: (data: StagingRequest) =>
-    request<{ ok: boolean; renders: StagingRender[] }>(
+    agentRequest<{ ok: boolean; renders: StagingRender[] }>(
       "/agents/staging",
-      { method: "POST", auth: false, body: JSON.stringify(data) }
+      { method: "POST", body: JSON.stringify(data) }
     ),
 };
 

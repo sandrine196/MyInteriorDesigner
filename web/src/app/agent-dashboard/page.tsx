@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { agents, type AgentDashboard, ApiError } from "@/lib/api";
+import { agents, type AgentDashboard, ApiError, getAgentToken, clearAgentToken } from "@/lib/api";
 import { config } from "@/config";
 
 function CopyButton({ text }: { text: string }) {
@@ -41,26 +41,37 @@ function StatCard({ label, value, sub }: { label: string; value: number; sub: st
 }
 
 function AgentDashboardContent() {
-  const searchParams = useSearchParams();
-  const code = searchParams.get("code") ?? "";
+  const router = useRouter();
 
   const [data,    setData]    = useState<AgentDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
 
   useEffect(() => {
-    if (!code) {
-      setError("No partner code provided. Check your welcome email for your dashboard link.");
-      setLoading(false);
+    if (!getAgentToken()) {
+      router.replace("/agent-login");
       return;
     }
-    agents.dashboard(code)
+    agents.dashboard()
       .then(setData)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load dashboard"))
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          clearAgentToken();
+          router.replace("/agent-login");
+        } else {
+          setError(err instanceof ApiError ? err.message : "Failed to load dashboard");
+        }
+      })
       .finally(() => setLoading(false));
-  }, [code]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const qrDownloadUrl = code ? `${config.apiUrl}/agents/qr?code=${encodeURIComponent(code)}` : "";
+  function signOut() {
+    clearAgentToken();
+    router.replace("/agent-login");
+  }
+
+  const qrDownloadUrl = data ? `${config.apiUrl}/agents/qr?code=${encodeURIComponent(data.referralCode)}` : "";
 
   return (
     <div className="min-h-screen" style={{ background: "#F7F6F3" }}>
@@ -72,9 +83,12 @@ function AgentDashboardContent() {
             <Image src="/MIDLogo.png" alt="My Interior Designer" width={120} height={84} className="h-9 w-auto object-contain" priority />
             <span className="font-semibold text-[#062C3D] tracking-tight hidden sm:block text-sm">Partner Dashboard</span>
           </Link>
-          <Link href="/agents" className="text-sm text-stone-500 hover:text-stone-900 transition-colors">
-            Partner info →
-          </Link>
+          <button
+            onClick={signOut}
+            className="text-sm text-stone-500 hover:text-stone-900 transition-colors"
+          >
+            Sign out
+          </button>
         </div>
       </header>
 
@@ -146,7 +160,7 @@ function AgentDashboardContent() {
                   <div className="flex flex-wrap gap-3">
                     <a
                       href={qrDownloadUrl}
-                      download={`mid-qr-${code}.png`}
+                      download={`mid-qr-${data.referralCode}.png`}
                       className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl transition-colors border"
                       style={{ background: "#062C3D", color: "white", borderColor: "#062C3D" }}
                     >
@@ -182,13 +196,13 @@ function AgentDashboardContent() {
                   Perfect for listing photos and buyer packs. 15 styles available.
                 </p>
               </div>
-              <a
-                href={`/agent-dashboard/staging?code=${encodeURIComponent(code)}`}
+              <Link
+                href="/agent-dashboard/staging"
                 className="inline-flex items-center gap-2 font-semibold text-sm px-5 py-3 rounded-xl transition-all shrink-0 active:scale-95"
                 style={{ background: "#D4A574", color: "#1B3050" }}
               >
                 Stage a room →
-              </a>
+              </Link>
             </div>
 
             {/* How it works reminder */}

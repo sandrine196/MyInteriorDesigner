@@ -106,6 +106,23 @@ app.decorate(
   }
 );
 
+app.decorate(
+  "authenticateAgent",
+  async function authenticateAgent(request, reply) {
+    const auth = request.headers.authorization;
+    if (!auth?.startsWith("Bearer ")) {
+      return reply.status(401).send({ error: "Agent authentication required" });
+    }
+    try {
+      const payload = app.jwt.verify(auth.slice(7)) as Record<string, unknown>;
+      if (payload.type !== "agent_session") throw new Error("Not an agent session token");
+      request.agentSession = payload as import("./types/fastify.js").AgentSessionPayload;
+    } catch {
+      return reply.status(401).send({ error: "Invalid or expired session — please sign in again" });
+    }
+  }
+);
+
 // ── Error handler: hide stack traces in production ───────────────────────────
 app.setErrorHandler((err: FastifyError, _req, reply) => {
   const status = err.statusCode ?? 500;
