@@ -684,14 +684,20 @@ export async function virtualStageRoom(
     }
   }
 
-  // Reve not configured or failed — fall back to Gemini image generation
+  // Reve not configured or failed — fall back to Gemini image editing
   console.log("[Staging] Falling back to Gemini image generation…");
+
+  // Put the image first so Gemini treats this as an edit, not a new generation.
+  // The instruction is intentionally short to reinforce editing over recreation.
+  const geminiEditInstruction = `Edit this photo: keep the walls, floor, windows, and all architectural features exactly as they are in the photo. ${stagingDescription}`;
 
   const geminiImageResponse = await ai.models.generateContent({
     model: cfg.model,
     contents: [
-      { text: stagingDescription },
-      { inlineData: { mimeType: opts.photoMimeType, data: opts.photoData } },
+      {
+        inlineData: { mimeType: opts.photoMimeType, data: opts.photoData },
+      },
+      { text: geminiEditInstruction },
     ],
     config: { responseModalities: ["IMAGE"] },
   });
@@ -720,40 +726,22 @@ function buildStagingAnalysisPrompt(brief: string): string {
 
 Analyse this empty room photo carefully.
 
-OBSERVE:
-- Room shape and approximate size
-- Window positions and natural light direction
-- Door positions
-- Flooring type and colour
-- Wall colours and finish
-- Any architectural features (fireplace, alcoves, bay windows, cornicing, ceiling roses, beams)
-
 AGENT'S BRIEF: ${brief}
 
 YOUR TASK:
-Write a detailed image generation prompt for Reve AI to virtually stage this room.
+Write a concise image-editing prompt for an AI to virtually stage this room.
 
 The prompt MUST:
+1. Open with: "Keep the [floor type], [wall colour/finish], [windows] and all architectural features exactly as they appear in the photo."
+2. List the key furniture to add — item, position, colour/material. Maximum 5 pieces.
+3. Add: rug, 2–3 accessories (plants, artwork, lamp). One sentence each.
+4. Close with: "Photorealistic, natural light, magazine quality, no people."
 
-1. Start by describing what to KEEP:
-   "Keep the [floor], [walls], [windows] exactly as they are."
-
-2. List EXACTLY what furniture to ADD:
-   For each piece specify item name and size, exact position in the room, colour and material.
-   Example: "Add a light grey linen 3-seater sofa against the far wall facing the window. Add a round walnut coffee table centred in front of the sofa."
-
-3. Add soft furnishings: rug (pattern and colour), cushions and throws, curtains or blinds, plants (specific types), artwork on walls, lighting (floor lamps, table lamps), books, vases, accessories.
-
-4. End with: "Photorealistic interior photography, natural lighting, magazine quality, no people."
-
-IMPORTANT:
-- Be very specific about positions
-- Match everything to the actual room you can see in the photo
-- Place furniture respecting the windows and doors you can see
-- The result must look like a REAL photo, not a render
-
-Return ONLY the staging prompt. Nothing else. No preamble.
-Start with: "Keep the..."`;
+STRICT RULES:
+- Your entire response MUST be under 2000 characters. Count carefully.
+- No bullet points, no numbered lists — flowing sentences only.
+- One paragraph. No preamble, no commentary.
+- Start with: "Keep the..."`;
 }
 
 async function stageWithReve(
