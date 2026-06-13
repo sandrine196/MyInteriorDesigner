@@ -661,24 +661,31 @@ export async function virtualStageRoom(
   console.log("[Staging] Gemini description (first 300 chars):");
   console.log(stagingDescription.slice(0, 300));
 
-  // ── Step 2: Reve generates the staged image (falls back to Gemini if not configured) ──
+  // ── Step 2: Reve generates the staged image (falls back to Gemini on any failure) ──
   if (cfg.reveApiKey) {
     console.log("[Staging] Step 2: Reve generating staged image…");
+    try {
+      const imageBuffer = Buffer.from(opts.photoData, "base64");
+      // Reve enforces a 2560-char limit on edit_instruction
+      const revePrompt = stagingDescription.length > 2560
+        ? stagingDescription.slice(0, 2557) + "…"
+        : stagingDescription;
+      const reveBuffer = await stageWithReve(imageBuffer, revePrompt, cfg.reveApiKey);
 
-    const imageBuffer = Buffer.from(opts.photoData, "base64");
-    const reveBuffer = await stageWithReve(imageBuffer, stagingDescription, cfg.reveApiKey);
+      const buffer = await sharp(reveBuffer)
+        .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
+        .png()
+        .toBuffer();
 
-    const buffer = await sharp(reveBuffer)
-      .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
-      .png()
-      .toBuffer();
-
-    console.log(`[Staging] Complete via Reve — ${buffer.length} bytes`);
-    return { buffer, mock: false };
+      console.log(`[Staging] Complete via Reve — ${buffer.length} bytes`);
+      return { buffer, mock: false };
+    } catch (reveErr) {
+      console.error("[Staging] Reve failed, falling back to Gemini image generation:", reveErr);
+    }
   }
 
-  // Reve not configured — fall back to Gemini image generation using the analysis description
-  console.log("[Staging] REVE_API_KEY not set — falling back to Gemini image generation");
+  // Reve not configured or failed — fall back to Gemini image generation
+  console.log("[Staging] Falling back to Gemini image generation…");
 
   const geminiImageResponse = await ai.models.generateContent({
     model: cfg.model,
