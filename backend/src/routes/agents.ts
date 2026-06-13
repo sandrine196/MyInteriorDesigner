@@ -259,7 +259,7 @@ export async function agentRoutes(app: FastifyInstance) {
     if (!brief) return reply.status(400).send({ error: "Staging brief is required" });
     if (brief.length > 1000) return reply.status(400).send({ error: "Brief must be under 1000 characters" });
 
-    const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region };
+    const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
     const result = await virtualStageRoom(geminiCfg, {
       photoData:     photoBuffer.toString("base64"),
       photoMimeType,

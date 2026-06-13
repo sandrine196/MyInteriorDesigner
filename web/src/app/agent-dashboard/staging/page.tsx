@@ -6,6 +6,21 @@ import Image from "next/image";
 import { agents, ApiError, getAgentToken, clearAgentToken, type StagingResult } from "@/lib/api";
 import { config } from "@/config";
 
+const LOADING_STEPS = [
+  {
+    step: 1,
+    label: "Analysing your room",
+    sublabel: "Understanding the space, light and dimensions…",
+    duration: 5000,
+  },
+  {
+    step: 2,
+    label: "Generating your staged room",
+    sublabel: "Adding furniture and soft furnishings…",
+    duration: 15000,
+  },
+] as const;
+
 // ── Brief inspiration chips ────────────────────────────────────────────────────
 const INSPIRATIONS = [
   { label: "Edwardian traditional",    text: "Stage this room with traditional furniture in keeping with an Edwardian house. Add period-appropriate art on the walls, fresh plants, and warm lighting." },
@@ -70,9 +85,11 @@ export default function AgentStagingPage() {
   const [brief, setBrief] = useState("");
 
   // Generation state
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState("");
-  const [result,  setResult]  = useState<StagingResult | null>(null);
+  const [loading,     setLoading]     = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
+  const [error,       setError]       = useState("");
+  const [result,      setResult]      = useState<StagingResult | null>(null);
+  const stepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handlePhotoSelect(file: File) {
     setPhoto(file);
@@ -92,7 +109,12 @@ export default function AgentStagingPage() {
     if (!photo || !brief.trim()) return;
     setError("");
     setLoading(true);
+    setLoadingStep(1);
     setResult(null);
+
+    // Advance to step 2 after the first step's expected duration
+    stepTimerRef.current = setTimeout(() => setLoadingStep(2), LOADING_STEPS[0].duration);
+
     try {
       const res = await agents.staging(photo, brief.trim());
       setResult(res);
@@ -104,7 +126,9 @@ export default function AgentStagingPage() {
         setError(err instanceof ApiError ? err.message : "Something went wrong — please try again");
       }
     } finally {
+      if (stepTimerRef.current) clearTimeout(stepTimerRef.current);
       setLoading(false);
+      setLoadingStep(0);
     }
   }
 
@@ -241,7 +265,7 @@ export default function AgentStagingPage() {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin inline-block" />
-                  Staging your room — this takes 20–40 seconds…
+                  {loadingStep === 1 ? "Step 1: Analysing room…" : "Step 2: Generating staged image…"}
                 </span>
               ) : "Generate virtual staging →"}
             </button>
@@ -266,10 +290,31 @@ export default function AgentStagingPage() {
             )}
 
             {loading && (
-              <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-10 text-center">
-                <div className="w-12 h-12 rounded-full border-2 border-stone-200 border-t-[#D4A574] animate-spin mx-auto mb-4" />
-                <p className="text-sm font-semibold text-stone-700">Staging your room…</p>
-                <p className="text-xs text-stone-400 mt-1">Gemini is reading the photo and applying your brief.</p>
+              <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-8 space-y-6">
+                <div className="w-12 h-12 rounded-full border-2 border-stone-200 border-t-[#D4A574] animate-spin mx-auto" />
+                {LOADING_STEPS.map((s) => {
+                  const isActive = loadingStep === s.step;
+                  const isDone   = loadingStep > s.step;
+                  return (
+                    <div key={s.step} className="flex items-start gap-3">
+                      <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 transition-all ${
+                        isDone   ? "bg-emerald-100 text-emerald-600" :
+                        isActive ? "bg-[#D4A574] text-white" :
+                                   "bg-stone-100 text-stone-400"
+                      }`}>
+                        {isDone ? "✓" : s.step}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-semibold transition-colors ${isActive ? "text-stone-900" : isDone ? "text-stone-400" : "text-stone-300"}`}>
+                          {s.label}
+                        </p>
+                        {isActive && (
+                          <p className="text-xs text-stone-400 mt-0.5">{s.sublabel}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

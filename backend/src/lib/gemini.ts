@@ -616,70 +616,164 @@ export function buildPrompt(
 }
 
 /** Stage a real room photo using a plain-English brief. Returns a PNG buffer. */
+// ─────────────────────────────────────────────────────────────────────────────
+// Two-step virtual staging pipeline:
+//   Step 1 — Gemini analyses the photo (text only, cheap ~$0.001)
+//   Step 2 — Reve generates the staged image using Gemini's description (~$0.007)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function virtualStageRoom(
-  cfg: { apiKey?: string; model: string; region?: string },
+  cfg: { apiKey?: string; model: string; region?: string; reveApiKey?: string },
   opts: { photoData: string; photoMimeType: string; brief: string }
 ): Promise<{ buffer: Buffer; mock: boolean }> {
   if (!cfg.apiKey) {
-    console.log("[Gemini] No API key — returning placeholder (mock mode)");
+    console.log("[Staging] No Gemini API key — returning placeholder (mock mode)");
     return { buffer: await placeholderBuffer(), mock: true };
   }
+
+  // ── Step 1: Gemini analyses the room (text model, no image generation) ──────
+  console.log("[Staging] Step 1: Gemini analysing room…");
+
+  const analysisPrompt = buildStagingAnalysisPrompt(opts.brief);
 
   const baseUrl =
     cfg.region === "EU"
       ? "https://eu-generativelanguage.googleapis.com"
       : "https://generativelanguage.googleapis.com";
 
-  const prompt = [
-    "You are a professional virtual staging artist for UK property listings.",
-    "",
-    "The image provided is a real photograph of an empty or unfurnished room in a property for sale.",
-    "",
-    "Staging brief from the estate agent:",
-    `"${opts.brief}"`,
-    "",
-    "Task: Generate a new photorealistic photograph of this exact room, beautifully staged with furniture and decor that matches the brief.",
-    "",
-    "Requirements:",
-    "- Preserve the room's exact geometry, proportions, camera angle, and natural light precisely as shown in the photo",
-    "- All architectural features (fireplace, cornicing, skirting boards, bay windows, ceiling roses, etc.) must remain clearly visible and unobstructed",
-    "- Furniture must be correctly scaled to the room — nothing oversized or undersized",
-    "- The result must be indistinguishable from a real property photograph taken by a professional photographer",
-    "- No text, watermarks, logos, or overlays in the image",
-    "- Make it aspirational: the kind of staging that makes a buyer immediately want to live there",
-  ].join("\n");
-
-  console.log(`[Gemini] Virtual staging — model: ${cfg.model}, brief: "${opts.brief.slice(0, 80)}…"`);
-
   const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl } });
 
-  const response = await ai.models.generateContent({
-    model: cfg.model,
+  const analysisResponse = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
     contents: [
-      { text: prompt },
+      { text: analysisPrompt },
       { inlineData: { mimeType: opts.photoMimeType, data: opts.photoData } },
     ],
-    config: { responseModalities: ["IMAGE"] },
   });
 
-  const parts = response.candidates?.[0]?.content?.parts ?? [];
-  let imageBase64: string | undefined;
-  for (const part of parts) {
-    if (part.inlineData?.data) { imageBase64 = part.inlineData.data; break; }
+  const stagingDescription = analysisResponse.candidates?.[0]?.content?.parts
+    ?.find((p) => p.text)?.text ?? "";
+
+  if (!stagingDescription) {
+    throw new Error("[Staging] Gemini returned no analysis text.");
   }
 
-  if (!imageBase64) {
-    console.error("[Gemini] Virtual staging returned no image:", JSON.stringify(response.candidates?.[0]));
-    throw new Error("Model returned no image for virtual staging.");
-  }
+  console.log("[Staging] Gemini description (first 300 chars):");
+  console.log(stagingDescription.slice(0, 300));
 
-  const buffer = await sharp(Buffer.from(imageBase64, "base64"))
+  // ── Step 2: Reve generates the staged image ──────────────────────────────────
+  console.log("[Staging] Step 2: Reve generating staged image…");
+
+  const imageBuffer = Buffer.from(opts.photoData, "base64");
+  const stagedImageUrl = await stageWithReve(imageBuffer, stagingDescription, cfg.reveApiKey);
+
+  // Fetch the image from the URL and convert to PNG buffer for storage
+  const fetchRes = await fetch(stagedImageUrl);
+  if (!fetchRes.ok) throw new Error(`[Staging] Failed to download staged image from Reve: ${fetchRes.status}`);
+  const arrayBuffer = await fetchRes.arrayBuffer();
+
+  const buffer = await sharp(Buffer.from(arrayBuffer))
     .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
     .png()
     .toBuffer();
 
-  console.log(`[Gemini] Virtual staging done — ${buffer.length} bytes`);
+  console.log(`[Staging] Complete — ${buffer.length} bytes`);
   return { buffer, mock: false };
+}
+
+function buildStagingAnalysisPrompt(brief: string): string {
+  return `You are an expert interior designer specialising in virtual property staging for UK estate agents.
+
+Analyse this empty room photo carefully.
+
+OBSERVE:
+- Room shape and approximate size
+- Window positions and natural light direction
+- Door positions
+- Flooring type and colour
+- Wall colours and finish
+- Any architectural features (fireplace, alcoves, bay windows, cornicing, ceiling roses, beams)
+
+AGENT'S BRIEF: ${brief}
+
+YOUR TASK:
+Write a detailed image generation prompt for Reve AI to virtually stage this room.
+
+The prompt MUST:
+
+1. Start by describing what to KEEP:
+   "Keep the [floor], [walls], [windows] exactly as they are."
+
+2. List EXACTLY what furniture to ADD:
+   For each piece specify item name and size, exact position in the room, colour and material.
+   Example: "Add a light grey linen 3-seater sofa against the far wall facing the window. Add a round walnut coffee table centred in front of the sofa."
+
+3. Add soft furnishings: rug (pattern and colour), cushions and throws, curtains or blinds, plants (specific types), artwork on walls, lighting (floor lamps, table lamps), books, vases, accessories.
+
+4. End with: "Photorealistic interior photography, natural lighting, magazine quality, no people."
+
+IMPORTANT:
+- Be very specific about positions
+- Match everything to the actual room you can see in the photo
+- Place furniture respecting the windows and doors you can see
+- The result must look like a REAL photo, not a render
+
+Return ONLY the staging prompt. Nothing else. No preamble.
+Start with: "Keep the..."`;
+}
+
+async function stageWithReve(
+  imageBuffer: Buffer,
+  stagingPrompt: string,
+  reveApiKey?: string
+): Promise<string> {
+  if (!reveApiKey) {
+    throw new Error("[Staging] REVE_API_KEY not configured — add it to Railway environment variables");
+  }
+
+  console.log("[Staging] Calling Reve API…");
+  console.log("[Staging] Prompt length:", stagingPrompt.length);
+
+  const response = await fetch("https://api.reve.com/v1/edit", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${reveApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      image: imageBuffer.toString("base64"),
+      prompt: stagingPrompt,
+      preserve_background: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[Staging] Reve API error:", errorText);
+    throw new Error(`Reve error: ${response.status} — ${errorText}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = await response.json() as Record<string, any>;
+
+  // Log full response so we can confirm correct field names
+  console.log("[Staging] FULL REVE RESPONSE:", JSON.stringify(data, null, 2));
+
+  const imageUrl =
+    data.output?.[0] ??
+    data.image_url ??
+    data.url ??
+    data.images?.[0] ??
+    data.result?.url ??
+    data.data?.[0]?.url ??
+    data.data?.[0]?.b64_json;
+
+  if (!imageUrl) {
+    console.error("[Staging] Could not find image URL in Reve response:", data);
+    throw new Error("No image URL in Reve response — check Railway logs for FULL REVE RESPONSE");
+  }
+
+  return imageUrl;
 }
 
 /** Generate a room image using the Gemini API. Returns a PNG buffer. */
