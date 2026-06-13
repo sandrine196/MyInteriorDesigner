@@ -949,4 +949,61 @@ export async function adminRoutes(app: FastifyInstance) {
 
     return { url: product.affiliateUrl ?? product.productUrl };
   });
+
+  // ── POST /admin/impersonate/user ──────────────────────────────────────────
+  // Generate a 2-hour user session token for any account — admin testing only.
+  app.post("/admin/impersonate/user", auth, async (request, reply) => {
+    const { userId } = request.body as { userId?: string };
+    if (!userId) return reply.status(400).send({ error: "userId required" });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, tier: true, isAdmin: true },
+    });
+    if (!user) return reply.status(404).send({ error: "User not found" });
+
+    const token = app.jwt.sign(
+      { sub: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin },
+      { expiresIn: "2h" }
+    );
+    return { token, email: user.email };
+  });
+
+  // ── POST /admin/impersonate/agent ─────────────────────────────────────────
+  // Generate a 2-hour agent session token for any agent — admin testing only.
+  app.post("/admin/impersonate/agent", auth, async (request, reply) => {
+    const { agentId } = request.body as { agentId?: string };
+    if (!agentId) return reply.status(400).send({ error: "agentId required" });
+
+    const agent = await prisma.agent.findUnique({
+      where: { id: agentId },
+      select: { id: true, email: true, name: true, referralCode: true },
+    });
+    if (!agent) return reply.status(404).send({ error: "Agent not found" });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const token = (app.jwt.sign as any)(
+      { type: "agent_session", agentId: agent.id, email: agent.email, referralCode: agent.referralCode },
+      { expiresIn: "2h" }
+    ) as string;
+
+    return { token, email: agent.email, name: agent.name };
+  });
+
+  // ── GET /admin/impersonate/list ───────────────────────────────────────────
+  // Returns users and agents for the impersonation panel.
+  app.get("/admin/impersonate/list", auth, async () => {
+    const [users, agents] = await Promise.all([
+      prisma.user.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: { id: true, email: true, tier: true, isAdmin: true, createdAt: true },
+      }),
+      prisma.agent.findMany({
+        orderBy: { createdAt: "desc" },
+        select: { id: true, name: true, agencyName: true, email: true, status: true, referralCode: true },
+      }),
+    ]);
+    return { users, agents };
+  });
 }

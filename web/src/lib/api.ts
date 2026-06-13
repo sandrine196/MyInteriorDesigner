@@ -528,6 +528,14 @@ export const admin = {
     list:         () => request<{ agents: Array<{ id: string; name: string; agencyName: string; email: string; referralCode: string; status: string; clientsReferred: number; designsCreated: number; createdAt: string }> }>("/admin/agents"),
     updateStatus: (id: string, status: string) => request<{ ok: boolean; status: string }>(`/admin/agents/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   },
+  impersonate: {
+    list: () => request<{
+      users:  Array<{ id: string; email: string; tier: string; isAdmin: boolean; createdAt: string }>;
+      agents: Array<{ id: string; name: string; agencyName: string; email: string; status: string; referralCode: string }>;
+    }>("/admin/impersonate/list"),
+    asUser:  (userId: string)  => request<{ token: string; email: string }>("/admin/impersonate/user",  { method: "POST", body: JSON.stringify({ userId }) }),
+    asAgent: (agentId: string) => request<{ token: string; email: string; name: string }>("/admin/impersonate/agent", { method: "POST", body: JSON.stringify({ agentId }) }),
+  },
 };
 
 // ── Agents ────────────────────────────────────────────────────────────────────
