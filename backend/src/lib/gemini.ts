@@ -770,7 +770,7 @@ async function stageWithReve(
     },
     body: JSON.stringify({
       image: imageBuffer.toString("base64"),
-      prompt: stagingPrompt,
+      edit_instruction: stagingPrompt,
       preserve_background: true,
     }),
   });
