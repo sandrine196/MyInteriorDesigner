@@ -103,6 +103,50 @@ export default function ImpersonatePage() {
         </p>
       </div>
 
+      {/* ── Quick links ───────────────────────────────────────────────────── */}
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="rounded-2xl p-5 border border-white/10 space-y-3" style={{ background: "#0d2233" }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#D4A574" }}>Estate agent workflow</p>
+          <p className="text-xs text-stone-400 leading-relaxed">
+            Test the full agent experience: register, receive a magic link, access the dashboard and virtual staging tool.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a href="/agents" target="_blank" rel="noopener"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+              style={{ background: "rgba(212,165,116,0.15)", color: "#D4A574", border: "1px solid rgba(212,165,116,0.3)" }}>
+              Register as agent →
+            </a>
+            <a href="/agent-login" target="_blank" rel="noopener"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all text-stone-400 border border-white/10 hover:text-white">
+              Agent sign-in →
+            </a>
+            <a href="/agent-dashboard" target="_blank" rel="noopener"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all text-stone-400 border border-white/10 hover:text-white">
+              Agent dashboard →
+            </a>
+          </div>
+        </div>
+
+        <div className="rounded-2xl p-5 border border-white/10 space-y-3" style={{ background: "#0d2233" }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#D4A574" }}>Homeowner workflow</p>
+          <p className="text-xs text-stone-400 leading-relaxed">
+            Test the homeowner experience: sign in, generate renders, browse products.
+            Or pick an account below and click "Test as →" to jump in as that user.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a href="/login" target="_blank" rel="noopener"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+              style={{ background: "rgba(212,165,116,0.15)", color: "#D4A574", border: "1px solid rgba(212,165,116,0.3)" }}>
+              Sign in as homeowner →
+            </a>
+            <a href="/projects" target="_blank" rel="noopener"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all text-stone-400 border border-white/10 hover:text-white">
+              Projects page →
+            </a>
+          </div>
+        </div>
+      </div>
+
       {error && (
         <p className="text-sm text-red-400 bg-red-900/20 rounded-xl px-4 py-3 border border-red-800/40">{error}</p>
       )}
