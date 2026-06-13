@@ -61,7 +61,13 @@ export async function agentRoutes(app: FastifyInstance) {
       qrBuffer = Buffer.alloc(0);
     }
 
-    void emailService.sendAgentWelcome(email, name, referralCode, qrBuffer);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const welcomeMagicToken = (app.jwt.sign as any)(
+      { type: "agent_magic", agentId: agent.id, email: agent.email },
+      { expiresIn: "24h" }
+    ) as string;
+    const welcomeMagicUrl = `${config.server.frontendUrl}/agent-auth?token=${welcomeMagicToken}`;
+    void emailService.sendAgentWelcome(email, name, referralCode, qrBuffer, welcomeMagicUrl);
 
     return reply.status(201).send({
       ok: true,

@@ -203,19 +203,20 @@ export default function AgentsPage() {
               </div>
               <h3 className="text-xl font-bold text-stone-900">You&apos;re in!</h3>
               <p className="text-sm text-stone-500 leading-relaxed">
-                Check your email — your QR code and referral link are on their way.
+                Your account is ready. We&apos;ve sent a sign-in link to your email along with your QR code — click it to go straight to your dashboard.
               </p>
               <div className="bg-stone-50 rounded-xl p-4 text-left space-y-2">
                 <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Your referral link</p>
                 <p className="text-sm font-mono text-stone-800 break-all">{success.referralUrl}</p>
               </div>
-              <a
-                href={success.dashboardUrl}
+              <Link
+                href="/agent-login"
                 className="inline-flex items-center gap-2 font-medium text-sm rounded-xl px-5 py-2.5 transition-colors"
                 style={{ background: "#062C3D", color: "white" }}
               >
-                View my dashboard →
-              </a>
+                Sign in to dashboard →
+              </Link>
+              <p className="text-xs text-stone-400">Didn&apos;t get the email? Request a new sign-in link above.</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-stone-100 p-8 space-y-5">
@@ -288,6 +289,14 @@ export default function AgentsPage() {
                 <Link href="/terms" className="underline hover:text-stone-600">terms of service</Link>
                 . We&apos;ll never share your details.
               </p>
+
+              <div className="pt-2 border-t border-stone-100 text-center">
+                <p className="text-xs text-stone-400">Already a partner?{" "}
+                  <Link href="/agent-login" className="font-medium underline" style={{ color: "#062C3D" }}>
+                    Sign in →
+                  </Link>
+                </p>
+              </div>
             </form>
           )}
         </div>

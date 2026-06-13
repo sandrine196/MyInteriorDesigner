@@ -121,6 +121,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-stone-400">© {new Date().getFullYear()} MyInteriorDesigner.co.uk &middot; ICO Registered: 00014236119</p>
           <nav className="flex gap-4 text-xs text-stone-400">
+            <Link href="/agents" className="hover:text-stone-700 transition-colors">Estate agents</Link>
             <Link href="/privacy" className="hover:text-stone-700 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-stone-700 transition-colors">Terms</Link>
             <a href="mailto:hello@myinteriordesigner.co.uk" className="hover:text-stone-700 transition-colors">Contact</a>

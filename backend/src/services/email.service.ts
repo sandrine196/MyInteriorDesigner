@@ -200,7 +200,7 @@ export const emailService = {
     }
   },
 
-  async sendAgentWelcome(to: string, name: string, referralCode: string, qrPngBuffer: Buffer): Promise<void> {
+  async sendAgentWelcome(to: string, name: string, referralCode: string, qrPngBuffer: Buffer, magicUrl?: string): Promise<void> {
     const referralUrl = `${config.server.frontendUrl}?ref=${referralCode}`;
     const { provider, apiKey, from } = config.email;
     if (provider !== "resend" || !apiKey) {
@@ -230,13 +230,14 @@ export const emailService = {
             <li>📊 You can track usage from your partner dashboard</li>
           </ul>
           <h3 style="color:#062C3D;">Your partner dashboard</h3>
-          <p>Track how many clients have used your link and created designs. Sign in with your email — no password needed:</p>
+          <p>Track how many clients have used your link and created designs — and use virtual staging to present any empty room instantly.</p>
           <div style="margin:20px 0;">
-            <a href="${config.server.frontendUrl}/agent-login"
+            <a href="${magicUrl ?? `${config.server.frontendUrl}/agent-login`}"
               style="background:#D4A574;color:#062C3D;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:500;">
-              Sign in to my dashboard →
+              Go to my dashboard →
             </a>
           </div>
+          ${magicUrl ? `<p style="color:#999;font-size:12px;">This sign-in link expires in 24 hours. After that, visit <a href="${config.server.frontendUrl}/agent-login" style="color:#062C3D;">${config.server.frontendUrl}/agent-login</a> to request a new one.</p>` : ""}
           <p style="color:#666;font-size:14px;margin-top:40px;">Questions? Email us at hello@myinteriordesigner.co.uk — we're happy to help.</p>
         </div>`,
         attachments: [{
