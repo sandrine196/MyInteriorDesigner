@@ -520,6 +520,23 @@ export type AgentDashboard = {
   qrDataUrl: string;
 };
 
+export type StagingRequest = {
+  code: string;
+  roomType: string;
+  designStyles: string[];
+  wallColorPalette?: string;
+  flooringType?: string;
+  roomLengthMm: number;
+  roomWidthMm: number;
+  ceilingHeightMm: number;
+};
+
+export type StagingRender = {
+  style: string;
+  imageUrl: string;
+  mock: boolean;
+};
+
 export const agents = {
   register: (data: AgentRegistration) =>
     request<{ ok: boolean; agent: { id: string; name: string; agencyName: string; referralCode: string; referralUrl: string; dashboardUrl: string } }>(
@@ -528,6 +545,11 @@ export const agents = {
     ),
   dashboard: (code: string) =>
     request<AgentDashboard>(`/agents/dashboard?code=${encodeURIComponent(code)}`, { auth: false }),
+  staging: (data: StagingRequest) =>
+    request<{ ok: boolean; renders: StagingRender[] }>(
+      "/agents/staging",
+      { method: "POST", auth: false, body: JSON.stringify(data) }
+    ),
 };
 
 export interface ProductSourceStats {

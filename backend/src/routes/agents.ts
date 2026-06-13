@@ -1,9 +1,11 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import QRCode from "qrcode";
 import { prisma } from "../lib/prisma.js";
 import { emailService } from "../services/email.service.js";
+import { storage } from "../services/storage.service.js";
+import { aiService } from "../services/ai.service.js";
 import { config } from "../config/index.js";
 
 const registerBody = z.object({
@@ -149,5 +151,68 @@ export async function agentRoutes(app: FastifyInstance) {
     }
     const agent = await prisma.agent.update({ where: { id }, data: { status } });
     return { ok: true, status: agent.status };
+  });
+
+  // ── POST /agents/staging ──────────────────────────────────────────────────
+  // Generate virtual staging renders for a property listing.
+  // Gemini imagines the furniture freely — no affiliate product catalogue needed.
+  const stagingBody = z.object({
+    code:             z.string().min(1),
+    roomType:         z.string().min(1).max(100),
+    designStyles:     z.array(z.string()).min(1).max(3),
+    wallColorPalette: z.string().optional(),
+    flooringType:     z.string().optional(),
+    roomLengthMm:     z.number().int().min(1000).max(30000),
+    roomWidthMm:      z.number().int().min(1000).max(30000),
+    ceilingHeightMm:  z.number().int().min(2000).max(6000),
+  });
+
+  app.post("/agents/staging", async (request, reply) => {
+    const parsed = stagingBody.safeParse(request.body);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "Invalid request";
+      return reply.status(400).send({ error: msg });
+    }
+    const { code, roomType, designStyles, wallColorPalette, flooringType, roomLengthMm, roomWidthMm, ceilingHeightMm } = parsed.data;
+
+    const agent = await prisma.agent.findUnique({ where: { referralCode: code } });
+    if (!agent) return reply.status(404).send({ error: "Agent not found. Check your partner code." });
+    if (agent.status === "suspended") return reply.status(403).send({ error: "This partner account is suspended." });
+
+    const room = { length: roomLengthMm, width: roomWidthMm, ceilingHeight: ceilingHeightMm };
+
+    // Generate one render per requested style, in parallel.
+    const renderResults = await Promise.all(
+      designStyles.map(async (style) => {
+        const result = await aiService.generateRoomImage({
+          userPrompt:       `Virtual staging for a ${roomType} in ${style} style`,
+          products:         [],
+          room,
+          projectName:      roomType,
+          designStyle:      style,
+          wallColorPalette: wallColorPalette ?? undefined,
+          flooringType:     flooringType ?? undefined,
+          virtualStaging:   true,
+        });
+
+        // Save primary render
+        const key = `agent-staging/${agent.id}/${randomUUID()}.png`;
+        await storage.upload(key, result.buffer, "image/png");
+
+        return {
+          style,
+          imageUrl: storage.getUrl(key),
+          mock:     result.mock,
+        };
+      })
+    );
+
+    // Fire-and-forget: count each staging job as a design
+    void prisma.agent.update({
+      where: { referralCode: code },
+      data:  { designsCreated: { increment: designStyles.length } },
+    }).catch((err) => console.error("[Agents] Failed to increment designsCreated:", err));
+
+    return { ok: true, renders: renderResults };
   });
 }

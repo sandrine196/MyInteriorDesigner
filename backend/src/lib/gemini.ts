@@ -50,14 +50,22 @@ const FLOORING_DESCRIPTIONS: Record<string, string> = {
 };
 
 const DESIGN_STYLE_LABELS: Record<string, string> = {
-  scandi:       "Scandi Minimalist",
-  industrial:   "Modern Industrial",
-  traditional:  "Cosy Traditional",
-  midcentury:   "Mid-Century Modern",
-  bohemian:     "Bohemian",
-  contemporary: "Contemporary Luxe",
-  japandi:      "Japandi",
-  coastal:      "Coastal",
+  scandi:         "Scandi Minimalist",
+  industrial:     "Modern Industrial",
+  traditional:    "Cosy Traditional",
+  midcentury:     "Mid-Century Modern",
+  bohemian:       "Bohemian",
+  contemporary:   "Contemporary Luxe",
+  japandi:        "Japandi",
+  coastal:        "Coastal",
+  // Virtual-staging extended styles
+  art_deco:       "Art Deco",
+  farmhouse:      "Modern Farmhouse",
+  maximalist:     "Maximalist",
+  period:         "Period / Georgian",
+  french_country: "French Country",
+  biophilic:      "Biophilic / Nature-Forward",
+  new_build:      "Contemporary New Build",
 };
 
 // ── Room features types (mirrors frontend api.ts) ─────────────────────────────
@@ -110,6 +118,7 @@ export type PromptMeta = {
   structuredFloorPlan?: FloorPlanAnalysis | null; // Gemini Vision structured analysis
   floorPlanInterpretation?: string | null;   // plain-text rich description (Step A of two-step flow)
   cameraAngle?: "primary" | "secondary";     // "secondary" = alternative viewpoint
+  virtualStaging?: boolean;                  // agent mode: Gemini imagines furniture freely, no product catalogue
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -549,7 +558,22 @@ export function buildPrompt(
 
   // ── 7. FURNITURE ─────────────────────────────────────────────────────────────
   // Furniture is placed last — into the scene already established above.
-  if (products.length > 0) {
+  if (meta.virtualStaging) {
+    lines.push(
+      "",
+      "=== 7. VIRTUAL STAGING — IMAGINED FURNITURE ===",
+      "This is a professional virtual staging render for a UK property listing.",
+      "Do NOT reference specific product names, retailers, or brands.",
+      `Furnish this ${roomLabel} completely in the ${styleLabel} style with beautiful, well-proportioned imagined furniture:`,
+      `  - Every piece must be correctly scaled to the room dimensions — a ${lengthM}m × ${widthM}m room cannot hold oversized furniture`,
+      `  - Include all pieces appropriate for a ${roomLabel}: seating, tables, storage, rugs, lighting, textiles, artwork, plants`,
+      "  - Furniture placement must flow naturally — nothing blocking windows, doors, or fireplaces",
+      "  - The result should look like a beautiful, move-in-ready home that makes a buyer fall in love with the property",
+      "  - Photorealistic quality — as if staged by a professional interior designer for a high-end property listing",
+      "",
+      "Fill the space generously but not cluttered. No large empty floor areas. Style every surface.",
+    );
+  } else if (products.length > 0) {
     lines.push(
       "",
       "=== 7. FURNITURE ===",
