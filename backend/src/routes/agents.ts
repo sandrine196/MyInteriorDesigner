@@ -5,8 +5,10 @@ import QRCode from "qrcode";
 import { prisma } from "../lib/prisma.js";
 import { emailService } from "../services/email.service.js";
 import { storage } from "../services/storage.service.js";
-import { aiService } from "../services/ai.service.js";
+import { virtualStageRoom } from "../lib/gemini.js";
 import { config } from "../config/index.js";
+
+const STAGING_PHOTO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB — real photos are larger than floor plans
 
 const registerBody = z.object({
   name:       z.string().min(1).max(100),
@@ -219,65 +221,53 @@ export async function agentRoutes(app: FastifyInstance) {
   });
 
   // ── POST /agents/staging ──────────────────────────────────────────────────
-  // Generate virtual staging renders for a property listing.
-  // Gemini imagines the furniture freely — no affiliate product catalogue needed.
-  const stagingBody = z.object({
-    roomType:         z.string().min(1).max(100),
-    designStyles:     z.array(z.string()).min(1).max(3),
-    wallColorPalette: z.string().optional(),
-    flooringType:     z.string().optional(),
-    roomLengthMm:     z.number().int().min(1000).max(30000),
-    roomWidthMm:      z.number().int().min(1000).max(30000),
-    ceilingHeightMm:  z.number().int().min(2000).max(6000),
-  });
-
+  // Virtual staging: agent uploads a real room photo + plain-English brief.
+  // Gemini reads the actual photo and stages it according to the brief.
   app.post("/agents/staging", { preHandler: [app.authenticateAgent] }, async (request, reply) => {
-    const parsed = stagingBody.safeParse(request.body);
-    if (!parsed.success) {
-      const msg = parsed.error.issues[0]?.message ?? "Invalid request";
-      return reply.status(400).send({ error: msg });
-    }
-    const { roomType, designStyles, wallColorPalette, flooringType, roomLengthMm, roomWidthMm, ceilingHeightMm } = parsed.data;
-
     const { agentId } = request.agentSession!;
+
     const agent = await prisma.agent.findUnique({ where: { id: agentId } });
     if (!agent) return reply.status(404).send({ error: "Agent not found." });
     if (agent.status === "suspended") return reply.status(403).send({ error: "This partner account is suspended." });
 
-    const room = { length: roomLengthMm, width: roomWidthMm, ceilingHeight: ceilingHeightMm };
+    // Parse multipart: photo (file) + brief (text field)
+    let photoBuffer: Buffer | null = null;
+    let photoMimeType = "image/jpeg";
+    let brief = "";
 
-    // Generate one render per requested style, in parallel.
-    const renderResults = await Promise.all(
-      designStyles.map(async (style) => {
-        const result = await aiService.generateRoomImage({
-          userPrompt:       `Virtual staging for a ${roomType} in ${style} style`,
-          products:         [],
-          room,
-          projectName:      roomType,
-          designStyle:      style,
-          wallColorPalette: wallColorPalette ?? undefined,
-          flooringType:     flooringType ?? undefined,
-          virtualStaging:   true,
-        });
+    const parts = request.parts();
+    for await (const part of parts) {
+      if (part.type === "file" && part.fieldname === "photo") {
+        photoBuffer = await part.toBuffer();
+        photoMimeType = part.mimetype;
+      } else if (part.type === "field" && part.fieldname === "brief") {
+        brief = (part.value as string).trim();
+      }
+    }
 
-        // Save primary render
-        const key = `agent-staging/${agent.id}/${randomUUID()}.png`;
-        await storage.upload(key, result.buffer, "image/png");
+    if (!photoBuffer) return reply.status(400).send({ error: "Room photo is required" });
+    if (photoBuffer.length > STAGING_PHOTO_MAX_BYTES) return reply.status(413).send({ error: "Photo must be under 10 MB" });
+    if (!photoBuffer.length || !photoMimeType.startsWith("image/")) {
+      return reply.status(400).send({ error: "Photo must be an image file (JPEG, PNG, or WebP)" });
+    }
+    if (!brief) return reply.status(400).send({ error: "Staging brief is required" });
+    if (brief.length > 1000) return reply.status(400).send({ error: "Brief must be under 1000 characters" });
 
-        return {
-          style,
-          imageUrl: storage.getUrl(key),
-          mock:     result.mock,
-        };
-      })
-    );
+    const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region };
+    const result = await virtualStageRoom(geminiCfg, {
+      photoData:     photoBuffer.toString("base64"),
+      photoMimeType,
+      brief,
+    });
 
-    // Fire-and-forget: count each staging job as a design
+    const key = `agent-staging/${agentId}/${randomUUID()}.png`;
+    await storage.upload(key, result.buffer, "image/png");
+
     void prisma.agent.update({
       where: { id: agentId },
-      data:  { designsCreated: { increment: designStyles.length } },
+      data:  { designsCreated: { increment: 1 } },
     }).catch((err) => console.error("[Agents] Failed to increment designsCreated:", err));
 
-    return { ok: true, renders: renderResults };
+    return { ok: true, imageUrl: storage.getUrl(key), mock: result.mock };
   });
 }

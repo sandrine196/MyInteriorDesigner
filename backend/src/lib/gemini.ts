@@ -615,6 +615,73 @@ export function buildPrompt(
   return lines.join("\n");
 }
 
+/** Stage a real room photo using a plain-English brief. Returns a PNG buffer. */
+export async function virtualStageRoom(
+  cfg: { apiKey?: string; model: string; region?: string },
+  opts: { photoData: string; photoMimeType: string; brief: string }
+): Promise<{ buffer: Buffer; mock: boolean }> {
+  if (!cfg.apiKey) {
+    console.log("[Gemini] No API key — returning placeholder (mock mode)");
+    return { buffer: await placeholderBuffer(), mock: true };
+  }
+
+  const baseUrl =
+    cfg.region === "EU"
+      ? "https://eu-generativelanguage.googleapis.com"
+      : "https://generativelanguage.googleapis.com";
+
+  const prompt = [
+    "You are a professional virtual staging artist for UK property listings.",
+    "",
+    "The image provided is a real photograph of an empty or unfurnished room in a property for sale.",
+    "",
+    "Staging brief from the estate agent:",
+    `"${opts.brief}"`,
+    "",
+    "Task: Generate a new photorealistic photograph of this exact room, beautifully staged with furniture and decor that matches the brief.",
+    "",
+    "Requirements:",
+    "- Preserve the room's exact geometry, proportions, camera angle, and natural light precisely as shown in the photo",
+    "- All architectural features (fireplace, cornicing, skirting boards, bay windows, ceiling roses, etc.) must remain clearly visible and unobstructed",
+    "- Furniture must be correctly scaled to the room — nothing oversized or undersized",
+    "- The result must be indistinguishable from a real property photograph taken by a professional photographer",
+    "- No text, watermarks, logos, or overlays in the image",
+    "- Make it aspirational: the kind of staging that makes a buyer immediately want to live there",
+  ].join("\n");
+
+  console.log(`[Gemini] Virtual staging — model: ${cfg.model}, brief: "${opts.brief.slice(0, 80)}…"`);
+
+  const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl } });
+
+  const response = await ai.models.generateContent({
+    model: cfg.model,
+    contents: [
+      { text: prompt },
+      { inlineData: { mimeType: opts.photoMimeType, data: opts.photoData } },
+    ],
+    config: { responseModalities: ["IMAGE"] },
+  });
+
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  let imageBase64: string | undefined;
+  for (const part of parts) {
+    if (part.inlineData?.data) { imageBase64 = part.inlineData.data; break; }
+  }
+
+  if (!imageBase64) {
+    console.error("[Gemini] Virtual staging returned no image:", JSON.stringify(response.candidates?.[0]));
+    throw new Error("Model returned no image for virtual staging.");
+  }
+
+  const buffer = await sharp(Buffer.from(imageBase64, "base64"))
+    .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
+    .png()
+    .toBuffer();
+
+  console.log(`[Gemini] Virtual staging done — ${buffer.length} bytes`);
+  return { buffer, mock: false };
+}
+
 /** Generate a room image using the Gemini API. Returns a PNG buffer. */
 export async function generateRoomImage(
   cfg: { apiKey?: string; model: string; region?: string },

@@ -38,7 +38,10 @@ export function clearAgentToken() {
 
 function agentRequest<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers = new Headers(opts.headers);
-  if (opts.body != null) headers.set("Content-Type", "application/json");
+  // Don't set Content-Type for FormData — browser sets it with the multipart boundary
+  if (opts.body != null && !(opts.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
   const t = getAgentToken();
   if (t) headers.set("Authorization", `Bearer ${t}`);
   return request<T>(path, { ...opts, headers, auth: false });
@@ -547,18 +550,8 @@ export type AgentDashboard = {
   qrDataUrl: string;
 };
 
-export type StagingRequest = {
-  roomType: string;
-  designStyles: string[];
-  wallColorPalette?: string;
-  flooringType?: string;
-  roomLengthMm: number;
-  roomWidthMm: number;
-  ceilingHeightMm: number;
-};
-
-export type StagingRender = {
-  style: string;
+export type StagingResult = {
+  ok: boolean;
   imageUrl: string;
   mock: boolean;
 };
@@ -581,11 +574,12 @@ export const agents = {
     ),
   dashboard: () =>
     agentRequest<AgentDashboard>("/agents/dashboard"),
-  staging: (data: StagingRequest) =>
-    agentRequest<{ ok: boolean; renders: StagingRender[] }>(
-      "/agents/staging",
-      { method: "POST", body: JSON.stringify(data) }
-    ),
+  staging: (photo: File, brief: string) => {
+    const form = new FormData();
+    form.append("photo", photo);
+    form.append("brief", brief);
+    return agentRequest<StagingResult>("/agents/staging", { method: "POST", body: form });
+  },
 };
 
 export interface ProductSourceStats {
