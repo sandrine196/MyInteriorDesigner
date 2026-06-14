@@ -66,6 +66,20 @@ const DESIGN_STYLE_LABELS: Record<string, string> = {
   french_country: "French Country",
   biophilic:      "Biophilic / Nature-Forward",
   new_build:      "Contemporary New Build",
+  // Bathroom styles
+  bath_spa:       "Spa & Minimalist",
+  bath_traditional: "Traditional / Edwardian",
+  bath_modern:    "Modern & Contemporary",
+  bath_industrial: "Industrial",
+  bath_coastal:   "Coastal & Fresh",
+  bath_boutique:  "Boutique Hotel",
+  // Kitchen styles
+  kitchen_shaker:    "Shaker",
+  kitchen_handleless: "Modern Handleless",
+  kitchen_industrial: "Industrial",
+  kitchen_farmhouse:  "Country & Farmhouse",
+  kitchen_scandi:     "Scandi & Minimal",
+  kitchen_bold:       "Bold & Colourful",
 };
 
 // ── Room features types (mirrors frontend api.ts) ─────────────────────────────
@@ -114,6 +128,7 @@ export type PromptMeta = {
   designStyle?: string | null;
   wallColorPalette?: string | null;
   flooringType?: string | null;
+  roomType?: string | null;
   roomFeatures?: RoomFeatures | null;         // user-mapped wall features
   structuredFloorPlan?: FloorPlanAnalysis | null; // Gemini Vision structured analysis
   floorPlanInterpretation?: string | null;   // plain-text rich description (Step A of two-step flow)
@@ -794,6 +809,35 @@ async function stageWithReve(
 }
 
 /** Generate a room image using the Gemini API. Returns a PNG buffer. */
+function buildInspirationPrompt(roomType: string, styleId: string | null | undefined, userPrompt: string, dimsMm: RoomDimensionsMm): string {
+  const styleLabel = styleId ? (DESIGN_STYLE_LABELS[styleId] ?? styleId) : "contemporary";
+  const lengthM = (dimsMm.length / 1000).toFixed(1);
+  const widthM  = (dimsMm.width  / 1000).toFixed(1);
+  const dimNote = `Approximate dimensions: ${lengthM}m × ${widthM}m.`;
+
+  if (roomType === "bathroom") {
+    return `Generate a photorealistic ${styleLabel} bathroom inspiration render. This is a full renovation concept — show what this bathroom COULD look like.
+
+Style: ${styleLabel}.
+${dimNote}
+${userPrompt ? `Additional brief: ${userPrompt}` : ""}
+
+Include: beautiful floor and wall tiles suited to the style, bath and/or shower enclosure, vanity unit and basin, mirrors and statement lighting, neatly folded towels, a plant or two, and carefully chosen accessories.
+
+Magazine-quality photorealistic interior photography. Professional lighting. No people.`;
+  }
+
+  return `Generate a photorealistic ${styleLabel} kitchen inspiration render. This is a full renovation concept — show what this kitchen COULD look like.
+
+Style: ${styleLabel}.
+${dimNote}
+${userPrompt ? `Additional brief: ${userPrompt}` : ""}
+
+Include: cabinet doors and colour suited to the style, worktop material, splashback, integrated appliances, pendant or under-cabinet lighting, and small decorative accessories (plants, jars, a fruit bowl).
+
+Magazine-quality photorealistic interior photography. Professional lighting. No people.`;
+}
+
 export async function generateRoomImage(
   cfg: { apiKey?: string; model: string; region?: string },
   opts: { userPrompt: string; products: ProductForPrompt[]; room: RoomDimensionsMm; floorPlan?: { data: string; mimeType: string } | null } & PromptMeta
@@ -812,14 +856,19 @@ export async function generateRoomImage(
   console.log(`[Gemini] Generating image — model: ${cfg.model}, region: ${cfg.region ?? "global"}`);
 
   const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl } });
-  const prompt = buildPrompt(opts.userPrompt, opts.products, opts.room, {
-    projectName:         opts.projectName,
-    designStyle:         opts.designStyle,
-    wallColorPalette:    opts.wallColorPalette,
-    flooringType:        opts.flooringType,
-    roomFeatures:        opts.roomFeatures,
-    structuredFloorPlan: opts.structuredFloorPlan,
-  });
+
+  // Bathroom/kitchen use a purpose-built inspiration prompt (no product catalogue, no floor plan analysis)
+  const isInspirationRoom = opts.roomType === "bathroom" || opts.roomType === "kitchen";
+  const prompt = isInspirationRoom
+    ? buildInspirationPrompt(opts.roomType!, opts.designStyle, opts.userPrompt, opts.room)
+    : buildPrompt(opts.userPrompt, opts.products, opts.room, {
+        projectName:         opts.projectName,
+        designStyle:         opts.designStyle,
+        wallColorPalette:    opts.wallColorPalette,
+        flooringType:        opts.flooringType,
+        roomFeatures:        opts.roomFeatures,
+        structuredFloorPlan: opts.structuredFloorPlan,
+      });
 
   console.log("[Gemini] Prompt:\n" + prompt);
 

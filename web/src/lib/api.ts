@@ -253,7 +253,9 @@ export type RoomType =
   | "living_dining"
   | "bedroom_primary"
   | "bedroom_secondary"
-  | "home_office";
+  | "home_office"
+  | "bathroom"
+  | "kitchen";
 
 export type Project = {
   id: string;

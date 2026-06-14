@@ -14,6 +14,8 @@ const ROOM_TYPE_META: Record<RoomType, { label: string; icon: string }> = {
   bedroom_primary:   { label: "Primary Bedroom",          icon: "🛏️" },
   bedroom_secondary: { label: "Guest Bedroom",            icon: "🛏️" },
   home_office:       { label: "Home Office",              icon: "💼" },
+  bathroom:          { label: "Bathroom",                 icon: "🛁" },
+  kitchen:           { label: "Kitchen",                  icon: "🍳" },
 };
 
 const DEFAULT_NAMES: Record<RoomType, string> = {
@@ -23,6 +25,8 @@ const DEFAULT_NAMES: Record<RoomType, string> = {
   bedroom_primary:   "Primary Bedroom",
   bedroom_secondary: "Guest Bedroom",
   home_office:       "Home Office",
+  bathroom:          "Bathroom",
+  kitchen:           "Kitchen",
 };
 
 type CreateStep = "type" | "name";

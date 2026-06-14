@@ -10,18 +10,17 @@ interface RoomTypeDef {
 }
 
 const AVAILABLE: RoomTypeDef[] = [
-  { id: "living_room",       label: "Living Room",             icon: "🛋️",    description: "Lounge, sitting room",          typicalSize: "12–25m²" },
-  { id: "dining_room",       label: "Dining Room",             icon: "🍽️",    description: "Formal or casual dining",       typicalSize: "10–20m²" },
-  { id: "living_dining",     label: "Living / Dining",         icon: "🛋️🍽️", description: "Open plan living and dining",   typicalSize: "20–40m²" },
-  { id: "bedroom_primary",   label: "Primary Bedroom",         icon: "🛏️",    description: "Master bedroom",                typicalSize: "12–20m²" },
-  { id: "bedroom_secondary", label: "Guest / Secondary Bedroom", icon: "🛏️", description: "Spare room or guest bedroom",   typicalSize: "8–14m²"  },
-  { id: "home_office",       label: "Home Office",             icon: "💼",    description: "Study or workspace",            typicalSize: "8–16m²"  },
+  { id: "living_room",       label: "Living Room",               icon: "🛋️",    description: "Lounge, sitting room",          typicalSize: "12–25m²" },
+  { id: "dining_room",       label: "Dining Room",               icon: "🍽️",    description: "Formal or casual dining",       typicalSize: "10–20m²" },
+  { id: "living_dining",     label: "Living / Dining",           icon: "🛋️🍽️", description: "Open plan living and dining",   typicalSize: "20–40m²" },
+  { id: "bedroom_primary",   label: "Primary Bedroom",           icon: "🛏️",    description: "Master bedroom",                typicalSize: "12–20m²" },
+  { id: "bedroom_secondary", label: "Guest / Secondary Bedroom", icon: "🛏️",    description: "Spare room or guest bedroom",   typicalSize: "8–14m²"  },
+  { id: "home_office",       label: "Home Office",               icon: "💼",    description: "Study or workspace",            typicalSize: "8–16m²"  },
+  { id: "kitchen",           label: "Kitchen",                   icon: "🍳",    description: "Inspiration render",            typicalSize: "8–20m²"  },
+  { id: "bathroom",          label: "Bathroom",                  icon: "🛁",    description: "Inspiration render",            typicalSize: "4–12m²"  },
 ];
 
-const COMING_SOON = [
-  { id: "kitchen",  label: "Kitchen",  icon: "🍳" },
-  { id: "bathroom", label: "Bathroom", icon: "🛁" },
-];
+const COMING_SOON: { id: string; label: string; icon: string }[] = [];
 
 interface Props {
   selected: RoomType | null;
@@ -62,21 +61,23 @@ export function RoomTypeSelector({ selected, onSelect }: Props) {
         })}
       </div>
 
-      <div className="border-t border-stone-100 pt-4">
-        <p className="text-xs text-stone-400 mb-3">Coming soon</p>
-        <div className="flex gap-3">
-          {COMING_SOON.map((room) => (
-            <div
-              key={room.id}
-              className="flex flex-col items-center gap-1.5 px-4 py-3 rounded-2xl border-2 border-dashed border-stone-200 opacity-50 cursor-not-allowed"
-            >
-              <span className="text-2xl leading-none">{room.icon}</span>
-              <span className="text-xs font-medium text-stone-500">{room.label}</span>
-              <span className="text-[10px] bg-stone-100 text-stone-400 rounded-full px-2 py-0.5">Coming soon</span>
-            </div>
-          ))}
+      {COMING_SOON.length > 0 && (
+        <div className="border-t border-stone-100 pt-4">
+          <p className="text-xs text-stone-400 mb-3">Coming soon</p>
+          <div className="flex gap-3">
+            {COMING_SOON.map((room) => (
+              <div
+                key={room.id}
+                className="flex flex-col items-center gap-1.5 px-4 py-3 rounded-2xl border-2 border-dashed border-stone-200 opacity-50 cursor-not-allowed"
+              >
+                <span className="text-2xl leading-none">{room.icon}</span>
+                <span className="text-xs font-medium text-stone-500">{room.label}</span>
+                <span className="text-[10px] bg-stone-100 text-stone-400 rounded-full px-2 py-0.5">Coming soon</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

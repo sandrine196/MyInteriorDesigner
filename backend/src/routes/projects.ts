@@ -30,6 +30,8 @@ const VALID_ROOM_TYPES = [
   "bedroom_primary",
   "bedroom_secondary",
   "home_office",
+  "bathroom",
+  "kitchen",
 ] as const;
 
 const createBody = z.object({
@@ -462,16 +464,21 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       });
       if (!project) return reply.status(404).send({ error: "Project not found" });
 
-      const missingDims: string[] = [];
-      if (project.roomLengthMm == null) missingDims.push("roomLengthMm");
-      if (project.roomWidthMm == null) missingDims.push("roomWidthMm");
-      if (project.ceilingHeightMm == null) missingDims.push("ceilingHeightMm");
-      if (missingDims.length > 0) {
-        return reply.status(400).send({
-          error: "Set room length, width, and ceiling height before generating a render.",
-          code: "MISSING_ROOM_DIMENSIONS",
-          missing: missingDims,
-        });
+      const isInspirationRoom = project.roomType === "bathroom" || project.roomType === "kitchen";
+
+      // Bathroom/kitchen renders don't require dimensions — use typical defaults if absent
+      if (!isInspirationRoom) {
+        const missingDims: string[] = [];
+        if (project.roomLengthMm == null) missingDims.push("roomLengthMm");
+        if (project.roomWidthMm == null) missingDims.push("roomWidthMm");
+        if (project.ceilingHeightMm == null) missingDims.push("ceilingHeightMm");
+        if (missingDims.length > 0) {
+          return reply.status(400).send({
+            error: "Set room length, width, and ceiling height before generating a render.",
+            code: "MISSING_ROOM_DIMENSIONS",
+            missing: missingDims,
+          });
+        }
       }
 
       // ── Rate limit: global concurrent render cap ──────────────────────────
@@ -554,8 +561,11 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       }
 
       // ── Resolve products (manual selection or AI auto-pick) ───────────────
+      // Bathroom/kitchen are inspiration renders — no product catalogue
       let products: Awaited<ReturnType<typeof prisma.product.findMany>>;
-      if (body.productIds.length === 0) {
+      if (isInspirationRoom) {
+        products = [];
+      } else if (body.productIds.length === 0) {
         products = await autoSelectProducts(project);
       } else {
         products = await prisma.product.findMany({ where: { id: { in: body.productIds } } });
@@ -604,6 +614,13 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
         .catch((err) => console.error("[Agents] Failed to increment designsCreated:", err));
 
       try {
+        // Use provided dimensions or sensible defaults for inspiration rooms
+        const roomDims = {
+          length:        project.roomLengthMm        ?? (project.roomType === "bathroom" ? 2500 : 4000),
+          width:         project.roomWidthMm          ?? (project.roomType === "bathroom" ? 1800 : 3500),
+          ceilingHeight: project.ceilingHeightMm      ?? 2400,
+        };
+
         const { buffer, alternativeBuffer, floorPlanInterpretation, mock } = await aiService.generateRoomImage({
           userPrompt:           body.prompt,
           floorPlanKey:         project.floorPlanKey,
@@ -611,6 +628,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           designStyle:          project.designStyle,
           wallColorPalette:     project.wallColorPalette,
           flooringType:         project.flooringType,
+          roomType:             project.roomType ?? undefined,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           roomFeatures:         (project.roomFeatures as any) ?? null,
           structuredFloorPlan:  (project.floorPlanAnalysis as FloorPlanAnalysis | null) ?? null,
@@ -626,11 +644,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
             dimensionsRaw: p.dimensionsRaw,
             description:   p.description,
           })),
-          room: {
-            length:        project.roomLengthMm!,
-            width:         project.roomWidthMm!,
-            ceilingHeight: project.ceilingHeightMm!,
-          },
+          room: roomDims,
         });
 
         const imageKey = `renders/${render.id}.png`;

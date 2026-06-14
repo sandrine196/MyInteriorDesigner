@@ -27,6 +27,17 @@ function mmToM(mm: number | null) {
   return mm != null ? (mm / 1000).toFixed(2) : "";
 }
 
+function feetInchesToMetres(feet: number, inches: number): number {
+  return Math.round(((feet * 12 + inches) * 0.0254) * 100) / 100;
+}
+
+function metresToFeetInches(m: number): { ft: number; inches: number } {
+  const totalInches = m / 0.0254;
+  const ft = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches % 12);
+  return { ft, inches };
+}
+
 // ── Onboarding constants ──────────────────────────────────────────────────────
 
 const BUDGET_OPTIONS = [
@@ -75,6 +86,24 @@ const DESIGN_STYLES = [
   { id: "coastal",      label: "Coastal",             desc: "Light, breezy, natural fibres, sea tones",      from: "#7BACC4", to: "#BDD9E8" },
 ];
 
+const BATHROOM_STYLES = [
+  { id: "bath_spa",        label: "Spa & Minimalist",       desc: "Calm, clean, spa-like",          from: "#E8F0EE", to: "#B8D0C8" },
+  { id: "bath_traditional",label: "Traditional / Edwardian",desc: "Period features, classic tiles", from: "#C8B89A", to: "#9E8C72" },
+  { id: "bath_modern",     label: "Modern & Contemporary",  desc: "Sleek surfaces, bold fixtures",  from: "#3A3A3A", to: "#1C1C1C" },
+  { id: "bath_industrial", label: "Industrial",             desc: "Exposed fittings, dark metal",   from: "#5C5C5C", to: "#3C3C3C" },
+  { id: "bath_coastal",    label: "Coastal & Fresh",        desc: "Sea tones, natural wood",        from: "#7BACC4", to: "#BDD9E8" },
+  { id: "bath_boutique",   label: "Boutique Hotel",         desc: "Luxurious, dramatic, curated",   from: "#2C1A3A", to: "#4A2E5C" },
+];
+
+const KITCHEN_STYLES = [
+  { id: "kitchen_shaker",     label: "Shaker",               desc: "Classic UK kitchen",            from: "#D8CDB8", to: "#B8A890" },
+  { id: "kitchen_handleless", label: "Modern Handleless",    desc: "Sleek, integrated look",        from: "#3A3A3A", to: "#1C1C1C" },
+  { id: "kitchen_industrial", label: "Industrial",           desc: "Raw steel, open shelving",      from: "#5C5C5C", to: "#3C3C3C" },
+  { id: "kitchen_farmhouse",  label: "Country & Farmhouse",  desc: "Warm, rustic, traditional",     from: "#C8B49A", to: "#9E8A72" },
+  { id: "kitchen_scandi",     label: "Scandi & Minimal",     desc: "Light woods, clean lines",      from: "#F0EDE8", to: "#D4C9B5" },
+  { id: "kitchen_bold",       label: "Bold & Colourful",     desc: "Statement colour, playful",     from: "#D44A6A", to: "#7B3D73" },
+];
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ProjectWorkspacePage() {
@@ -90,6 +119,20 @@ export default function ProjectWorkspacePage() {
   const [ceiling, setCeiling] = useState("");
   const [savingDims, setSavingDims] = useState(false);
   const [dimsError, setDimsError] = useState("");
+
+  // Imperial toggle — persisted in localStorage
+  const [unitSystem, setUnitSystem] = useState<"m" | "ft">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("measurementUnit") as "m" | "ft") ?? "m";
+    }
+    return "m";
+  });
+  const [lengthFt, setLengthFt]   = useState("");
+  const [lengthIn, setLengthIn]   = useState("");
+  const [widthFt,  setWidthFt]    = useState("");
+  const [widthIn,  setWidthIn]    = useState("");
+  const [ceilingFt, setCeilingFt] = useState("");
+  const [ceilingIn, setCeilingIn] = useState("");
 
   // Floor plan
   const fileRef = useRef<HTMLInputElement>(null);
@@ -139,9 +182,17 @@ export default function ProjectWorkspacePage() {
     api.get(id)
       .then(({ project: p }) => {
         setProject(p);
-        setLength(mmToM(p.roomLengthMm));
-        setWidth(mmToM(p.roomWidthMm));
-        setCeiling(mmToM(p.ceilingHeightMm));
+        const lm = mmToM(p.roomLengthMm);
+        const wm = mmToM(p.roomWidthMm);
+        const cm = mmToM(p.ceilingHeightMm);
+        setLength(lm);
+        setWidth(wm);
+        setCeiling(cm);
+        // Populate ft/in fields from stored metre values
+        if (p.roomLengthMm)  { const fi = metresToFeetInches(p.roomLengthMm / 1000);  setLengthFt(String(fi.ft));  setLengthIn(String(fi.inches)); }
+        if (p.roomWidthMm)   { const fi = metresToFeetInches(p.roomWidthMm  / 1000);  setWidthFt(String(fi.ft));   setWidthIn(String(fi.inches));  }
+        if (p.ceilingHeightMm){ const fi = metresToFeetInches(p.ceilingHeightMm/1000); setCeilingFt(String(fi.ft)); setCeilingIn(String(fi.inches));}
+
         if (p.budgetMin != null) {
           const match = BUDGET_OPTIONS.find((b) => b.min === p.budgetMin && b.max === p.budgetMax);
           if (match) setBudgetBracket(match);
@@ -159,11 +210,12 @@ export default function ProjectWorkspacePage() {
       .finally(() => setLoading(false));
   }, [id, router]);
 
+  const isBathroomOrKitchen = project?.roomType === "bathroom" || project?.roomType === "kitchen";
+
   const setupComplete =
     project !== null &&
     project.designStyle !== null &&
-    project.wallColorPalette !== null &&
-    project.flooringType !== null;
+    (isBathroomOrKitchen || (project.wallColorPalette !== null && project.flooringType !== null));
   const retailersKey = project?.preferredRetailers.join(",") ?? "";
   const maxBudget = project?.budgetMax ?? null;
 
@@ -183,24 +235,35 @@ export default function ProjectWorkspacePage() {
   }, [productSearch, setupComplete, retailersKey, maxBudget]);
 
   async function submitSetup() {
-    if (!budgetBracket)   { setSetupError("Please select a budget range."); return; }
     if (!selectedStyle)   { setSetupError("Please select a design style."); return; }
-    if (!selectedWallColor) { setSetupError("Please select a wall colour palette."); return; }
-    if (selectedWallColor === "custom" && !customWallColor.trim()) {
-      setSetupError("Please describe your custom wall colour."); return;
+    if (!isBathroomOrKitchen) {
+      if (!budgetBracket)   { setSetupError("Please select a budget range."); return; }
+      if (!selectedWallColor) { setSetupError("Please select a wall colour palette."); return; }
+      if (selectedWallColor === "custom" && !customWallColor.trim()) {
+        setSetupError("Please describe your custom wall colour."); return;
+      }
+      if (!selectedFlooring) { setSetupError("Please select a flooring type."); return; }
     }
-    if (!selectedFlooring) { setSetupError("Please select a flooring type."); return; }
     setSetupError("");
     setSubmittingSetup(true);
     try {
-      const data: ProjectSetup = {
-        budgetMin: budgetBracket.min,
-        budgetMax: budgetBracket.max,
-        preferredRetailers: selectedShops,
-        designStyle: selectedStyle,
-        wallColorPalette: selectedWallColor === "custom" ? customWallColor.trim() : selectedWallColor,
-        flooringType: selectedFlooring,
-      };
+      const data: ProjectSetup = isBathroomOrKitchen
+        ? {
+            budgetMin: null,
+            budgetMax: null,
+            preferredRetailers: [],
+            designStyle: selectedStyle,
+            wallColorPalette: "neutral",
+            flooringType: "tiles",
+          }
+        : {
+            budgetMin: budgetBracket!.min,
+            budgetMax: budgetBracket!.max,
+            preferredRetailers: selectedShops,
+            designStyle: selectedStyle,
+            wallColorPalette: selectedWallColor === "custom" ? customWallColor.trim() : selectedWallColor!,
+            flooringType: selectedFlooring!,
+          };
       const { project: p } = await api.updateSetup(id, data);
       setProject(p);
       setEditingPrefs(false);
@@ -217,11 +280,19 @@ export default function ProjectWorkspacePage() {
     setDimsError("");
     setSavingDims(true);
     try {
-      const { project: p } = await api.setDimensions(id, {
-        roomLengthMm: Math.round(parseFloat(length) * 1000),
-        roomWidthMm: Math.round(parseFloat(width) * 1000),
-        ceilingHeightMm: Math.round(parseFloat(ceiling) * 1000),
-      });
+      const toMm = (m: number) => Math.round(m * 1000);
+      const dims = unitSystem === "ft"
+        ? {
+            roomLengthMm:    toMm(feetInchesToMetres(parseFloat(lengthFt  || "0"), parseFloat(lengthIn  || "0"))),
+            roomWidthMm:     toMm(feetInchesToMetres(parseFloat(widthFt   || "0"), parseFloat(widthIn   || "0"))),
+            ceilingHeightMm: toMm(feetInchesToMetres(parseFloat(ceilingFt || "0"), parseFloat(ceilingIn || "0"))),
+          }
+        : {
+            roomLengthMm:    toMm(parseFloat(length)),
+            roomWidthMm:     toMm(parseFloat(width)),
+            ceilingHeightMm: toMm(parseFloat(ceiling)),
+          };
+      const { project: p } = await api.setDimensions(id, dims);
       setProject(p);
     } catch (err) {
       setDimsError(err instanceof ApiError ? err.message : "Failed to save");
@@ -246,8 +317,16 @@ export default function ProjectWorkspacePage() {
         roomWidthMm:   result.roomWidthMm   ?? p.roomWidthMm,
       } : p);
       // Auto-fill dimension inputs when AI detected them and user hadn't set them
-      if (result.roomLengthMm && !length)  setLength((result.roomLengthMm  / 1000).toFixed(2));
-      if (result.roomWidthMm  && !width)   setWidth( (result.roomWidthMm   / 1000).toFixed(2));
+      if (result.roomLengthMm && !length) {
+        setLength((result.roomLengthMm / 1000).toFixed(2));
+        const fi = metresToFeetInches(result.roomLengthMm / 1000);
+        setLengthFt(String(fi.ft)); setLengthIn(String(fi.inches));
+      }
+      if (result.roomWidthMm && !width) {
+        setWidth((result.roomWidthMm / 1000).toFixed(2));
+        const fi = metresToFeetInches(result.roomWidthMm / 1000);
+        setWidthFt(String(fi.ft)); setWidthIn(String(fi.inches));
+      }
       setUploadedFileName(file.name);
     } catch (err) {
       setFloorError(err instanceof ApiError ? err.message : "Upload failed");
@@ -361,98 +440,88 @@ export default function ProjectWorkspacePage() {
             All rooms
           </button>
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#1B4965" }}>{project.name}</h1>
-          <p className="text-stone-500 mt-1 text-sm">Let's set up your room so we can show you the right furniture.</p>
+          <p className="text-stone-500 mt-1 text-sm">
+            {isBathroomOrKitchen
+              ? "Choose a style and we'll generate an inspiration render for you."
+              : "Let's set up your room so we can show you the right furniture."}
+          </p>
         </div>
 
         <div className="space-y-6">
-          {/* Budget */}
-          <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
-            <h2 className="font-semibold text-stone-900 mb-1">What's your budget for this room?</h2>
-            <p className="text-xs text-stone-400 mb-4">We'll filter furniture to fit what you can afford.</p>
-            <div className="grid grid-cols-2 gap-3">
-              {BUDGET_OPTIONS.map((opt) => {
-                const active = budgetBracket?.label === opt.label;
-                return (
-                  <button
-                    key={opt.label}
-                    onClick={() => setBudgetBracket(opt)}
-                    className="rounded-xl border-2 px-4 py-3 text-sm font-medium text-left transition-all"
-                    style={active
-                      ? { borderColor: "#1B4965", background: "#e8f0f5", color: "#1B4965" }
-                      : undefined
-                    }
-                  >
-                    <span className={active ? "" : "text-stone-700"}>{opt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          {/* Budget — hidden for bathroom/kitchen */}
+          {!isBathroomOrKitchen && (
+            <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
+              <h2 className="font-semibold text-stone-900 mb-1">What's your budget for this room?</h2>
+              <p className="text-xs text-stone-400 mb-4">We'll filter furniture to fit what you can afford.</p>
+              <div className="grid grid-cols-2 gap-3">
+                {BUDGET_OPTIONS.map((opt) => {
+                  const active = budgetBracket?.label === opt.label;
+                  return (
+                    <button
+                      key={opt.label}
+                      onClick={() => setBudgetBracket(opt)}
+                      className="rounded-xl border-2 px-4 py-3 text-sm font-medium text-left transition-all"
+                      style={active
+                        ? { borderColor: "#1B4965", background: "#e8f0f5", color: "#1B4965" }
+                        : undefined
+                      }
+                    >
+                      <span className={active ? "" : "text-stone-700"}>{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
-          {/* Preferred shops */}
-          <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <div>
-                <h2 className="font-semibold text-stone-900 mb-0.5">Which shops do you like to buy from?</h2>
-                <p className="text-xs text-stone-400">All are selected by default — deselect any you don't want.</p>
+          {/* Preferred shops — hidden for bathroom/kitchen */}
+          {!isBathroomOrKitchen && (
+            <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="font-semibold text-stone-900 mb-0.5">Which shops do you like to buy from?</h2>
+                  <p className="text-xs text-stone-400">All are selected by default — deselect any you don't want.</p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button onClick={() => setSelectedShops(SHOPS.map((s) => s.id))} className="text-xs text-stone-500 hover:text-stone-800 underline underline-offset-2 transition-colors">All</button>
+                  <span className="text-stone-300 text-xs">·</span>
+                  <button onClick={() => setSelectedShops([])} className="text-xs text-stone-500 hover:text-stone-800 underline underline-offset-2 transition-colors">None</button>
+                </div>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <button
-                  onClick={() => setSelectedShops(SHOPS.map((s) => s.id))}
-                  className="text-xs text-stone-500 hover:text-stone-800 underline underline-offset-2 transition-colors"
-                >
-                  All
-                </button>
-                <span className="text-stone-300 text-xs">·</span>
-                <button
-                  onClick={() => setSelectedShops([])}
-                  className="text-xs text-stone-500 hover:text-stone-800 underline underline-offset-2 transition-colors"
-                >
-                  None
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {SHOPS.map((shop) => {
-                const active = selectedShops.includes(shop.id);
-                return (
-                  <button
-                    key={shop.id}
-                    onClick={() => toggleShop(shop.id)}
-                    className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-medium text-left transition-all"
-                    style={active
-                      ? { borderColor: "#1B4965", background: "#e8f0f5", color: "#1B4965" }
-                      : undefined
-                    }
-                  >
-                    <span className="flex-shrink-0">
-                      <span
-                        className="w-4 h-4 rounded flex items-center justify-center border transition-colors inline-flex"
-                        style={active
-                          ? { background: "#1B4965", borderColor: "#1B4965" }
-                          : { borderColor: "#d6d3d1" }
-                        }
-                      >
-                        {active && (
-                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                          </svg>
-                        )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {SHOPS.map((shop) => {
+                  const active = selectedShops.includes(shop.id);
+                  return (
+                    <button
+                      key={shop.id}
+                      onClick={() => toggleShop(shop.id)}
+                      className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-medium text-left transition-all"
+                      style={active ? { borderColor: "#1B4965", background: "#e8f0f5", color: "#1B4965" } : undefined}
+                    >
+                      <span className="flex-shrink-0">
+                        <span className="w-4 h-4 rounded flex items-center justify-center border transition-colors inline-flex"
+                          style={active ? { background: "#1B4965", borderColor: "#1B4965" } : { borderColor: "#d6d3d1" }}>
+                          {active && (
+                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                          )}
+                        </span>
                       </span>
-                    </span>
-                    <span className={active ? "" : "text-stone-500"}>{shop.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+                      <span className={active ? "" : "text-stone-500"}>{shop.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
-          {/* Design style */}
+          {/* Design style — different options per room type */}
           <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
             <h2 className="font-semibold text-stone-900 mb-1">What's your design style?</h2>
             <p className="text-xs text-stone-400 mb-4">Choose the look that speaks to you most.</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {DESIGN_STYLES.map((s) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {(project.roomType === "bathroom" ? BATHROOM_STYLES : project.roomType === "kitchen" ? KITCHEN_STYLES : DESIGN_STYLES).map((s) => {
                 const active = selectedStyle === s.id;
                 return (
                   <button
@@ -464,10 +533,7 @@ export default function ProjectWorkspacePage() {
                       : { borderColor: "#e7e5e4" }
                     }
                   >
-                    <div
-                      className="h-14"
-                      style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }}
-                    />
+                    <div className="h-14" style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }} />
                     <div className="p-2.5">
                       <p className="font-semibold text-stone-900 text-xs leading-snug">{s.label}</p>
                       <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{s.desc}</p>
@@ -478,82 +544,86 @@ export default function ProjectWorkspacePage() {
             </div>
           </section>
 
-          {/* Wall colour */}
-          <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
-            <h2 className="font-semibold text-stone-900 mb-1">What colour would you like for the walls?</h2>
-            <p className="text-xs text-stone-400 mb-4">This will be included in your AI render.</p>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-              {WALL_COLORS.map((w) => {
-                const active = selectedWallColor === w.id;
-                return (
-                  <button
-                    key={w.id}
-                    onClick={() => setSelectedWallColor(w.id)}
-                    className="text-left rounded-xl border-2 overflow-hidden transition-all"
-                    style={active
-                      ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
-                      : { borderColor: "#e7e5e4" }
-                    }
-                  >
-                    {w.swatch ? (
-                      <div className="h-10" style={{ background: w.swatch, borderBottom: w.id === "neutral" ? "1px solid #e7e5e4" : undefined }} />
-                    ) : (
-                      <div className="h-10 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f9c0c0, #c0d4f9, #c0f9d4, #f9eec0)" }}>
-                        <svg className="w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
-                        </svg>
+          {/* Wall colour — hidden for bathroom/kitchen */}
+          {!isBathroomOrKitchen && (
+            <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
+              <h2 className="font-semibold text-stone-900 mb-1">What colour would you like for the walls?</h2>
+              <p className="text-xs text-stone-400 mb-4">This will be included in your AI render.</p>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                {WALL_COLORS.map((w) => {
+                  const active = selectedWallColor === w.id;
+                  return (
+                    <button
+                      key={w.id}
+                      onClick={() => setSelectedWallColor(w.id)}
+                      className="text-left rounded-xl border-2 overflow-hidden transition-all"
+                      style={active
+                        ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
+                        : { borderColor: "#e7e5e4" }
+                      }
+                    >
+                      {w.swatch ? (
+                        <div className="h-10" style={{ background: w.swatch, borderBottom: w.id === "neutral" ? "1px solid #e7e5e4" : undefined }} />
+                      ) : (
+                        <div className="h-10 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f9c0c0, #c0d4f9, #c0f9d4, #f9eec0)" }}>
+                          <svg className="w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="p-2">
+                        <p className="font-semibold text-stone-900 text-xs leading-snug">{w.label}</p>
+                        <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{w.desc}</p>
                       </div>
-                    )}
-                    <div className="p-2">
-                      <p className="font-semibold text-stone-900 text-xs leading-snug">{w.label}</p>
-                      <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{w.desc}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {selectedWallColor === "custom" && (
-              <div className="mt-4">
-                <label className="block text-xs font-medium text-stone-500 mb-1.5">Describe your wall colour</label>
-                <input
-                  type="text"
-                  placeholder="e.g. sage green, dusty pink, deep navy…"
-                  value={customWallColor}
-                  onChange={(e) => setCustomWallColor(e.target.value)}
-                  className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
-                  autoFocus
-                />
+                    </button>
+                  );
+                })}
               </div>
-            )}
-          </section>
+              {selectedWallColor === "custom" && (
+                <div className="mt-4">
+                  <label className="block text-xs font-medium text-stone-500 mb-1.5">Describe your wall colour</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. sage green, dusty pink, deep navy…"
+                    value={customWallColor}
+                    onChange={(e) => setCustomWallColor(e.target.value)}
+                    className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent placeholder:text-stone-400"
+                    autoFocus
+                  />
+                </div>
+              )}
+            </section>
+          )}
 
-          {/* Flooring */}
-          <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
-            <h2 className="font-semibold text-stone-900 mb-1">What type of flooring would you prefer?</h2>
-            <p className="text-xs text-stone-400 mb-4">Sets the floor finish in your AI render.</p>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-              {FLOORING_TYPES.map((f) => {
-                const active = selectedFlooring === f.id;
-                return (
-                  <button
-                    key={f.id}
-                    onClick={() => setSelectedFlooring(f.id)}
-                    className="text-left rounded-xl border-2 overflow-hidden transition-all"
-                    style={active
-                      ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
-                      : { borderColor: "#e7e5e4" }
-                    }
-                  >
-                    <div className="h-10" style={{ background: f.swatch }} />
-                    <div className="p-2">
-                      <p className="font-semibold text-stone-900 text-xs leading-snug">{f.label}</p>
-                      <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{f.desc}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          {/* Flooring — hidden for bathroom/kitchen */}
+          {!isBathroomOrKitchen && (
+            <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
+              <h2 className="font-semibold text-stone-900 mb-1">What type of flooring would you prefer?</h2>
+              <p className="text-xs text-stone-400 mb-4">Sets the floor finish in your AI render.</p>
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                {FLOORING_TYPES.map((f) => {
+                  const active = selectedFlooring === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => setSelectedFlooring(f.id)}
+                      className="text-left rounded-xl border-2 overflow-hidden transition-all"
+                      style={active
+                        ? { borderColor: "#1B4965", outline: "2px solid #e8f0f5", outlineOffset: "1px" }
+                        : { borderColor: "#e7e5e4" }
+                      }
+                    >
+                      <div className="h-10" style={{ background: f.swatch }} />
+                      <div className="p-2">
+                        <p className="font-semibold text-stone-900 text-xs leading-snug">{f.label}</p>
+                        <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{f.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Submit */}
           {setupError && (
@@ -576,14 +646,21 @@ export default function ProjectWorkspacePage() {
 
   // ── Normal workflow ────────────────────────────────────────────────────────
 
-  const steps = [
-    { n: 1, label: "Room size",    done: hasDimensions },
-    { n: 2, label: "Floor plan",   done: !!project.floorPlanKey },
-    { n: 3, label: "Room layout",  done: hasWallMapping },
-    { n: 4, label: "Furniture",    done: furnitureMode === "auto" || selectedProducts.size > 0 },
-    { n: 5, label: "Generate",     done: project.renders.length > 0 },
-  ];
-  const currentStep = steps.find((s) => !s.done)?.n ?? 5;
+  // Bathroom/kitchen skip the furniture step — dimensions are optional, generate is step 3
+  const steps = isBathroomOrKitchen
+    ? [
+        { n: 1, label: "Room size",   done: true },  // always unlocked / optional
+        { n: 2, label: "Floor plan",  done: !!project.floorPlanKey },
+        { n: 3, label: "Generate",    done: project.renders.length > 0 },
+      ]
+    : [
+        { n: 1, label: "Room size",   done: hasDimensions },
+        { n: 2, label: "Floor plan",  done: !!project.floorPlanKey },
+        { n: 3, label: "Room layout", done: hasWallMapping },
+        { n: 4, label: "Furniture",   done: furnitureMode === "auto" || selectedProducts.size > 0 },
+        { n: 5, label: "Generate",    done: project.renders.length > 0 },
+      ];
+  const currentStep = steps.find((s) => !s.done)?.n ?? steps[steps.length - 1].n;
 
   const selectedProductObjects = [...selectedProductsData.values()];
   const totalCost = selectedProductObjects.reduce((sum, p) => sum + (p.priceGbp ?? 0), 0);
@@ -591,7 +668,10 @@ export default function ProjectWorkspacePage() {
   const budgetLabel = BUDGET_OPTIONS.find(
     (b) => b.min === project.budgetMin && b.max === project.budgetMax
   )?.label;
-  const styleLabel = DESIGN_STYLES.find((s) => s.id === project.designStyle)?.label;
+  const styleLabel = (
+    [...DESIGN_STYLES, ...BATHROOM_STYLES, ...KITCHEN_STYLES]
+      .find((s) => s.id === project.designStyle)?.label
+  );
   const wallLabel = project.wallColorPalette
     ? (WALL_COLORS.find((w) => w.id === project.wallColorPalette)?.label ?? project.wallColorPalette)
     : null;
@@ -909,27 +989,82 @@ export default function ProjectWorkspacePage() {
       <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 1 ? "border-stone-300" : "border-stone-200"}`}>
         <div className="flex items-center gap-3 mb-5">
           <StepBadge n={1} done={hasDimensions} current={currentStep === 1} />
-          <div>
+          <div className="flex-1">
             <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 1 of 4</p>
-            <h2 className="font-semibold text-stone-900">Room dimensions</h2>
+            <h2 className="font-semibold text-stone-900">Room dimensions{isBathroomOrKitchen && <span className="text-stone-400 font-normal text-sm ml-1">(optional)</span>}</h2>
+          </div>
+          {/* Unit toggle */}
+          <div className="flex rounded-lg border border-stone-200 overflow-hidden text-xs font-semibold">
+            {(["m", "ft"] as const).map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => {
+                  setUnitSystem(u);
+                  localStorage.setItem("measurementUnit", u);
+                }}
+                className="px-3 py-1.5 transition-colors"
+                style={unitSystem === u
+                  ? { background: "#1B4965", color: "white" }
+                  : { background: "white", color: "#6B7280" }}
+              >
+                {u === "m" ? "m" : "ft"}
+              </button>
+            ))}
           </div>
         </div>
         <form onSubmit={saveDimensions} className="grid sm:grid-cols-3 gap-4">
-          {[
-            { label: "Length (m)", val: length, set: setLength, placeholder: "e.g. 4.5" },
-            { label: "Width (m)", val: width, set: setWidth, placeholder: "e.g. 3.2" },
-            { label: "Ceiling height (m)", val: ceiling, set: setCeiling, placeholder: "e.g. 2.4" },
-          ].map(({ label, val, set, placeholder }) => (
-            <div key={label}>
-              <label className="block text-xs font-medium text-stone-500 mb-1.5">{label}</label>
-              <input
-                type="number" step="0.01" min="0.1" required
-                value={val} placeholder={placeholder}
-                onChange={(e) => set(e.target.value)}
-                className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent"
-              />
-            </div>
-          ))}
+          {unitSystem === "m" ? (
+            <>
+              {[
+                { label: "Length (m)", val: length, set: setLength, placeholder: "e.g. 4.5" },
+                { label: "Width (m)", val: width, set: setWidth, placeholder: "e.g. 3.2" },
+                { label: "Ceiling height (m)", val: ceiling, set: setCeiling, placeholder: "e.g. 2.4" },
+              ].map(({ label, val, set, placeholder }) => (
+                <div key={label}>
+                  <label className="block text-xs font-medium text-stone-500 mb-1.5">{label}</label>
+                  <input
+                    type="number" step="0.01" min="0.1" required={!isBathroomOrKitchen}
+                    value={val} placeholder={placeholder}
+                    onChange={(e) => set(e.target.value)}
+                    className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent"
+                  />
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              {[
+                { label: "Length", ft: lengthFt, setFt: setLengthFt, inches: lengthIn, setIn: setLengthIn, phFt: "e.g. 14", phIn: "e.g. 9" },
+                { label: "Width",  ft: widthFt,  setFt: setWidthFt,  inches: widthIn,  setIn: setWidthIn,  phFt: "e.g. 11", phIn: "e.g. 6" },
+                { label: "Ceiling height", ft: ceilingFt, setFt: setCeilingFt, inches: ceilingIn, setIn: setCeilingIn, phFt: "e.g. 8", phIn: "e.g. 0" },
+              ].map(({ label, ft, setFt, inches, setIn, phFt, phIn }) => (
+                <div key={label}>
+                  <label className="block text-xs font-medium text-stone-500 mb-1.5">{label}</label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <input
+                        type="number" min="0" required={!isBathroomOrKitchen}
+                        value={ft} placeholder={phFt}
+                        onChange={(e) => setFt(e.target.value)}
+                        className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent pr-8"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-stone-400 pointer-events-none">ft</span>
+                    </div>
+                    <div className="flex-1 relative">
+                      <input
+                        type="number" min="0" max="11" required={!isBathroomOrKitchen}
+                        value={inches} placeholder={phIn}
+                        onChange={(e) => setIn(e.target.value)}
+                        className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mid-gold focus:border-transparent pr-8"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-stone-400 pointer-events-none">in</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
           <div className="sm:col-span-3 flex items-center gap-3 flex-wrap">
             <button
               type="submit" disabled={savingDims}
@@ -1028,8 +1163,8 @@ export default function ProjectWorkspacePage() {
         )}
       </section>
 
-      {/* ── Step 3: Room layout ── */}
-      <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 3 ? "border-stone-300" : "border-stone-200"}`}>
+      {/* ── Step 3: Room layout — hidden for bathroom/kitchen ── */}
+      {!isBathroomOrKitchen && <section className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 3 ? "border-stone-300" : "border-stone-200"}`}>
         <div className="flex items-center gap-3 mb-5">
           <StepBadge n={3} done={hasWallMapping} current={currentStep === 3} />
           <div>
@@ -1098,10 +1233,10 @@ export default function ProjectWorkspacePage() {
         {hasWallMapping && currentStep === 4 && (
           <p className="text-xs text-stone-400 mt-4">Next: choose your furniture below ↓</p>
         )}
-      </section>
+      </section>}
 
-      {/* ── Step 4: Furniture ── */}
-      <section id="step-furniture" className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 4 ? "border-stone-300" : "border-stone-200"}`}>
+      {/* ── Step 4: Furniture — hidden for bathroom/kitchen ── */}
+      {!isBathroomOrKitchen && <section id="step-furniture" className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 4 ? "border-stone-300" : "border-stone-200"}`}>
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <StepBadge n={4} done={furnitureMode === "auto" || selectedProducts.size > 0} current={currentStep === 4} />
@@ -1291,17 +1426,25 @@ export default function ProjectWorkspacePage() {
         {(furnitureMode === "auto" || selectedProducts.size > 0) && currentStep === 5 && (
           <p className="text-xs text-stone-400 mt-4">Next: describe your style and generate your design below ↓</p>
         )}
-      </section>
+      </section>}
 
-      {/* ── Step 5: Generate render ── */}
-      <section id="step-generate" className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === 5 ? "border-stone-300" : "border-stone-200"}`}>
+      {/* ── Step 3/5: Generate render ── */}
+      <section id="step-generate" className={`bg-white rounded-2xl border shadow-sm p-6 ${currentStep === (isBathroomOrKitchen ? 3 : 5) ? "border-stone-300" : "border-stone-200"}`}>
         <div className="flex items-center gap-3 mb-5">
-          <StepBadge n={5} done={project.renders.length > 0} current={currentStep === 5} />
+          <StepBadge n={isBathroomOrKitchen ? 3 : 5} done={project.renders.length > 0} current={currentStep === (isBathroomOrKitchen ? 3 : 5)} />
           <div>
-            <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 5 of 5</p>
-            <h2 className="font-semibold text-stone-900">Generate your design</h2>
+            <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">{isBathroomOrKitchen ? "Step 3 of 3" : "Step 5 of 5"}</p>
+            <h2 className="font-semibold text-stone-900">Generate your {isBathroomOrKitchen ? "inspiration render" : "design"}</h2>
           </div>
         </div>
+        {isBathroomOrKitchen && (
+          <div className="mb-4 rounded-xl px-4 py-3 text-xs text-stone-600 leading-relaxed flex items-start gap-2.5" style={{ background: "#EEF6F8", border: "1px solid #AECFDB" }}>
+            <span className="text-base leading-none mt-0.5">✨</span>
+            <span>
+              <strong>Inspiration render</strong> — this shows the potential of this space after a full renovation. It is not a photo of the room as it stands today. Speak to a {project.roomType === "bathroom" ? "bathroom" : "kitchen"} specialist to bring this vision to life.
+            </span>
+          </div>
+        )}
         <form onSubmit={generateRender} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-stone-500 mb-1.5">Describe your style</label>
