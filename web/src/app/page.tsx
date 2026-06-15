@@ -1,5 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+
+export const metadata: Metadata = {
+  title: "My Interior Designer — Affordable AI Interior Design for UK Homes",
+  description: "Transform your empty room into your dream space. AI-powered room design with real furniture from top UK retailers in minutes. Upload your floor plan and see exactly how your furnished room will look.",
+  openGraph: {
+    title: "My Interior Designer — Affordable AI Interior Design for UK Homes",
+    description: "Transform your empty room into your dream space. AI-powered room design with real furniture from top UK retailers in minutes.",
+    url: "https://www.myinteriordesigner.co.uk",
+  },
+};
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
 // MIDLogo.png            — beige/neutral background, for use on white/light bg
@@ -668,9 +679,23 @@ function Footer() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "My Interior Designer",
+  applicationCategory: "LifestyleApplication",
+  operatingSystem: "Web",
+  url: "https://www.myinteriordesigner.co.uk",
+  description: "AI-powered interior design tool for UK homeowners. Upload your floor plan, choose real furniture, and get photorealistic room renders.",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "GBP" },
+  author: { "@type": "Organization", name: "My Interior Designer", url: "https://www.myinteriordesigner.co.uk" },
+  areaServed: { "@type": "Country", name: "United Kingdom" },
+};
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Header />
       <main>
         <Hero />
