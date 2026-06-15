@@ -5,6 +5,7 @@ import { Resend } from "resend";
 import { config } from "../config/index.js";
 import { importRaftProducts, getRaftSourceStats, mapToRoomCategory } from "../services/cjApi.service.js";
 import { assignMissingStyles } from "../services/styleDetection.service.js";
+import { getAllCosts } from "../services/costs.service.js";
 
 const COST_PER_RENDER_GBP = 0.03;
 const PRO_PRICE_GBP = 9.99;
@@ -383,6 +384,15 @@ export async function adminRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     await prisma.revenueEntry.delete({ where: { id } });
     return { ok: true };
+  });
+
+  // ── GET /admin/live-costs ─────────────────────────────────────────────────
+  // Real-time cost snapshot pulled from provider APIs + calculated from DB.
+
+  app.get("/admin/live-costs", auth, async (request) => {
+    const { period } = request.query as { period?: string };
+    const p = (period === "week" || period === "today") ? period : "month";
+    return getAllCosts(p);
   });
 
   // ── Financial summary (P&L by month, last 12 months) ──────────────────────

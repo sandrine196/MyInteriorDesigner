@@ -475,6 +475,18 @@ export type BackupStats = {
   storageLocation: string | null;
 };
 
+export type LiveCostDataSource = "live_api" | "calculated" | "manual" | "error";
+
+export type LiveCosts = {
+  period: string;
+  costs: { gemini: number; reve: number; railway: number; r2: number; resend: number; vercel: number; total: number };
+  currency: "USD";
+  renders: { total: number; regular: number; staging: number };
+  dataSource: { gemini: LiveCostDataSource; reve: LiveCostDataSource; railway: LiveCostDataSource; r2: LiveCostDataSource; resend: LiveCostDataSource; vercel: LiveCostDataSource };
+  errors: Record<string, string>;
+  fetchedAt: string;
+};
+
 export const admin = {
   metrics:          () => request<AdminMetrics>("/admin/metrics"),
   exportUrl:        (type: "users" | "renders") => `${BASE}/admin/export/${type}`,
@@ -503,6 +515,8 @@ export const admin = {
 
   financialSummary: () =>
     request<{ summary: FinancialSummaryMonth[]; cumulativeProfit: number }>("/admin/financial-summary"),
+  liveCosts: (period?: "month" | "week" | "today") =>
+    request<LiveCosts>(`/admin/live-costs${period ? `?period=${period}` : ""}`),
   marketingMetrics: (range?: string) =>
     request<MarketingMetrics>(`/admin/marketing-metrics${range ? `?range=${range}` : ""}`),
   clientMetrics: (range?: string) =>

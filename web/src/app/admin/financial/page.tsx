@@ -4,12 +4,156 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-import { admin, type CostEntry, type RevenueEntry } from "@/lib/api";
+import { admin, type CostEntry, type RevenueEntry, type LiveCosts, type LiveCostDataSource } from "@/lib/api";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function gbp(n: number) {
   return `£${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function usd(n: number) {
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function SourceBadge({ source }: { source: LiveCostDataSource }) {
+  const config = {
+    live_api:   { label: "Live",       icon: "✅", cls: "text-green-400 bg-green-950 border-green-800" },
+    calculated: { label: "Calculated", icon: "🔢", cls: "text-blue-400 bg-blue-950 border-blue-800" },
+    manual:     { label: "Manual",     icon: "✏️", cls: "text-amber-400 bg-amber-950 border-amber-800" },
+    error:      { label: "Error",      icon: "⚠️", cls: "text-red-400 bg-red-950 border-red-800" },
+  }[source];
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium ${config.cls}`}>
+      {config.icon} {config.label}
+    </span>
+  );
+}
+
+function LiveCostPanel({ period }: { period: "month" | "week" | "today" }) {
+  const [data,         setData]         = useState<LiveCosts | null>(null);
+  const [loading,      setLoading]      = useState(false);
+  const [lastFetched,  setLastFetched]  = useState<Date | null>(null);
+  const [timeSince,    setTimeSince]    = useState("");
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await admin.liveCosts(period);
+      setData(result);
+      setLastFetched(new Date());
+    } finally {
+      setLoading(false);
+    }
+  }, [period]);
+
+  // Auto-fetch on mount and when period changes
+  useEffect(() => { fetch(); }, [fetch]);
+
+  // Update "X mins ago" label every 30s
+  useEffect(() => {
+    if (!lastFetched) return;
+    const tick = () => {
+      const secs = Math.floor((Date.now() - lastFetched.getTime()) / 1000);
+      if (secs < 60) setTimeSince(`${secs}s ago`);
+      else setTimeSince(`${Math.floor(secs / 60)}m ago`);
+    };
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, [lastFetched]);
+
+  type CostKey = keyof Omit<LiveCosts["costs"], "total">;
+  const rows: Array<{ key: CostKey; label: string }> = [
+    { key: "gemini",  label: "Gemini (AI renders)" },
+    { key: "reve",    label: "Reve (virtual staging)" },
+    { key: "railway", label: "Railway (backend hosting)" },
+    { key: "r2",      label: "Cloudflare R2 (storage)" },
+    { key: "resend",  label: "Resend (email)" },
+    { key: "vercel",  label: "Vercel (frontend hosting)" },
+  ];
+
+  return (
+    <div className="rounded-2xl border" style={{ background: "#111d2b", borderColor: "#1e3349" }}>
+      <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "#1e3349" }}>
+        <div>
+          <p className="text-sm font-semibold text-stone-200">Live Cost Snapshot</p>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Pulled from provider APIs + calculated from DB · All figures in USD
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {lastFetched && !loading && (
+            <span className="text-xs text-stone-600">Updated {timeSince}</span>
+          )}
+          <button
+            onClick={fetch}
+            disabled={loading}
+            className="text-xs px-3 py-1.5 rounded-lg border border-stone-700 text-stone-400 hover:text-white hover:border-stone-500 transition-colors disabled:opacity-40"
+          >
+            {loading ? "Fetching…" : "↻ Refresh"}
+          </button>
+        </div>
+      </div>
+
+      {loading && !data ? (
+        <div className="flex items-center justify-center py-10">
+          <div className="w-5 h-5 rounded-full border-2 border-mid-blue border-t-mid-gold animate-spin" />
+        </div>
+      ) : data ? (
+        <>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-stone-600 border-b" style={{ borderColor: "#1e3349" }}>
+                <th className="text-left px-5 py-2.5 font-medium">Provider</th>
+                <th className="text-left px-5 py-2.5 font-medium">Data source</th>
+                <th className="text-right px-5 py-2.5 font-medium">Cost (USD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ key, label }) => (
+                <tr key={key} className="border-b" style={{ borderColor: "#1a2d41" }}>
+                  <td className="px-5 py-3 text-stone-300">{label}</td>
+                  <td className="px-5 py-3">
+                    <SourceBadge source={data.dataSource[key]} />
+                    {data.errors[key] && (
+                      <span className="ml-2 text-xs text-red-500" title={data.errors[key]}>· {data.errors[key].slice(0, 40)}</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-right font-mono text-stone-200">
+                    {usd(data.costs[key])}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ background: "#0f1f30" }}>
+                <td className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-stone-400">Total</td>
+                <td />
+                <td className="px-5 py-3 text-right font-mono font-bold text-white">{usd(data.costs.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Render breakdown */}
+          <div className="px-5 py-3 border-t flex flex-wrap gap-6 text-xs text-stone-500" style={{ borderColor: "#1e3349" }}>
+            <span>Renders this {data.period}: <span className="text-stone-300 font-medium">{data.renders.total}</span></span>
+            <span>Regular: <span className="text-stone-300 font-medium">{data.renders.regular}</span></span>
+            <span>Staging: <span className="text-stone-300 font-medium">{data.renders.staging}</span></span>
+            {data.renders.total > 0 && (
+              <span>Cost/render: <span className="text-stone-300 font-medium">{usd(data.costs.total / data.renders.total)}</span></span>
+            )}
+          </div>
+
+          {/* Legend */}
+          <div className="px-5 py-3 border-t flex flex-wrap gap-4" style={{ borderColor: "#1e3349" }}>
+            {(["live_api", "calculated", "manual", "error"] as LiveCostDataSource[]).map(s => (
+              <SourceBadge key={s} source={s} />
+            ))}
+            <span className="text-xs text-stone-600 self-center">· Vercel costs pulled from your manual CostEntry below</span>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 const MONTHS = [
@@ -260,6 +404,9 @@ export default function FinancialPage() {
           </div>
         ))}
       </div>
+
+      {/* ── Live cost snapshot ─────────────────────────────────────────── */}
+      <LiveCostPanel period="month" />
 
       {/* ── P&L chart ──────────────────────────────────────────────────── */}
       <div className="rounded-2xl p-5" style={{ background: "#1a3044", border: "1px solid #243d52" }}>
