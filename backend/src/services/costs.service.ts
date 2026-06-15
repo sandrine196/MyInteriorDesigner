@@ -33,20 +33,46 @@ export type CostsResult = {
   fetchedAt: string;
 };
 
-// ─── Gemini costs — calculated from render count ──────────────────────────────
-// Google AI Studio has no billing API without a GCP service account.
-// Cost estimate: ~$0.04 per Gemini image generation (Gemini 2.5 Flash output).
+// ─── Gemini costs — token-based pricing ──────────────────────────────────────
+// Token counts are captured from usageMetadata on each Gemini API response and
+// stored in Render.promptTokens / Render.candidateTokens since June 2026.
+// Renders before that date fall back to a flat-rate estimate.
+//
+// Gemini 2.5 Flash pricing (https://ai.google.dev/pricing):
+//   Input:  $0.15 / 1M tokens
+//   Output: $0.60 / 1M tokens
 
-const GEMINI_COST_PER_IMAGE_USD = 0.04;
+const GEMINI_INPUT_PRICE_USD  = 0.15 / 1_000_000;
+const GEMINI_OUTPUT_PRICE_USD = 0.60 / 1_000_000;
+const GEMINI_FLAT_RATE_USD    = 0.04; // fallback for pre-token-tracking renders
 
-async function getGeminiCosts(startDate: Date, endDate: Date): Promise<number> {
-  const count = await prisma.render.count({
-    where: {
-      imageKey: { startsWith: "renders/" },
-      createdAt: { gte: startDate, lte: endDate },
-    },
-  });
-  return count * GEMINI_COST_PER_IMAGE_USD;
+async function getGeminiCosts(
+  startDate: Date, endDate: Date
+): Promise<{ cost: number; source: DataSource }> {
+  const renderWhere = { imageKey: { startsWith: "renders/" }, createdAt: { gte: startDate, lte: endDate } };
+
+  const [tokenAgg, flatCount] = await Promise.all([
+    // Renders with real token data
+    prisma.render.aggregate({
+      _sum: { promptTokens: true, candidateTokens: true },
+      where: { ...renderWhere, promptTokens: { not: null } },
+    }),
+    // Renders before token tracking (no token data)
+    prisma.render.count({
+      where: { ...renderWhere, promptTokens: null },
+    }),
+  ]);
+
+  const promptTokens    = tokenAgg._sum.promptTokens    ?? 0;
+  const candidateTokens = tokenAgg._sum.candidateTokens ?? 0;
+
+  const tokenCost = promptTokens * GEMINI_INPUT_PRICE_USD + candidateTokens * GEMINI_OUTPUT_PRICE_USD;
+  const flatCost  = flatCount * GEMINI_FLAT_RATE_USD;
+  const cost      = tokenCost + flatCost;
+
+  // Report as live_api when we have real token data for this period
+  const source: DataSource = promptTokens > 0 ? "live_api" : "calculated";
+  return { cost, source };
 }
 
 // ─── Reve costs — calculated from staging render count ────────────────────────
@@ -230,7 +256,7 @@ export async function getAllCosts(period: "month" | "week" | "today" = "month"):
   const errors: Record<string, string> = {};
 
   const [
-    geminiCost,
+    geminiResult,
     reveCost,
     railwayResult,
     r2Result,
@@ -238,7 +264,7 @@ export async function getAllCosts(period: "month" | "week" | "today" = "month"):
     vercelCost,
     renders,
   ] = await Promise.all([
-    getGeminiCosts(startDate, endDate).catch(e => { errors.gemini = String(e); return 0; }),
+    getGeminiCosts(startDate, endDate).catch(e => { errors.gemini = String(e); return { cost: 0, source: "error" as DataSource }; }),
     getReveCosts(startDate, endDate).catch(e => { errors.reve = String(e); return 0; }),
     getRailwayCosts().catch(e => ({ cost: 0, source: "error" as DataSource, error: String(e) })),
     getR2Costs().catch(e => ({ cost: 0, source: "error" as DataSource, error: String(e) })),
@@ -251,7 +277,7 @@ export async function getAllCosts(period: "month" | "week" | "today" = "month"):
   if (r2Result.error)      errors.r2      = r2Result.error;
 
   const costs = {
-    gemini:  geminiCost,
+    gemini:  geminiResult.cost,
     reve:    reveCost,
     railway: railwayResult.cost,
     r2:      r2Result.cost,
@@ -267,7 +293,7 @@ export async function getAllCosts(period: "month" | "week" | "today" = "month"):
     currency: "USD",
     renders,
     dataSource: {
-      gemini:  "calculated",
+      gemini:  geminiResult.source,
       reve:    "calculated",
       railway: railwayResult.source,
       r2:      r2Result.source,

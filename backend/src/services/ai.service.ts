@@ -25,6 +25,8 @@ export interface AIService {
     alternativeBuffer?: Buffer;
     floorPlanInterpretation?: string | null;
     mock: boolean;
+    promptTokens: number;
+    candidateTokens: number;
   }>;
 }
 
@@ -36,6 +38,8 @@ class GeminiAIService implements AIService {
     alternativeBuffer?: Buffer;
     floorPlanInterpretation?: string | null;
     mock: boolean;
+    promptTokens: number;
+    candidateTokens: number;
   }> {
     let floorPlan: { data: string; mimeType: string } | null = null;
     let floorPlanInterpretation: string | null = null;
@@ -85,6 +89,8 @@ class GeminiAIService implements AIService {
       alternativeBuffer:    secondary?.buffer ?? undefined,
       floorPlanInterpretation,
       mock:                 primary.mock,
+      promptTokens:    primary.promptTokens    + (secondary?.promptTokens    ?? 0),
+      candidateTokens: primary.candidateTokens + (secondary?.candidateTokens ?? 0),
     };
   }
 }
@@ -97,9 +103,11 @@ class MockAIService implements AIService {
     alternativeBuffer?: Buffer;
     floorPlanInterpretation?: string | null;
     mock: boolean;
+    promptTokens: number;
+    candidateTokens: number;
   }> {
     const buf = await placeholderBuffer();
-    return { buffer: buf, alternativeBuffer: buf, mock: true };
+    return { buffer: buf, alternativeBuffer: buf, mock: true, promptTokens: 0, candidateTokens: 0 };
   }
 }
 
@@ -113,6 +121,8 @@ class StabilityAIService implements AIService {
     alternativeBuffer?: Buffer;
     floorPlanInterpretation?: string | null;
     mock: boolean;
+    promptTokens: number;
+    candidateTokens: number;
   }> {
     throw new Error(
       "Stability AI provider not yet implemented. Set AI_PROVIDER=gemini or AI_PROVIDER=mock."

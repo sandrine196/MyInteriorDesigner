@@ -111,6 +111,8 @@ model Render {
   selectedRender          Int?     @default(1)
   errorMessage            String?
   productsSnapshot        String?
+  promptTokens            Int?
+  candidateTokens         Int?
   createdAt               DateTime @default(now())
   deletedAt               DateTime?
 

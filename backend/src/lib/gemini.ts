@@ -841,10 +841,10 @@ Magazine-quality photorealistic interior photography. Professional lighting. No 
 export async function generateRoomImage(
   cfg: { apiKey?: string; model: string; region?: string },
   opts: { userPrompt: string; products: ProductForPrompt[]; room: RoomDimensionsMm; floorPlan?: { data: string; mimeType: string } | null } & PromptMeta
-): Promise<{ buffer: Buffer; mock: boolean }> {
+): Promise<{ buffer: Buffer; mock: boolean; promptTokens: number; candidateTokens: number }> {
   if (!cfg.apiKey) {
     console.log("[Gemini] No API key — returning placeholder (mock mode)");
-    return { buffer: await placeholderBuffer(), mock: true };
+    return { buffer: await placeholderBuffer(), mock: true, promptTokens: 0, candidateTokens: 0 };
   }
 
   // Route to EU endpoint when configured — placeholder for when Google exposes one.
@@ -905,7 +905,9 @@ export async function generateRoomImage(
     throw new Error("Model returned no image. Check model name and API access.");
   }
 
-  console.log(`[Gemini] Image received (${imageBase64.length} base64 chars) — resizing to ${RENDER_WIDTH}×${RENDER_HEIGHT}`);
+  const promptTokens    = response.usageMetadata?.promptTokenCount    ?? 0;
+  const candidateTokens = response.usageMetadata?.candidatesTokenCount ?? 0;
+  console.log(`[Gemini] Tokens — prompt: ${promptTokens}, candidates: ${candidateTokens}`);
 
   const buffer = await sharp(Buffer.from(imageBase64, "base64"))
     .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
@@ -914,5 +916,5 @@ export async function generateRoomImage(
 
   console.log(`[Gemini] Done — PNG buffer size: ${buffer.length} bytes`);
 
-  return { buffer, mock: false };
+  return { buffer, mock: false, promptTokens, candidateTokens };
 }

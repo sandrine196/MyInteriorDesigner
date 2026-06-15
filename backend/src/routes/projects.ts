@@ -621,7 +621,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           ceilingHeight: project.ceilingHeightMm      ?? 2400,
         };
 
-        const { buffer, alternativeBuffer, floorPlanInterpretation, mock } = await aiService.generateRoomImage({
+        const { buffer, alternativeBuffer, floorPlanInterpretation, mock, promptTokens, candidateTokens } = await aiService.generateRoomImage({
           userPrompt:           body.prompt,
           floorPlanKey:         project.floorPlanKey,
           projectName:          project.name,
@@ -666,6 +666,8 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
             alternativeImageKey,
             floorPlanInterpretation: floorPlanInterpretation ?? null,
             errorMessage: mock ? "No AI key configured; placeholder image returned." : null,
+            promptTokens:    promptTokens    > 0 ? promptTokens    : null,
+            candidateTokens: candidateTokens > 0 ? candidateTokens : null,
           },
         });
         track("render_completed", u.sub, { renderId: render.id, status: "done" });
