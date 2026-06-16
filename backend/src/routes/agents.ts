@@ -132,6 +132,9 @@ export async function agentRoutes(app: FastifyInstance) {
     const agent = await prisma.agent.findUnique({ where: { id: payload.agentId } });
     if (!agent) return reply.status(404).send({ error: "Agent not found." });
 
+    void prisma.agent.update({ where: { id: agent.id }, data: { lastLoginAt: new Date() } })
+      .catch((err) => console.error("[Agents] Failed to update lastLoginAt:", err));
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sessionToken = (app.jwt.sign as any)(
       { type: "agent_session", agentId: agent.id, email: agent.email, referralCode: agent.referralCode },
@@ -209,7 +212,7 @@ export async function agentRoutes(app: FastifyInstance) {
       select: {
         id: true, name: true, agencyName: true, email: true,
         referralCode: true, status: true, clientsReferred: true,
-        designsCreated: true, createdAt: true,
+        designsCreated: true, createdAt: true, lastLoginAt: true,
       },
     });
     return { agents };

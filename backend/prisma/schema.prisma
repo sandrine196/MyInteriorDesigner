@@ -36,6 +36,7 @@ model Agent {
   createdAt       DateTime @default(now())
   clientsReferred Int      @default(0)
   designsCreated  Int      @default(0)
+  lastLoginAt     DateTime?
 
   @@index([referralCode])
   @@index([status])

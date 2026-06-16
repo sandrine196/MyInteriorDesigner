@@ -12,6 +12,7 @@ type Agent = {
   clientsReferred: number;
   designsCreated:  number;
   createdAt:       string;
+  lastLoginAt:     string | null;
 };
 
 const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
@@ -76,7 +77,7 @@ export default function AdminAgentsPage() {
           <table className="w-full text-sm">
             <thead style={{ background: "#122c3f" }}>
               <tr className="text-left">
-                {["Agent", "Agency", "Referral code", "Clients", "Designs", "Status", "Joined", "Actions"].map((h) => (
+                {["Agent", "Agency", "Referral code", "Clients", "Designs", "Status", "Joined", "Last login", "Actions"].map((h) => (
                   <th key={h} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-stone-400">{h}</th>
                 ))}
               </tr>
@@ -106,6 +107,19 @@ export default function AdminAgentsPage() {
                     </td>
                     <td className="px-4 py-3 text-stone-500 text-xs">
                       {new Date(agent.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {agent.lastLoginAt == null
+                        ? <span className="text-stone-600">—</span>
+                        : (() => {
+                            const daysAgo = Math.floor((Date.now() - new Date(agent.lastLoginAt).getTime()) / 86400000);
+                            return daysAgo === 0
+                              ? <span className="text-emerald-400">Today</span>
+                              : daysAgo <= 7
+                              ? <span className="text-emerald-600">{daysAgo}d ago</span>
+                              : <span className="text-stone-500">{daysAgo}d ago</span>;
+                          })()
+                      }
                     </td>
                     <td className="px-4 py-3">
                       <select

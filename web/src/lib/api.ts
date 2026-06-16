@@ -542,7 +542,7 @@ export const admin = {
     recategorise:  () => request<{ success: boolean; processed: number; skipped: number; byCategory: Record<string, number> }>("/admin/products/recategorise", { method: "POST" }),
   },
   agents: {
-    list:         () => request<{ agents: Array<{ id: string; name: string; agencyName: string; email: string; referralCode: string; status: string; clientsReferred: number; designsCreated: number; createdAt: string }> }>("/admin/agents"),
+    list:         () => request<{ agents: Array<{ id: string; name: string; agencyName: string; email: string; referralCode: string; status: string; clientsReferred: number; designsCreated: number; createdAt: string; lastLoginAt: string | null }> }>("/admin/agents"),
     updateStatus: (id: string, status: string) => request<{ ok: boolean; status: string }>(`/admin/agents/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   },
   impersonate: {
