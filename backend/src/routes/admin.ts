@@ -535,7 +535,7 @@ export async function adminRoutes(app: FastifyInstance) {
       }),
       prisma.user.findMany({
         select: {
-          id: true, email: true, tier: true, createdAt: true,
+          id: true, email: true, tier: true, createdAt: true, lastLoginAt: true,
           projects: {
             select: {
               renders: {
@@ -620,6 +620,22 @@ export async function adminRoutes(app: FastifyInstance) {
         email: anonEmail(u.email),
         renderCount: u.renderCount,
         joinedDaysAgo: Math.floor((now.getTime() - u.createdAt.getTime()) / 86400000),
+        lastLoginDaysAgo: u.lastLoginAt
+          ? Math.floor((now.getTime() - u.lastLoginAt.getTime()) / 86400000)
+          : null,
+      }));
+
+    // Recent logins — last 20 users to log in
+    const recentLogins = [...userStats]
+      .filter(u => u.lastLoginAt != null)
+      .sort((a, b) => b.lastLoginAt!.getTime() - a.lastLoginAt!.getTime())
+      .slice(0, 20)
+      .map(u => ({
+        email: anonEmail(u.email),
+        tier:  u.tier,
+        lastLoginDaysAgo: Math.floor((now.getTime() - u.lastLoginAt!.getTime()) / 86400000),
+        lastLoginAt: u.lastLoginAt!.toISOString(),
+        renderCount: u.renderCount,
       }));
 
     const totalRenders      = userStats.reduce((s, u) => s + u.renderCount, 0);
@@ -640,6 +656,7 @@ export async function adminRoutes(app: FastifyInstance) {
       limitMonitor: { freeLimit, nearLimit, atLimit },
       limitTable,
       top10,
+      recentLogins,
       registrationTrend: groupByDay(signupDates.map(u => u.createdAt), days),
     };
   });

@@ -448,7 +448,8 @@ export type ClientMetrics = {
   funnel: Array<{ stage: string; count: number }>;
   limitMonitor: { freeLimit: number; nearLimit: number; atLimit: number };
   limitTable: Array<{ email: string; tier: string; renders: number; limit: number; usagePct: number }>;
-  top10: Array<{ rank: number; email: string; renderCount: number; joinedDaysAgo: number }>;
+  top10: Array<{ rank: number; email: string; renderCount: number; joinedDaysAgo: number; lastLoginDaysAgo: number | null }>;
+  recentLogins: Array<{ email: string; tier: string; lastLoginDaysAgo: number; lastLoginAt: string; renderCount: number }>;
   registrationTrend: Array<{ date: string; count: number }>;
 };
 

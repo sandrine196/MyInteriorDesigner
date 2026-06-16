@@ -72,6 +72,7 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
         marketingConsent:     body.marketingConsent,
         marketingConsentDate: body.marketingConsent ? new Date() : null,
         referredBy:           validReferralCode,
+        lastLoginAt:          new Date(),
       },
       select: { id: true, email: true, tier: true, isAdmin: true, marketingConsent: true },
     });
@@ -103,6 +104,8 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       return reply.status(403).send({ error: "Account suspended. Contact support.", code: "SUSPENDED" });
     }
     track("user_login", user.id);
+    void prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+      .catch((err) => console.error("[Auth] Failed to update lastLoginAt:", err));
     const token = await reply.jwtSign({ sub: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin });
     return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin } };
   });

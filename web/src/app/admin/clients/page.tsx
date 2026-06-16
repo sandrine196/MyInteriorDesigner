@@ -295,11 +295,12 @@ export default function ClientsPage() {
                         <th className="text-left px-4 py-2.5 font-medium">User</th>
                         <th className="text-right px-4 py-2.5 font-medium">Renders</th>
                         <th className="text-right px-4 py-2.5 font-medium">Member for</th>
+                        <th className="text-right px-4 py-2.5 font-medium">Last login</th>
                       </tr>
                     </thead>
                     <tbody>
                       {top10.length === 0 ? (
-                        <tr><td colSpan={4} className="px-4 py-8 text-center text-stone-600">No users yet</td></tr>
+                        <tr><td colSpan={5} className="px-4 py-8 text-center text-stone-600">No users yet</td></tr>
                       ) : top10.map(u => (
                         <tr key={u.rank} className="border-b border-stone-800/50 hover:bg-stone-800/20">
                           <td className="px-4 py-2.5 text-stone-600 text-xs">{u.rank}</td>
@@ -307,6 +308,58 @@ export default function ClientsPage() {
                           <td className="px-4 py-2.5 text-right text-white font-semibold">{u.renderCount}</td>
                           <td className="px-4 py-2.5 text-right text-stone-500 text-xs">
                             {u.joinedDaysAgo === 0 ? "Today" : `${u.joinedDaysAgo}d`}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-xs">
+                            {u.lastLoginDaysAgo == null
+                              ? <span className="text-stone-600">—</span>
+                              : u.lastLoginDaysAgo === 0
+                              ? <span className="text-emerald-400">Today</span>
+                              : u.lastLoginDaysAgo <= 7
+                              ? <span className="text-emerald-600">{u.lastLoginDaysAgo}d ago</span>
+                              : u.lastLoginDaysAgo <= 30
+                              ? <span className="text-stone-400">{u.lastLoginDaysAgo}d ago</span>
+                              : <span className="text-stone-600">{u.lastLoginDaysAgo}d ago</span>
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Recent logins */}
+              <div>
+                <SectionHeader title="Recent logins (anonymised)" />
+                <div className="rounded-2xl overflow-hidden border border-stone-800">
+                  <table className="w-full text-sm">
+                    <thead style={{ background: "#1a3044" }}>
+                      <tr className="text-xs text-stone-500 border-b border-stone-800">
+                        <th className="text-left px-4 py-2.5 font-medium">User</th>
+                        <th className="text-left px-4 py-2.5 font-medium">Tier</th>
+                        <th className="text-right px-4 py-2.5 font-medium">Renders</th>
+                        <th className="text-right px-4 py-2.5 font-medium">Last login</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.recentLogins.length === 0 ? (
+                        <tr><td colSpan={4} className="px-4 py-8 text-center text-stone-600">No login data yet — populates after users log in post-deploy</td></tr>
+                      ) : data.recentLogins.map((u, i) => (
+                        <tr key={i} className="border-b border-stone-800/50 hover:bg-stone-800/20">
+                          <td className="px-4 py-2.5 text-stone-300 font-mono text-xs">{u.email}</td>
+                          <td className="px-4 py-2.5 text-xs">
+                            <span className={u.tier === "pro" ? "text-amber-400 font-semibold" : "text-stone-500"}>
+                              {u.tier}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-stone-400 text-xs">{u.renderCount}</td>
+                          <td className="px-4 py-2.5 text-right text-xs">
+                            {u.lastLoginDaysAgo === 0
+                              ? <span className="text-emerald-400">Today</span>
+                              : u.lastLoginDaysAgo <= 7
+                              ? <span className="text-emerald-600">{u.lastLoginDaysAgo}d ago</span>
+                              : <span className="text-stone-500">{u.lastLoginDaysAgo}d ago</span>
+                            }
                           </td>
                         </tr>
                       ))}

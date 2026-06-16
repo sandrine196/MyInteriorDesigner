@@ -18,6 +18,7 @@ model User {
   marketingConsent     Boolean              @default(false)
   marketingConsentDate DateTime?
   referredBy           String?
+  lastLoginAt          DateTime?
   projects             Project[]
   resetTokens          PasswordResetToken[]
 
