@@ -577,6 +577,7 @@ export type AgentDashboard = {
 export type StagingResult = {
   ok: boolean;
   imageUrl: string;
+  emptyRoomUrl?: string; // furnished rooms only — the cleared room before staging
   mock: boolean;
 };
 
@@ -598,10 +599,11 @@ export const agents = {
     ),
   dashboard: () =>
     agentRequest<AgentDashboard>("/agents/dashboard"),
-  staging: (photo: File, brief: string) => {
+  staging: (photo: File, brief: string, isFurnished: boolean) => {
     const form = new FormData();
     form.append("photo", photo);
     form.append("brief", brief);
+    form.append("isFurnished", isFurnished.toString());
     return agentRequest<StagingResult>("/agents/staging", { method: "POST", body: form });
   },
 };
