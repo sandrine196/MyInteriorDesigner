@@ -630,6 +630,47 @@ export function buildPrompt(
   return lines.join("\n");
 }
 
+// Reve instruction for furniture removal — short enough to go straight to Reve
+// without a Gemini analysis step. Under 2560 chars.
+const CLEAR_ROOM_INSTRUCTION =
+  "Remove all furniture, soft furnishings, curtains, blinds, rugs, artwork, " +
+  "decorations, and personal items from this room. The room should appear " +
+  "completely empty. Keep only the bare walls, bare floor, ceiling, windows, " +
+  "doors, radiators, skirting boards, cornices, and all fixed structural " +
+  "features exactly as they are. The result should look like a vacant property " +
+  "ready for viewings — clean, empty, and bright.";
+
+/**
+ * Remove furniture from a furnished room photo.
+ * Uses a single Reve call (no Gemini analysis step needed — prompt is concise).
+ * Falls back to returning the original image if Reve is not configured.
+ */
+export async function clearFurnishedRoom(
+  cfg: { reveApiKey?: string },
+  opts: { photoData: string; photoMimeType: string }
+): Promise<{ buffer: Buffer; usedReve: boolean }> {
+  const imageBuffer = Buffer.from(opts.photoData, "base64");
+
+  if (!cfg.reveApiKey) {
+    console.log("[Staging/Clear] No Reve API key — skipping furniture removal");
+    return { buffer: imageBuffer, usedReve: false };
+  }
+
+  console.log("[Staging/Clear] Removing furniture via Reve…");
+  try {
+    const cleared = await stageWithReve(imageBuffer, CLEAR_ROOM_INSTRUCTION, cfg.reveApiKey, true);
+    const buffer  = await sharp(cleared)
+      .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
+      .png()
+      .toBuffer();
+    console.log(`[Staging/Clear] Done — ${buffer.length} bytes`);
+    return { buffer, usedReve: true };
+  } catch (err) {
+    console.error("[Staging/Clear] Reve failed:", err);
+    return { buffer: imageBuffer, usedReve: false };
+  }
+}
+
 /** Stage a real room photo using a plain-English brief. Returns a PNG buffer. */
 // ─────────────────────────────────────────────────────────────────────────────
 // Two-step virtual staging pipeline:
@@ -640,10 +681,10 @@ export function buildPrompt(
 export async function virtualStageRoom(
   cfg: { apiKey?: string; model: string; region?: string; reveApiKey?: string },
   opts: { photoData: string; photoMimeType: string; brief: string }
-): Promise<{ buffer: Buffer; mock: boolean }> {
+): Promise<{ buffer: Buffer; mock: boolean; usedReve: boolean }> {
   if (!cfg.apiKey) {
     console.log("[Staging] No Gemini API key — returning placeholder (mock mode)");
-    return { buffer: await placeholderBuffer(), mock: true };
+    return { buffer: await placeholderBuffer(), mock: true, usedReve: false };
   }
 
   // ── Step 1: Gemini analyses the room (text model, no image generation) ──────
@@ -681,10 +722,23 @@ export async function virtualStageRoom(
     console.log("[Staging] Step 2: Reve generating staged image…");
     try {
       const imageBuffer = Buffer.from(opts.photoData, "base64");
-      // Reve enforces a 2560-char limit on edit_instruction
-      const revePrompt = stagingDescription.length > 2560
-        ? stagingDescription.slice(0, 2557) + "…"
+
+      // Fixed preamble prepended to every Reve prompt so the background-preservation
+      // instruction is always present, regardless of what Gemini generated.
+      const REVE_PREAMBLE =
+        "This is a photo edit. Do not alter the walls, floor, ceiling, windows, " +
+        "doors, or any architectural features — preserve the original background " +
+        "exactly as it appears in the photo. Only add furniture and accessories " +
+        "as described below.\n\n";
+
+      // Reve enforces a 2560-char limit on edit_instruction. Reserve space for the
+      // preamble so the combined string never exceeds the limit.
+      const maxDescriptionLength = 2560 - REVE_PREAMBLE.length - 3; // 3 for "…"
+      const trimmedDescription = stagingDescription.length > maxDescriptionLength
+        ? stagingDescription.slice(0, maxDescriptionLength) + "…"
         : stagingDescription;
+      const revePrompt = REVE_PREAMBLE + trimmedDescription;
+
       const reveBuffer = await stageWithReve(imageBuffer, revePrompt, cfg.reveApiKey);
 
       const buffer = await sharp(reveBuffer)
@@ -693,7 +747,7 @@ export async function virtualStageRoom(
         .toBuffer();
 
       console.log(`[Staging] Complete via Reve — ${buffer.length} bytes`);
-      return { buffer, mock: false };
+      return { buffer, mock: false, usedReve: true };
     } catch (reveErr) {
       console.error("[Staging] Reve failed, falling back to Gemini image generation:", reveErr);
     }
@@ -733,7 +787,7 @@ export async function virtualStageRoom(
     .toBuffer();
 
   console.log(`[Staging] Complete via Gemini fallback — ${buffer.length} bytes`);
-  return { buffer, mock: false };
+  return { buffer, mock: false, usedReve: false };
 }
 
 function buildStagingAnalysisPrompt(brief: string): string {
@@ -762,13 +816,15 @@ STRICT RULES:
 async function stageWithReve(
   imageBuffer: Buffer,
   stagingPrompt: string,
-  reveApiKey?: string
+  reveApiKey?: string,
+  fast = false
 ): Promise<Buffer> {
   if (!reveApiKey) {
     throw new Error("[Staging] REVE_API_KEY not configured — add it to Railway environment variables");
   }
 
-  console.log("[Staging] Calling Reve API…");
+  const version = fast ? "fast" : "latest";
+  console.log(`[Staging] Calling Reve API (version: ${version})…`);
   console.log("[Staging] Prompt length:", stagingPrompt.length);
 
   const response = await fetch("https://api.reve.com/v1/image/edit", {
@@ -781,7 +837,7 @@ async function stageWithReve(
     body: JSON.stringify({
       reference_image: imageBuffer.toString("base64"),
       edit_instruction: stagingPrompt,
-      version: "latest",
+      version,
     }),
   });
 

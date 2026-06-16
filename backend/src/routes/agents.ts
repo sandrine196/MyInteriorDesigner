@@ -5,7 +5,7 @@ import QRCode from "qrcode";
 import { prisma } from "../lib/prisma.js";
 import { emailService } from "../services/email.service.js";
 import { storage } from "../services/storage.service.js";
-import { virtualStageRoom } from "../lib/gemini.js";
+import { virtualStageRoom, clearFurnishedRoom } from "../lib/gemini.js";
 import { config } from "../config/index.js";
 
 const STAGING_PHOTO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB — real photos are larger than floor plans
@@ -236,10 +236,11 @@ export async function agentRoutes(app: FastifyInstance) {
     if (!agent) return reply.status(404).send({ error: "Agent not found." });
     if (agent.status === "suspended") return reply.status(403).send({ error: "This partner account is suspended." });
 
-    // Parse multipart: photo (file) + brief (text field)
+    // Parse multipart: photo (file) + brief + isFurnished (text fields)
     let photoBuffer: Buffer | null = null;
     let photoMimeType = "image/jpeg";
     let brief = "";
+    let isFurnished = false;
 
     const parts = request.parts();
     for await (const part of parts) {
@@ -248,6 +249,8 @@ export async function agentRoutes(app: FastifyInstance) {
         photoMimeType = part.mimetype;
       } else if (part.type === "field" && part.fieldname === "brief") {
         brief = (part.value as string).trim();
+      } else if (part.type === "field" && part.fieldname === "isFurnished") {
+        isFurnished = (part.value as string) === "true";
       }
     }
 
@@ -260,20 +263,59 @@ export async function agentRoutes(app: FastifyInstance) {
     if (brief.length > 1000) return reply.status(400).send({ error: "Brief must be under 1000 characters" });
 
     const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
-    const result = await virtualStageRoom(geminiCfg, {
-      photoData:     photoBuffer.toString("base64"),
-      photoMimeType,
-      brief,
-    });
+    const photoData = photoBuffer.toString("base64");
 
-    const key = `agent-staging/${agentId}/${randomUUID()}.png`;
-    await storage.upload(key, result.buffer, "image/png");
+    let emptyRoomUrl: string | undefined;
+    let stagedBuffer: Buffer;
+    let mock = false;
+    let reveStageCalls = 0;
+    let reveClearCalls = 0;
 
-    void prisma.agent.update({
-      where: { id: agentId },
-      data:  { designsCreated: { increment: 1 } },
-    }).catch((err) => console.error("[Agents] Failed to increment designsCreated:", err));
+    if (isFurnished) {
+      console.log("[Staging] Furnished room — clearing furniture first…");
 
-    return { ok: true, imageUrl: storage.getUrl(key), mock: result.mock };
+      // Step 1: Remove furniture via Reve
+      const cleared = await clearFurnishedRoom(
+        { reveApiKey: config.ai.reveApiKey },
+        { photoData, photoMimeType }
+      );
+      if (cleared.usedReve) reveClearCalls = 1;
+
+      // Upload the cleared (empty) room image
+      const emptyKey = `agent-staging/${agentId}/${randomUUID()}-empty.png`;
+      await storage.upload(emptyKey, cleared.buffer, "image/png");
+      emptyRoomUrl = storage.getUrl(emptyKey);
+
+      // Step 2: Stage the now-empty room
+      const staged = await virtualStageRoom(geminiCfg, {
+        photoData:     cleared.buffer.toString("base64"),
+        photoMimeType: "image/png",
+        brief,
+      });
+      stagedBuffer = staged.buffer;
+      mock = staged.mock;
+      if (staged.usedReve) reveStageCalls = 1;
+    } else {
+      // Empty room — stage directly
+      const result = await virtualStageRoom(geminiCfg, { photoData, photoMimeType, brief });
+      stagedBuffer = result.buffer;
+      mock = result.mock;
+      if (result.usedReve) reveStageCalls = 1;
+    }
+
+    const stagedKey = `agent-staging/${agentId}/${randomUUID()}.png`;
+    await storage.upload(stagedKey, stagedBuffer, "image/png");
+
+    void Promise.all([
+      prisma.agent.update({
+        where: { id: agentId },
+        data:  { designsCreated: { increment: 1 } },
+      }),
+      prisma.agentStagingLog.create({
+        data: { agentId, reveStageCalls, reveClearCalls },
+      }),
+    ]).catch((err) => console.error("[Agents] Failed to log staging:", err));
+
+    return { ok: true, imageUrl: storage.getUrl(stagedKey), emptyRoomUrl, mock };
   });
 }

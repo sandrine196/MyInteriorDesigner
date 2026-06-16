@@ -75,20 +75,30 @@ async function getGeminiCosts(
   return { cost, source };
 }
 
-// ─── Reve costs — calculated from staging render count ────────────────────────
-// Reve has no billing API. Agent staging renders use imageKey prefix 'agent-staging/'.
-// Reve pricing: $0.0067 per edited image.
+// ─── Reve costs — calculated from AgentStagingLog ────────────────────────────
+// Reve has no billing API. We log Reve call counts per staging job in AgentStagingLog.
+//
+// Reve pricing (https://api.reve.com/console/pricing):
+//   Edit      (/v1/image/edit, version: latest): $0.04 per image
+//   Edit Fast (/v1/image/edit, version: fast):   $0.007 per image
+//
+// Current usage:
+//   reveStageCalls — staging via Edit ($0.04): Gemini analyses → Reve generates
+//   reveClearCalls — furniture removal via Edit ($0.04): single instruction, no analysis
 
-const REVE_COST_PER_IMAGE_USD = 0.0067;
+const REVE_EDIT_USD      = 0.04;   // standard Edit
+const REVE_EDIT_FAST_USD = 0.007;  // Edit Fast (used if we switch clearing to fast)
 
 async function getReveCosts(startDate: Date, endDate: Date): Promise<number> {
-  const count = await prisma.render.count({
-    where: {
-      imageKey: { startsWith: "agent-staging/" },
-      createdAt: { gte: startDate, lte: endDate },
-    },
+  const agg = await prisma.agentStagingLog.aggregate({
+    _sum: { reveStageCalls: true, reveClearCalls: true },
+    where: { createdAt: { gte: startDate, lte: endDate } },
   });
-  return count * REVE_COST_PER_IMAGE_USD;
+  const stageCalls = agg._sum.reveStageCalls ?? 0;
+  const clearCalls = agg._sum.reveClearCalls ?? 0;
+  // Both currently use the standard Edit endpoint — update clearCalls to REVE_EDIT_FAST_USD
+  // if/when we switch furniture clearing to the fast model.
+  return stageCalls * REVE_EDIT_USD + clearCalls * REVE_EDIT_FAST_USD;
 }
 
 // ─── Railway costs — Railway GraphQL API ──────────────────────────────────────
@@ -232,8 +242,8 @@ async function getRenderCounts(startDate: Date, endDate: Date) {
     prisma.render.count({
       where: { imageKey: { startsWith: "renders/" }, createdAt: { gte: startDate, lte: endDate } },
     }),
-    prisma.render.count({
-      where: { imageKey: { startsWith: "agent-staging/" }, createdAt: { gte: startDate, lte: endDate } },
+    prisma.agentStagingLog.count({
+      where: { createdAt: { gte: startDate, lte: endDate } },
     }),
   ]);
   return { regular, staging, total: regular + staging };

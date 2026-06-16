@@ -40,6 +40,17 @@ model Agent {
   @@index([status])
 }
 
+model AgentStagingLog {
+  id             String   @id @default(cuid())
+  agentId        String
+  reveStageCalls Int      @default(0)
+  reveClearCalls Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([agentId])
+  @@index([createdAt])
+}
+
 model AnalyticsEvent {
   id        String   @id @default(cuid())
   eventType String
