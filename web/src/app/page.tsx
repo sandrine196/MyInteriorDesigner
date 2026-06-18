@@ -425,7 +425,7 @@ const EXAMPLE_RENDERS = [
     alt: "Cosy traditional British living room with warm tones and classic furniture",
   },
   {
-    image: "https://images.unsplash.com/photo-1556909172-54557c7e4fb7?w=900&q=80&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=900&q=80&auto=format&fit=crop",
     room: "Kitchen",
     style: "Contemporary",
     cost: "£3,450",
