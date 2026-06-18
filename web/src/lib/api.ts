@@ -439,6 +439,22 @@ export type MarketingMetrics = {
   renderTrend:          Array<{ date: string; count: number }>;
 };
 
+export type RedesignMetrics = {
+  funnel: {
+    redesign_started:          number;
+    redesign_completed:        number;
+    redesign_try_another_style: number;
+    redesign_signup_clicked:   number;
+    redesign_limit_hit:        number;
+  };
+  completionRate:  number;
+  signupRate:      number;
+  totalSessions:   number;
+  totalRedesigns:  number;
+  totalRestages:   number;
+  styleBreakdown:  Record<string, number>;
+};
+
 export type ClientMetrics = {
   metrics: {
     totalUsers: number; newUsersThisMonth: number; activeThisMonth: number;
@@ -520,6 +536,8 @@ export const admin = {
     request<LiveCosts>(`/admin/live-costs${period ? `?period=${period}` : ""}`),
   marketingMetrics: (range?: string) =>
     request<MarketingMetrics>(`/admin/marketing-metrics${range ? `?range=${range}` : ""}`),
+  redesignMetrics: (range?: string) =>
+    request<RedesignMetrics>(`/admin/redesign-metrics${range ? `?range=${range}` : ""}`),
   clientMetrics: (range?: string) =>
     request<ClientMetrics>(`/admin/client-metrics${range ? `?range=${range}` : ""}`),
 
@@ -612,54 +630,40 @@ export const agents = {
 // ── Redesign (public, no login) ───────────────────────────────────────────────
 
 export type RedesignResult = {
-  originalUrl:   string;
-  clearedUrl:    string;
-  stagedUrl:     string;
-  sessionToken:  string;
-  rateLimitInfo: { fullRemaining: number; restagesRemaining: number };
+  success:          boolean;
+  originalImageUrl: string;
+  stagedImageUrl:   string;
+  emptyRoomUrl:     string;
 };
 
 export type RestageResult = {
-  stagedUrl:     string;
-  rateLimitInfo: { restagesRemaining: number };
+  success:           boolean;
+  stagedImageUrl:    string;
+  restagesRemaining: number;
 };
 
-function getRedesignSession(): string {
-  if (typeof window === "undefined") return "";
-  let token = localStorage.getItem("redesign_session") ?? "";
-  if (!token) {
-    token = crypto.randomUUID();
-    localStorage.setItem("redesign_session", token);
-  }
-  return token;
-}
-
 export const redesign = {
+  // Session is managed via httpOnly cookie — browser sends it automatically with credentials: 'include'
   full: (photo: File, style: string): Promise<RedesignResult> => {
     const form = new FormData();
     form.append("photo", photo);
     form.append("style", style);
-    return fetch(`${BASE}/redesign/full`, {
+    return fetch(`${BASE}/redesign`, {
       method: "POST",
-      headers: { "X-Redesign-Session": getRedesignSession() },
+      credentials: "include",
       body: form,
     }).then(async (res) => {
       const data = await res.json();
       if (!res.ok) throw new ApiError(res.status, data.message ?? data.error ?? "Request failed");
-      // Persist session token from response header if returned
-      const serverToken = res.headers.get("X-Redesign-Session");
-      if (serverToken) localStorage.setItem("redesign_session", serverToken);
       return data as RedesignResult;
     });
   },
-  restage: (clearedUrl: string, style: string): Promise<RestageResult> => {
+  restage: (style: string): Promise<RestageResult> => {
     return fetch(`${BASE}/redesign/restage`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Redesign-Session": getRedesignSession(),
-      },
-      body: JSON.stringify({ clearedUrl, style }),
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ style }),
     }).then(async (res) => {
       const data = await res.json();
       if (!res.ok) throw new ApiError(res.status, data.message ?? data.error ?? "Request failed");

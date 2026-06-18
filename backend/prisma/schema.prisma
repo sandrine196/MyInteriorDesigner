@@ -178,16 +178,16 @@ model ProductClick {
 }
 
 model RedesignSession {
-  id            String   @id @default(cuid())
-  sessionToken  String   @unique
-  ipAddress     String
-  fullRedesigns Int      @default(0)
-  restages      Int      @default(0)
-  resetAt       DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  sessionId           String   @unique
+  ipAddress           String
+  fullRedesignsToday  Int      @default(0)
+  restagesUsed        Int      @default(0)
+  emptyRoomUrl        String?
+  lastResetAt         DateTime @default(now())
+  createdAt           DateTime @default(now())
 
-  @@index([sessionToken])
+  @@index([sessionId])
   @@index([ipAddress])
 }
 

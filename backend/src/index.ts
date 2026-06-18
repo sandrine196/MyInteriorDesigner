@@ -3,6 +3,7 @@ import { join } from "node:path";
 import cron from "node-cron";
 import cors from "@fastify/cors";
 import compress from "@fastify/compress";
+import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
@@ -58,6 +59,8 @@ await app.register(cors, {
   },
   credentials: true,
 });
+
+await app.register(cookie);
 
 // ── Rate limiting (global: 100 req/min per IP) ────────────────────────────────
 await app.register(rateLimit, {

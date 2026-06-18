@@ -1,234 +1,221 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { storage } from "../services/storage.service.js";
 import { clearFurnishedRoom, virtualStageRoom } from "../lib/gemini.js";
+import { track } from "../lib/analytics.js";
 import { config } from "../config/index.js";
 
 const PHOTO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const COOKIE_NAME = "redesign_session";
+const MAX_FULL_REDESIGNS = 1;
+const MAX_RESTAGES = 2;
+const RESET_AFTER_MS = 24 * 60 * 60 * 1000; // 24h rolling window
 
 const STYLE_BRIEFS: Record<string, string> = {
   scandinavian: "Stage this room with Scandinavian minimalist furniture. Pale woods, clean lines, natural textures, linen fabrics, neutral tones with muted greens. Add a simple plant. Bright, airy and calm.",
-  modern: "Stage this room with clean contemporary modern furniture. Neutral palette of white, grey and charcoal. Sleek lines, statement pendant lighting, minimal accessories. Sophisticated and uncluttered.",
-  traditional: "Stage this room with classic traditional British furniture. Rich warm tones, upholstered sofas, dark wooden pieces, ornate detailing. Framed artwork, table lamps, fresh flowers. Elegant and timeless.",
-  industrial: "Stage this room with industrial-style furniture. Exposed metal frames, reclaimed wood, leather and concrete tones. Factory-style lighting, raw textures, urban and bold.",
-  coastal: "Stage this room with coastal beach-house style furniture. Soft blues, whites and sandy neutrals. Natural rattan, jute and linen textures. Driftwood accents, coastal artwork. Light and breezy.",
-  mid_century: "Stage this room with mid-century modern furniture. Organic shapes, tapered legs, teak and walnut wood tones. Bold accent colours, geometric patterns. Statement armchair and retro lighting. Stylish and characterful.",
+  modern:       "Stage this room with clean contemporary modern furniture. Neutral palette of white, grey and charcoal. Sleek lines, statement pendant lighting, minimal accessories. Sophisticated and uncluttered.",
+  traditional:  "Stage this room with classic traditional British furniture. Rich warm tones, upholstered sofas, dark wooden pieces, ornate detailing. Framed artwork, table lamps, fresh flowers. Elegant and timeless.",
+  industrial:   "Stage this room with industrial-style furniture. Exposed metal frames, reclaimed wood, leather and concrete tones. Factory-style lighting, raw textures, urban and bold.",
+  coastal:      "Stage this room with coastal beach-house style furniture. Soft blues, whites and sandy neutrals. Natural rattan, jute and linen textures. Driftwood accents, coastal artwork. Light and breezy.",
+  mid_century:  "Stage this room with mid-century modern furniture. Organic shapes, tapered legs, teak and walnut wood tones. Bold accent colours, geometric patterns. Statement armchair and retro lighting. Stylish and characterful.",
 };
 
-function nextMidnightUtc(): Date {
-  const d = new Date();
-  d.setUTCHours(24, 0, 0, 0);
-  return d;
+function getIp(request: FastifyRequest): string {
+  return (
+    (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+    ?? request.socket?.remoteAddress
+    ?? "unknown"
+  );
 }
 
-async function getOrCreateSession(sessionToken: string, ipAddress: string) {
+async function getOrCreateSession(sessionId: string, ipAddress: string) {
   const now = new Date();
 
-  let session = await prisma.redesignSession.findUnique({
-    where: { sessionToken },
-  });
+  let session = await prisma.redesignSession.findUnique({ where: { sessionId } });
 
   if (!session) {
-    session = await prisma.redesignSession.create({
-      data: {
-        sessionToken,
-        ipAddress,
-        fullRedesigns: 0,
-        restages: 0,
-        resetAt: nextMidnightUtc(),
-      },
+    return prisma.redesignSession.create({
+      data: { sessionId, ipAddress, lastResetAt: now },
     });
-  } else if (now >= session.resetAt) {
-    // Reset counters for the new day
-    session = await prisma.redesignSession.update({
-      where: { sessionToken },
-      data: {
-        fullRedesigns: 0,
-        restages: 0,
-        resetAt: nextMidnightUtc(),
-      },
+  }
+
+  // Reset counters if more than 24h since last reset
+  if (now.getTime() - session.lastResetAt.getTime() > RESET_AFTER_MS) {
+    return prisma.redesignSession.update({
+      where: { sessionId },
+      data: { fullRedesignsToday: 0, restagesUsed: 0, lastResetAt: now },
     });
   }
 
   return session;
 }
 
+function setCookie(reply: FastifyReply, sessionId: string) {
+  reply.setCookie(COOKIE_NAME, sessionId, {
+    httpOnly: true,
+    path: "/",
+    maxAge: 60 * 60 * 24, // 24h in seconds
+    sameSite: "none",
+    secure: true,
+  });
+}
+
 export async function redesignRoutes(app: FastifyInstance) {
-  // ── POST /redesign/full ────────────────────────────────────────────────────
-  app.post("/redesign/full", async (request, reply) => {
-    const headerToken = request.headers["x-redesign-session"] as string | undefined;
-    const sessionToken = headerToken && headerToken.trim() ? headerToken.trim() : randomUUID();
-    const ipAddress = (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
-      ?? request.socket.remoteAddress
-      ?? "unknown";
 
-    const session = await getOrCreateSession(sessionToken, ipAddress);
+  // ── POST /redesign ─────────────────────────────────────────────────────────
+  // Full pipeline: clear furniture + stage in chosen style.
+  app.post("/redesign", async (request, reply) => {
+    const existingSessionId = request.cookies?.[COOKIE_NAME];
+    const sessionId = existingSessionId || randomUUID();
+    const ipAddress = getIp(request);
 
-    if (session.fullRedesigns >= 1) {
-      reply.header("X-Redesign-Session", sessionToken);
+    const session = await getOrCreateSession(sessionId, ipAddress);
+    setCookie(reply, sessionId);
+
+    if (session.fullRedesignsToday >= MAX_FULL_REDESIGNS) {
+      track("redesign_limit_hit", null, { sessionId, ipAddress });
       return reply.status(429).send({
-        error: "rate_limited",
-        message: "You've used your free redesign today. Sign up free for unlimited redesigns.",
+        error: "limit_reached",
+        message: "Free redesign used today",
       });
     }
 
-    // Parse multipart
-    const data = await request.file();
-    if (!data) {
-      return reply.status(400).send({ error: "Missing photo file" });
-    }
+    // Parse multipart — photo + style
+    let photoBuffer: Buffer | null = null;
+    let photoMimeType = "image/jpeg";
+    let style = "";
 
-    if (!data.mimetype.startsWith("image/")) {
-      return reply.status(400).send({ error: "File must be an image" });
-    }
-
-    const chunks: Buffer[] = [];
-    let totalBytes = 0;
-    for await (const chunk of data.file) {
-      totalBytes += chunk.length;
-      if (totalBytes > PHOTO_MAX_BYTES) {
-        return reply.status(400).send({ error: "Photo must be under 10 MB" });
+    const parts = request.parts();
+    for await (const part of parts) {
+      if (part.type === "file" && part.fieldname === "photo") {
+        const chunks: Buffer[] = [];
+        let total = 0;
+        for await (const chunk of part.file) {
+          total += chunk.length;
+          if (total > PHOTO_MAX_BYTES) {
+            return reply.status(413).send({ error: "Photo must be under 10 MB" });
+          }
+          chunks.push(chunk);
+        }
+        photoBuffer = Buffer.concat(chunks);
+        photoMimeType = part.mimetype;
+      } else if (part.type === "field" && part.fieldname === "style") {
+        style = (part.value as string).trim();
       }
-      chunks.push(chunk);
     }
-    const photoBuffer = Buffer.concat(chunks);
 
-    // Read the style field — it comes after the file in the multipart stream
-    // For Fastify multipart with a file field, non-file fields are in data.fields
-    const styleField = (data.fields as Record<string, { value: string } | undefined>)?.style;
-    const style = styleField?.value ?? "";
-
+    if (!photoBuffer) return reply.status(400).send({ error: "Photo required" });
+    if (!photoMimeType.startsWith("image/")) return reply.status(400).send({ error: "File must be an image" });
     if (!style || !STYLE_BRIEFS[style]) {
       return reply.status(400).send({ error: `Invalid style. Must be one of: ${Object.keys(STYLE_BRIEFS).join(", ")}` });
     }
 
-    const brief = STYLE_BRIEFS[style];
-    const photoData = photoBuffer.toString("base64");
-    const photoMimeType = data.mimetype;
-    const uuid = randomUUID();
+    track("redesign_started", null, { sessionId, style });
+
+    const brief      = STYLE_BRIEFS[style];
+    const photoData  = photoBuffer.toString("base64");
+    const uuid       = randomUUID();
+    const prefix     = `redesigns/${sessionId}`;
+    const geminiCfg  = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
 
     // Upload original
-    const originalKey = `redesigns/${sessionToken}/${uuid}-original.png`;
+    const originalKey = `${prefix}/${uuid}-original`;
     await storage.upload(originalKey, photoBuffer, photoMimeType);
-    const originalUrl = storage.getUrl(originalKey);
+    const originalImageUrl = storage.getUrl(originalKey);
 
-    // Clear room
-    const geminiCfg = {
-      apiKey: config.ai.apiKey,
-      model: config.ai.model,
-      region: config.ai.region,
-      reveApiKey: config.ai.reveApiKey,
-    };
+    // Step 1: Clear furniture
+    const cleared = await clearFurnishedRoom({ reveApiKey: config.ai.reveApiKey }, { photoData, photoMimeType });
+    const emptyKey = `${prefix}/${uuid}-empty.png`;
+    await storage.upload(emptyKey, cleared.buffer, "image/png");
+    const emptyRoomUrl = storage.getUrl(emptyKey);
 
-    const cleared = await clearFurnishedRoom(
-      { reveApiKey: config.ai.reveApiKey },
-      { photoData, photoMimeType }
-    );
-
-    const clearedKey = `redesigns/${sessionToken}/${uuid}-empty.png`;
-    await storage.upload(clearedKey, cleared.buffer, "image/png");
-    const clearedUrl = storage.getUrl(clearedKey);
-
-    // Stage room
+    // Step 2: Stage
     const staged = await virtualStageRoom(geminiCfg, {
-      photoData: cleared.buffer.toString("base64"),
+      photoData:     cleared.buffer.toString("base64"),
       photoMimeType: "image/png",
       brief,
     });
-
-    const stagedKey = `redesigns/${sessionToken}/${uuid}-staged.png`;
+    const stagedKey = `${prefix}/${uuid}-staged.png`;
     await storage.upload(stagedKey, staged.buffer, "image/png");
-    const stagedUrl = storage.getUrl(stagedKey);
+    const stagedImageUrl = storage.getUrl(stagedKey);
 
-    // Increment counter
+    // Save empty room URL for cheap restage later, increment counter
     await prisma.redesignSession.update({
-      where: { sessionToken },
-      data: { fullRedesigns: { increment: 1 } },
+      where: { sessionId },
+      data: { fullRedesignsToday: { increment: 1 }, emptyRoomUrl },
     });
 
-    reply.header("X-Redesign-Session", sessionToken);
+    track("redesign_completed", null, { sessionId, style });
+
     return reply.send({
-      originalUrl,
-      clearedUrl,
-      stagedUrl,
-      sessionToken,
-      rateLimitInfo: {
-        fullRemaining: 0,
-        restagesRemaining: 2,
-      },
+      success: true,
+      originalImageUrl,
+      stagedImageUrl,
+      emptyRoomUrl,
     });
   });
 
+  // ── POST /redesign/track-signup ───────────────────────────────────────────
+  // Fire-and-forget event when user clicks the signup CTA from the reveal screen.
+  app.post("/redesign/track-signup", async (request) => {
+    const sessionId = request.cookies?.[COOKIE_NAME];
+    track("redesign_signup_clicked", null, { sessionId: sessionId ?? "unknown" });
+    return { ok: true };
+  });
+
   // ── POST /redesign/restage ─────────────────────────────────────────────────
+  // Re-stage using the already-cleared room stored on the session (~15s, no removal step).
   app.post("/redesign/restage", async (request, reply) => {
-    const headerToken = request.headers["x-redesign-session"] as string | undefined;
-    if (!headerToken || !headerToken.trim()) {
-      return reply.status(400).send({ error: "Missing X-Redesign-Session header" });
-    }
-    const sessionToken = headerToken.trim();
-
-    const ipAddress = (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
-      ?? request.socket.remoteAddress
-      ?? "unknown";
-
-    const session = await getOrCreateSession(sessionToken, ipAddress);
-
-    if (session.restages >= 2) {
-      return reply.status(429).send({
-        error: "rate_limited",
-        message: "You've used all your free restyles. Sign up free for unlimited redesigns.",
-      });
+    const sessionId = request.cookies?.[COOKIE_NAME];
+    if (!sessionId) {
+      return reply.status(400).send({ error: "no_session", message: "Please upload a photo first" });
     }
 
-    const body = request.body as { clearedUrl?: string; style?: string };
-    const { clearedUrl, style } = body;
+    const session = await prisma.redesignSession.findUnique({ where: { sessionId } });
 
-    if (!clearedUrl) {
-      return reply.status(400).send({ error: "Missing clearedUrl" });
+    if (!session?.emptyRoomUrl) {
+      return reply.status(400).send({ error: "no_session", message: "Please upload a photo first" });
     }
+
+    if (session.restagesUsed >= MAX_RESTAGES) {
+      track("redesign_limit_hit", null, { sessionId, step: "restage" });
+      return reply.status(429).send({ error: "limit_reached" });
+    }
+
+    const { style } = request.body as { style?: string };
     if (!style || !STYLE_BRIEFS[style]) {
       return reply.status(400).send({ error: `Invalid style. Must be one of: ${Object.keys(STYLE_BRIEFS).join(", ")}` });
     }
 
-    const brief = STYLE_BRIEFS[style];
+    track("redesign_try_another_style", null, { sessionId, style });
 
-    // Fetch the cleared image
-    const imgRes = await fetch(clearedUrl);
-    if (!imgRes.ok) {
-      return reply.status(400).send({ error: "Could not fetch cleared image" });
-    }
+    // Fetch cleared room from R2
+    const imgRes = await fetch(session.emptyRoomUrl, { signal: AbortSignal.timeout(15_000) });
+    if (!imgRes.ok) return reply.status(400).send({ error: "Could not fetch cleared room image" });
     const clearedBuffer = Buffer.from(await imgRes.arrayBuffer());
-    const photoData = clearedBuffer.toString("base64");
 
-    const geminiCfg = {
-      apiKey: config.ai.apiKey,
-      model: config.ai.model,
-      region: config.ai.region,
-      reveApiKey: config.ai.reveApiKey,
-    };
-
+    const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
     const staged = await virtualStageRoom(geminiCfg, {
-      photoData,
+      photoData:     clearedBuffer.toString("base64"),
       photoMimeType: "image/png",
-      brief,
+      brief:         STYLE_BRIEFS[style],
     });
 
-    const uuid = randomUUID();
-    const stagedKey = `redesigns/${sessionToken}/${uuid}-staged.png`;
+    const stagedKey = `redesigns/${sessionId}/${randomUUID()}-staged.png`;
     await storage.upload(stagedKey, staged.buffer, "image/png");
-    const stagedUrl = storage.getUrl(stagedKey);
+    const stagedImageUrl = storage.getUrl(stagedKey);
 
     const updated = await prisma.redesignSession.update({
-      where: { sessionToken },
-      data: { restages: { increment: 1 } },
+      where: { sessionId },
+      data: { restagesUsed: { increment: 1 } },
     });
 
+    setCookie(reply, sessionId);
     return reply.send({
-      stagedUrl,
-      rateLimitInfo: {
-        restagesRemaining: Math.max(0, 2 - updated.restages),
-      },
+      success: true,
+      stagedImageUrl,
+      restagesRemaining: Math.max(0, MAX_RESTAGES - updated.restagesUsed),
     });
   });
 }

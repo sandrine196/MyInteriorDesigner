@@ -190,7 +190,7 @@ export default function RedesignPage() {
     try {
       const res = await redesign.full(photo, styleId);
       setResult(res);
-      setRestagesLeft(res.rateLimitInfo.restagesRemaining);
+      setRestagesLeft(2);
       setScreen("reveal");
     } catch (err) {
       clearTimers();
@@ -214,9 +214,9 @@ export default function RedesignPage() {
     stepTimers.current.push(setTimeout(() => setLoadingStep(3), LOADING_STEPS[1].duration));
     setError(null);
     try {
-      const res = await redesign.restage(result.clearedUrl, styleId);
-      setResult(prev => prev ? { ...prev, stagedUrl: res.stagedUrl } : prev);
-      setRestagesLeft(res.rateLimitInfo.restagesRemaining);
+      const res = await redesign.restage(styleId);
+      setResult(prev => prev ? { ...prev, stagedImageUrl: res.stagedImageUrl } : prev);
+      setRestagesLeft(res.restagesRemaining);
       setScreen("reveal");
     } catch (err) {
       clearTimers();
@@ -230,7 +230,7 @@ export default function RedesignPage() {
   function handleDownload() {
     if (!result) return;
     const a = document.createElement("a");
-    a.href = result.stagedUrl;
+    a.href = result.stagedImageUrl;
     a.download = `my-redesigned-room-${currentStyle}.png`;
     a.click();
   }
@@ -302,7 +302,7 @@ export default function RedesignPage() {
             {result ? (
               <div className="rounded-xl overflow-hidden border border-stone-200 aspect-video">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={resolve(result.clearedUrl)} alt="Your cleared room" className="w-full h-full object-cover" />
+                <img src={resolve(result.emptyRoomUrl)} alt="Your cleared room" className="w-full h-full object-cover" />
               </div>
             ) : photoPreview ? (
               <div className="rounded-xl overflow-hidden border border-stone-200 aspect-video">
@@ -361,8 +361,8 @@ export default function RedesignPage() {
           <div className="space-y-6">
             {/* Hero before/after slider */}
             <BeforeAfterSlider
-              before={resolve(result.originalUrl)}
-              after={resolve(result.stagedUrl)}
+              before={resolve(result.originalImageUrl)}
+              after={resolve(result.stagedImageUrl)}
             />
 
             {/* Error on restage fail */}
@@ -396,6 +396,7 @@ export default function RedesignPage() {
               <p className="text-sm text-stone-500">Sign up free to save your designs and shop the furniture</p>
               <Link
                 href="/register"
+                onClick={() => fetch(`${config.apiUrl}/redesign/track-signup`, { method: "POST", credentials: "include" }).catch(() => {})}
                 className="inline-flex items-center justify-center w-full font-semibold px-6 py-3.5 rounded-xl text-sm transition-all shadow-sm hover:opacity-90"
                 style={{ background: "#062C3D", color: "white" }}
               >

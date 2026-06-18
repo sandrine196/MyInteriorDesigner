@@ -504,6 +504,77 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+  // ── Redesign funnel metrics ────────────────────────────────────────────────
+
+  app.get("/admin/redesign-metrics", auth, async (request) => {
+    const { range } = request.query as { range?: string };
+    const cutoff = parseRange(range);
+    const dateFilter = cutoff ? { gte: cutoff } : undefined;
+    const where = dateFilter ? { createdAt: dateFilter } : {};
+
+    const EVENTS = [
+      "redesign_started",
+      "redesign_completed",
+      "redesign_try_another_style",
+      "redesign_signup_clicked",
+      "redesign_limit_hit",
+    ] as const;
+
+    const [eventCounts, sessions, topStyles] = await Promise.all([
+      // Count each funnel event
+      Promise.all(EVENTS.map(eventType =>
+        prisma.analyticsEvent.count({ where: { ...where, eventType } })
+          .then(count => ({ eventType, count }))
+      )),
+      // Session stats
+      prisma.redesignSession.aggregate({
+        _count: { _all: true },
+        _sum:   { fullRedesignsToday: true, restagesUsed: true },
+      }),
+      // Most-chosen styles
+      prisma.analyticsEvent.groupBy({
+        by: ["metadata"],
+        where: { ...where, eventType: "redesign_started" },
+        _count: { _all: true },
+        orderBy: { _count: { metadata: "desc" } },
+        take: 6,
+      }),
+    ]);
+
+    const funnel = eventCounts.reduce((acc, { eventType, count }) => {
+      acc[eventType] = count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const completionRate = funnel.redesign_started > 0
+      ? Math.round(funnel.redesign_completed / funnel.redesign_started * 100)
+      : 0;
+    const signupRate = funnel.redesign_completed > 0
+      ? Math.round(funnel.redesign_signup_clicked / funnel.redesign_completed * 100)
+      : 0;
+
+    // Parse style from metadata JSON string
+    const styleBreakdown = topStyles.flatMap(row => {
+      try {
+        const m = JSON.parse(row.metadata ?? "{}") as { style?: string };
+        return m.style ? [{ style: m.style, count: row._count._all }] : [];
+      } catch { return []; }
+    }).reduce((acc: Record<string, number>, { style, count }) => {
+      acc[style] = (acc[style] ?? 0) + count;
+      return acc;
+    }, {});
+
+    return {
+      funnel,
+      completionRate,
+      signupRate,
+      totalSessions:    sessions._count._all,
+      totalRedesigns:   sessions._sum.fullRedesignsToday ?? 0,
+      totalRestages:    sessions._sum.restagesUsed ?? 0,
+      styleBreakdown,
+    };
+  });
+
   // ── Client metrics ─────────────────────────────────────────────────────────
 
   app.get("/admin/client-metrics", auth, async (request) => {
