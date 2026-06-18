@@ -249,19 +249,27 @@ function Hero() {
               you buy anything.
             </p>
 
-            {/* Free instant redesign teaser */}
-            <div className="mb-6 bg-white/10 border border-white/20 rounded-2xl p-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-white font-semibold text-sm">✨ Try it free — no sign up needed</p>
-                <p className="text-blue-100/70 text-xs mt-0.5">See your room redesigned in 40 seconds</p>
+            {/* ── Instant redesign — lowest-friction entry point ────── */}
+            <div className="mb-8 rounded-2xl overflow-hidden" style={{ background: "rgba(212,165,116,0.12)", border: "1px solid rgba(212,165,116,0.35)" }}>
+              <div className="px-6 pt-6 pb-5">
+                <div className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-widest rounded-full px-2.5 py-1 mb-3"
+                  style={{ background: "rgba(212,165,116,0.2)", color: "#D4A574" }}>
+                  FREE · NO SIGN UP NEEDED
+                </div>
+                <h2 className="text-xl font-bold text-white leading-snug mb-1.5">
+                  Curious what your room could look like?
+                </h2>
+                <p className="text-blue-100/70 text-sm mb-4">
+                  Upload a photo and see it redesigned in 40 seconds
+                </p>
+                <Link
+                  href="/redesign"
+                  className="inline-flex items-center gap-2 font-semibold px-5 py-3 rounded-xl text-sm transition-all active:scale-95 shadow-md hover:shadow-lg"
+                  style={{ background: "#D4A574", color: "#1B3050" }}
+                >
+                  Try it now →
+                </Link>
               </div>
-              <Link
-                href="/redesign"
-                className="flex-shrink-0 font-semibold px-4 py-2 rounded-xl text-xs transition-all"
-                style={{ background: "#D4A574", color: "#1B3050" }}
-              >
-                Try now →
-              </Link>
             </div>
 
             {/* Two-path CTA */}
