@@ -418,7 +418,7 @@ const EXAMPLE_RENDERS = [
     alt: "Modern luxury bedroom with upholstered headboard and warm lighting",
   },
   {
-    image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900&q=80&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1567016432779-094069958ea5?w=900&q=80&auto=format&fit=crop",
     room: "Living Room",
     style: "Cosy Traditional",
     cost: "£2,100",
