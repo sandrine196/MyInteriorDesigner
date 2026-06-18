@@ -18,6 +18,7 @@ import { productRoutes } from "./routes/products.js";
 import { projectRoutes } from "./routes/projects.js";
 import { adminRoutes } from "./routes/admin.js";
 import { agentRoutes } from "./routes/agents.js";
+import { redesignRoutes } from "./routes/redesign.js";
 import { backupDatabase } from "./scripts/backup.js";
 import { importRaftProducts } from "./services/cjApi.service.js";
 
@@ -178,6 +179,7 @@ await productRoutes(app);
 await projectRoutes(app, env);
 await adminRoutes(app);
 await agentRoutes(app);
+await redesignRoutes(app);
 
 app.get(
   "/me/usage",

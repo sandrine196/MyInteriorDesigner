@@ -249,6 +249,21 @@ function Hero() {
               you buy anything.
             </p>
 
+            {/* Free instant redesign teaser */}
+            <div className="mb-6 bg-white/10 border border-white/20 rounded-2xl p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-white font-semibold text-sm">✨ Try it free — no sign up needed</p>
+                <p className="text-blue-100/70 text-xs mt-0.5">See your room redesigned in 40 seconds</p>
+              </div>
+              <Link
+                href="/redesign"
+                className="flex-shrink-0 font-semibold px-4 py-2 rounded-xl text-xs transition-all"
+                style={{ background: "#D4A574", color: "#1B3050" }}
+              >
+                Try now →
+              </Link>
+            </div>
+
             {/* Two-path CTA */}
             <div className="grid sm:grid-cols-2 gap-4 mb-10">
               {/* Homeowner card */}

@@ -177,6 +177,20 @@ model ProductClick {
   @@index([userId])
 }
 
+model RedesignSession {
+  id            String   @id @default(cuid())
+  sessionToken  String   @unique
+  ipAddress     String
+  fullRedesigns Int      @default(0)
+  restages      Int      @default(0)
+  resetAt       DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([sessionToken])
+  @@index([ipAddress])
+}
+
 model Product {
   id             String   @id @default(cuid())
   retailer       String
