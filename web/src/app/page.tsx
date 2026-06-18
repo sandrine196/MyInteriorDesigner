@@ -555,28 +555,28 @@ function SocialProof() {
 
 const EXAMPLE_RENDERS = [
   {
-    image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=900&q=80&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1600210492493-0946911123ea?w=900&q=80&auto=format&fit=crop",
     room: "Living Room",
     style: "Scandi Minimalist",
     cost: "£1,240",
-    alt: "Scandi minimalist living room with neutral tones and clean lines",
+    alt: "Scandi minimalist living room with pale wood, linen sofa and natural light",
   },
   {
-    image: "https://images.unsplash.com/photo-1586023492125-27b2c045efd3?w=900&q=80&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=900&q=80&auto=format&fit=crop",
     room: "Bedroom",
-    style: "Modern Industrial",
-    cost: "£980",
-    alt: "Modern industrial bedroom with dark tones and exposed materials",
+    style: "Modern Luxury",
+    cost: "£1,850",
+    alt: "Modern luxury bedroom with upholstered headboard and warm lighting",
   },
   {
-    image: "https://images.unsplash.com/photo-1513694203523-f8571b371e17?w=900&q=80&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900&q=80&auto=format&fit=crop",
     room: "Living Room",
     style: "Cosy Traditional",
     cost: "£2,100",
-    alt: "Cosy traditional living room with warm tones and classic furniture",
+    alt: "Cosy traditional British living room with warm tones and classic furniture",
   },
   {
-    image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=900&q=80&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1556909172-54557c7e4fb7?w=900&q=80&auto=format&fit=crop",
     room: "Kitchen",
     style: "Contemporary",
     cost: "£3,450",
