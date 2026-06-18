@@ -38,160 +38,6 @@ function Logo({ onDark = false, className = "" }: { onDark?: boolean; className?
   );
 }
 
-// ── Room illustrations ────────────────────────────────────────────────────────
-
-function LivingRoomIllustration() {
-  return (
-    <svg viewBox="0 0 280 180" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      {/* Wall */}
-      <rect width="280" height="180" fill="#F0EDE8" />
-      {/* Floor */}
-      <rect y="122" width="280" height="58" fill="#E2D5C0" />
-      {/* Baseboard */}
-      <rect y="119" width="280" height="5" fill="#D4C9B5" />
-      {/* Window */}
-      <rect x="96" y="14" width="88" height="60" rx="2" fill="#C8DDE8" />
-      <rect x="96" y="14" width="88" height="60" rx="2" fill="none" stroke="#D4C9B5" strokeWidth="3" />
-      <line x1="140" y1="14" x2="140" y2="74" stroke="#D4C9B5" strokeWidth="2" />
-      <line x1="96" y1="44" x2="184" y2="44" stroke="#D4C9B5" strokeWidth="2" />
-      {/* Curtains */}
-      <rect x="88" y="8" width="14" height="78" rx="5" fill="#C8B89A" opacity="0.8" />
-      <rect x="178" y="8" width="14" height="78" rx="5" fill="#C8B89A" opacity="0.8" />
-      {/* Art piece */}
-      <rect x="24" y="22" width="54" height="70" rx="3" fill="white" stroke="#D4C9B5" strokeWidth="2" />
-      <rect x="30" y="28" width="42" height="58" rx="2" fill="#B0C4B8" />
-      <ellipse cx="51" cy="57" rx="14" ry="14" fill="#89A899" />
-      {/* Rug */}
-      <ellipse cx="140" cy="138" rx="94" ry="14" fill="#C8B89A" opacity="0.45" />
-      {/* Sofa back */}
-      <rect x="46" y="91" width="188" height="19" rx="6" fill="#7A6650" />
-      {/* Sofa body */}
-      <rect x="46" y="104" width="188" height="32" rx="6" fill="#8B7560" />
-      {/* Cushions */}
-      <rect x="52" y="107" width="56" height="23" rx="5" fill="#C8B49A" />
-      <rect x="112" y="107" width="56" height="23" rx="5" fill="#BFB09A" />
-      <rect x="172" y="107" width="56" height="23" rx="5" fill="#C8B49A" />
-      {/* Sofa arms */}
-      <rect x="40" y="96" width="12" height="38" rx="5" fill="#6E5A46" />
-      <rect x="228" y="96" width="12" height="38" rx="5" fill="#6E5A46" />
-      {/* Coffee table top */}
-      <rect x="88" y="142" width="104" height="16" rx="4" fill="#C4A87A" />
-      <rect x="91" y="144" width="98" height="11" rx="3" fill="#D4BC90" />
-      {/* Table legs */}
-      <rect x="94" y="156" width="5" height="10" rx="2" fill="#B09060" />
-      <rect x="181" y="156" width="5" height="10" rx="2" fill="#B09060" />
-      {/* Plant */}
-      <rect x="10" y="110" width="7" height="18" rx="2" fill="#9B8868" />
-      <ellipse cx="13" cy="105" rx="20" ry="22" fill="#5B7A5B" />
-      <ellipse cx="4" cy="112" rx="13" ry="16" fill="#4E6E4E" />
-      {/* Floor lamp */}
-      <rect x="250" y="88" width="4" height="40" fill="#C4B09A" />
-      <ellipse cx="252" cy="88" rx="16" ry="7" fill="#EDE8E0" stroke="#C4B09A" strokeWidth="2" />
-    </svg>
-  );
-}
-
-function KitchenIllustration() {
-  return (
-    <svg viewBox="0 0 280 180" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      {/* Wall */}
-      <rect width="280" height="180" fill="#EEE8DC" />
-      {/* Floor */}
-      <rect y="130" width="280" height="50" fill="#D8CCBA" />
-      <rect y="127" width="280" height="5" fill="#C8BC9A" />
-      {/* Tiles on wall (subtle) */}
-      {[0,1,2,3,4,5,6].map((i) => [0,1,2,3].map((j) => (
-        <rect key={`${i}-${j}`} x={i*40} y={j*32+2} width="39" height="31" rx="0"
-          fill="none" stroke="#DDD5C5" strokeWidth="0.5" />
-      )))}
-      {/* Upper cabinets */}
-      <rect x="14" y="18" width="252" height="64" rx="4" fill="#3A3028" />
-      <rect x="18" y="22" width="108" height="56" rx="3" fill="#4A3E32" />
-      <rect x="132" y="22" width="130" height="56" rx="3" fill="#4A3E32" />
-      {/* Cabinet handles */}
-      <rect x="68" y="48" width="8" height="4" rx="2" fill="#C4A87A" />
-      <rect x="180" y="48" width="8" height="4" rx="2" fill="#C4A87A" />
-      {/* Counter */}
-      <rect x="14" y="100" width="252" height="14" rx="3" fill="#F0EAE0" stroke="#D4C9B5" strokeWidth="1" />
-      {/* Counter body */}
-      <rect x="14" y="113" width="252" height="20" rx="2" fill="#4A3E32" />
-      {/* Sink */}
-      <rect x="100" y="103" width="80" height="8" rx="2" fill="#D4D0CA" stroke="#C4BFB8" strokeWidth="1" />
-      <ellipse cx="140" cy="107" rx="12" ry="3" fill="#C0BCB5" />
-      {/* Tap */}
-      <rect x="136" y="94" width="8" height="10" rx="2" fill="#C8C4BE" />
-      {/* Hob / burners */}
-      <ellipse cx="56" cy="108" rx="14" ry="5" fill="#3A3028" />
-      <ellipse cx="56" cy="108" rx="9" ry="3" fill="#4A3E32" />
-      {/* Stools */}
-      <rect x="50" y="122" width="28" height="8" rx="3" fill="#8B7560" />
-      <rect x="55" y="130" width="4" height="20" rx="2" fill="#7A6650" />
-      <rect x="67" y="130" width="4" height="20" rx="2" fill="#7A6650" />
-      <rect x="50" y="148" width="28" height="3" rx="1" fill="#6E5A46" />
-
-      <rect x="120" y="122" width="28" height="8" rx="3" fill="#8B7560" />
-      <rect x="125" y="130" width="4" height="20" rx="2" fill="#7A6650" />
-      <rect x="137" y="130" width="4" height="20" rx="2" fill="#7A6650" />
-      <rect x="120" y="148" width="28" height="3" rx="1" fill="#6E5A46" />
-
-      <rect x="190" y="122" width="28" height="8" rx="3" fill="#8B7560" />
-      <rect x="195" y="130" width="4" height="20" rx="2" fill="#7A6650" />
-      <rect x="207" y="130" width="4" height="20" rx="2" fill="#7A6650" />
-      <rect x="190" y="148" width="28" height="3" rx="1" fill="#6E5A46" />
-      {/* Pendant lights */}
-      <line x1="90" y1="0" x2="90" y2="70" stroke="#C4A87A" strokeWidth="2" />
-      <ellipse cx="90" cy="73" rx="16" ry="8" fill="#F0E8D0" stroke="#C4A87A" strokeWidth="2" />
-      <line x1="190" y1="0" x2="190" y2="70" stroke="#C4A87A" strokeWidth="2" />
-      <ellipse cx="190" cy="73" rx="16" ry="8" fill="#F0E8D0" stroke="#C4A87A" strokeWidth="2" />
-    </svg>
-  );
-}
-
-function BedroomIllustration() {
-  return (
-    <svg viewBox="0 0 280 180" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      {/* Wall */}
-      <rect width="280" height="180" fill="#F5F0F0" />
-      {/* Floor */}
-      <rect y="128" width="280" height="52" fill="#E8DED0" />
-      <rect y="125" width="280" height="5" fill="#D8CEBC" />
-      {/* Window */}
-      <rect x="96" y="12" width="88" height="56" rx="2" fill="#C8DDE8" />
-      <rect x="96" y="12" width="88" height="56" rx="2" fill="none" stroke="#D4C9B5" strokeWidth="3" />
-      <line x1="140" y1="12" x2="140" y2="68" stroke="#D4C9B5" strokeWidth="2" />
-      <line x1="96" y1="40" x2="184" y2="40" stroke="#D4C9B5" strokeWidth="2" />
-      {/* Curtains */}
-      <rect x="88" y="6" width="14" height="76" rx="5" fill="#D4BCBC" opacity="0.7" />
-      <rect x="178" y="6" width="14" height="76" rx="5" fill="#D4BCBC" opacity="0.7" />
-      {/* Headboard */}
-      <rect x="50" y="78" width="180" height="40" rx="10" fill="#8B7060" />
-      <rect x="58" y="86" width="74" height="24" rx="6" fill="#A08070" />
-      <rect x="138" y="86" width="74" height="24" rx="6" fill="#A08070" />
-      {/* Bed base */}
-      <rect x="44" y="112" width="192" height="30" rx="6" fill="#7A6050" />
-      {/* Mattress */}
-      <rect x="48" y="110" width="184" height="28" rx="5" fill="#F0EAE5" />
-      {/* Pillows */}
-      <rect x="58" y="113" width="68" height="18" rx="8" fill="white" stroke="#EAE0D8" strokeWidth="1.5" />
-      <rect x="154" y="113" width="68" height="18" rx="8" fill="white" stroke="#EAE0D8" strokeWidth="1.5" />
-      {/* Duvet fold */}
-      <rect x="48" y="125" width="184" height="13" rx="0" fill="#E8DDD5" />
-      <path d="M 48 125 Q 140 132 232 125" fill="none" stroke="#D4C9BC" strokeWidth="1" />
-      {/* Nightstands */}
-      <rect x="10" y="112" width="32" height="28" rx="4" fill="#A08870" />
-      <rect x="14" y="116" width="24" height="14" rx="2" fill="#B09880" />
-      <rect x="238" y="112" width="32" height="28" rx="4" fill="#A08870" />
-      <rect x="242" y="116" width="24" height="14" rx="2" fill="#B09880" />
-      {/* Bedside lamp */}
-      <rect x="24" y="98" width="4" height="16" fill="#C4B09A" />
-      <ellipse cx="26" cy="97" rx="14" ry="6" fill="#F0E8DC" stroke="#C4B09A" strokeWidth="1.5" />
-      <rect x="250" y="98" width="4" height="16" fill="#C4B09A" />
-      <ellipse cx="252" cy="97" rx="14" ry="6" fill="#F0E8DC" stroke="#C4B09A" strokeWidth="1.5" />
-      {/* Rug */}
-      <ellipse cx="140" cy="152" rx="90" ry="12" fill="#D4BCBC" opacity="0.4" />
-    </svg>
-  );
-}
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
@@ -330,7 +176,8 @@ function Hero() {
             {/* Large living room card */}
             <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
               <div className="flex-1 relative">
-                <LivingRoomIllustration />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="https://images.unsplash.com/photo-1618220179428-22790b461013?w=800&q=80&auto=format&fit=crop" alt="Modern Scandi living room" className="w-full h-full object-cover" />
                 <span
                   className="absolute top-3 left-3 text-xs font-bold px-2.5 py-1 rounded-full tracking-widest"
                   style={{ background: "#062C3D", color: "#D4A574" }}
@@ -349,7 +196,8 @@ function Hero() {
             <div className="flex flex-col gap-3">
               <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col flex-1">
                 <div className="relative flex-1">
-                  <KitchenIllustration />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&q=80&auto=format&fit=crop" alt="Contemporary kitchen" className="w-full h-full object-cover" />
                   <span
                     className="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full tracking-widest"
                     style={{ background: "#062C3D", color: "#D4A574", fontSize: "9px" }}
@@ -364,7 +212,8 @@ function Hero() {
 
               <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col flex-1">
                 <div className="relative flex-1">
-                  <BedroomIllustration />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=400&q=80&auto=format&fit=crop" alt="Cosy bedroom" className="w-full h-full object-cover" />
                   <span
                     className="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full tracking-widest"
                     style={{ background: "#062C3D", color: "#D4A574", fontSize: "9px" }}
