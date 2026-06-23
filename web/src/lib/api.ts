@@ -80,11 +80,11 @@ export type User = { id: string; email: string; tier: "free" | "pro"; isAdmin?: 
 export type AuthResponse = { token: string; user: User };
 
 export const auth = {
-  register: (email: string, password: string, marketingConsent = false, referredBy?: string) =>
+  register: (email: string, password: string, marketingConsent = false, referredBy?: string, phone_number?: string) =>
     request<AuthResponse>("/auth/register", {
       method: "POST",
       auth: false,
-      body: JSON.stringify({ email, password, marketingConsent, ...(referredBy ? { referredBy } : {}) }),
+      body: JSON.stringify({ email, password, marketingConsent, ...(referredBy ? { referredBy } : {}), ...(phone_number ? { phone_number } : {}) }),
     }),
   login: (email: string, password: string) =>
     request<AuthResponse>("/auth/login", {
@@ -468,8 +468,9 @@ export type ClientMetrics = {
   funnel: Array<{ stage: string; count: number }>;
   limitMonitor: { freeLimit: number; nearLimit: number; atLimit: number };
   limitTable: Array<{ email: string; tier: string; renders: number; limit: number; usagePct: number }>;
-  top10: Array<{ rank: number; email: string; renderCount: number; joinedDaysAgo: number; lastLoginDaysAgo: number | null }>;
-  recentLogins: Array<{ email: string; tier: string; lastLoginDaysAgo: number; lastLoginAt: string; renderCount: number }>;
+  top10: Array<{ rank: number; email: string; renderCount: number; joinedDaysAgo: number; lastLoginDaysAgo: number | null; emailVerified: boolean }>;
+  recentLogins: Array<{ email: string; tier: string; lastLoginDaysAgo: number; lastLoginAt: string; renderCount: number; emailVerified: boolean }>;
+  unverifiedCount: number;
   registrationTrend: Array<{ date: string; count: number }>;
 };
 

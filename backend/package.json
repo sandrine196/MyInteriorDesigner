@@ -29,6 +29,7 @@
     "@prisma/client": "^6.0.0",
     "@types/node-cron": "^3.0.11",
     "bcryptjs": "^2.4.3",
+    "disposable-email-domains": "^1.0.62",
     "fastify": "^5.2.0",
     "fflate": "^0.8.3",
     "node-cron": "^4.2.1",

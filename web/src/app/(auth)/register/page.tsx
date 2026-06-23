@@ -12,6 +12,7 @@ function RegisterForm() {
   const [email,            setEmail]            = useState("");
   const [password,         setPassword]         = useState("");
   const [marketingConsent, setMarketingConsent] = useState(false);
+  const [honeypot,         setHoneypot]         = useState("");
   const [error,            setError]            = useState("");
   const [loading,          setLoading]          = useState(false);
 
@@ -26,7 +27,7 @@ function RegisterForm() {
     setLoading(true);
     const storedRef = sessionStorage.getItem("mid_ref") ?? refCode ?? undefined;
     try {
-      const { token } = await auth.register(email, password, marketingConsent, storedRef || undefined);
+      const { token } = await auth.register(email, password, marketingConsent, storedRef || undefined, honeypot || undefined);
       if (storedRef) sessionStorage.removeItem("mid_ref");
       saveToken(token);
       router.push("/projects");
@@ -110,6 +111,18 @@ function RegisterForm() {
               <span className="text-stone-400">(optional)</span>
             </span>
           </label>
+
+          {/* Honeypot — hidden from humans, filled by bots */}
+          <input
+            type="text"
+            name="phone_number"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ display: "none" }}
+          />
 
           <button
             type="submit"

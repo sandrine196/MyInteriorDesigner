@@ -109,7 +109,7 @@ export default function ClientsPage() {
       )}
 
       {data && (() => {
-        const { metrics, funnel, limitMonitor, limitTable, top10, registrationTrend } = data;
+        const { metrics, funnel, limitMonitor, limitTable, top10, registrationTrend, unverifiedCount } = data;
         const funnelMax = funnel[0]?.count ?? 1;
 
         return (
@@ -123,6 +123,7 @@ export default function ClientsPage() {
                 <StatCard label="Active this month"  value={metrics.activeThisMonth} sub="generated ≥ 1 render" />
                 <StatCard label="Total renders"      value={metrics.totalRenders.toLocaleString()} />
                 <StatCard label="Avg renders / user" value={metrics.avgRendersPerUser} />
+                <StatCard label="Unverified email"   value={unverifiedCount} sub="registered but not verified" />
                 <StatCard label="Re-engaged"         value={metrics.reEngaged} sub="registered >7d, rendered this week" />
               </div>
             </div>
@@ -296,11 +297,12 @@ export default function ClientsPage() {
                         <th className="text-right px-4 py-2.5 font-medium">Renders</th>
                         <th className="text-right px-4 py-2.5 font-medium">Member for</th>
                         <th className="text-right px-4 py-2.5 font-medium">Last login</th>
+                        <th className="text-right px-4 py-2.5 font-medium">Verified</th>
                       </tr>
                     </thead>
                     <tbody>
                       {top10.length === 0 ? (
-                        <tr><td colSpan={5} className="px-4 py-8 text-center text-stone-600">No users yet</td></tr>
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-stone-600">No users yet</td></tr>
                       ) : top10.map(u => (
                         <tr key={u.rank} className="border-b border-stone-800/50 hover:bg-stone-800/20">
                           <td className="px-4 py-2.5 text-stone-600 text-xs">{u.rank}</td>
@@ -321,6 +323,12 @@ export default function ClientsPage() {
                               : <span className="text-stone-600">{u.lastLoginDaysAgo}d ago</span>
                             }
                           </td>
+                          <td className="px-4 py-2.5 text-right text-xs">
+                            {u.emailVerified
+                              ? <span className="text-emerald-400">✓</span>
+                              : <span className="text-amber-500">⏳</span>
+                            }
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -339,11 +347,12 @@ export default function ClientsPage() {
                         <th className="text-left px-4 py-2.5 font-medium">Tier</th>
                         <th className="text-right px-4 py-2.5 font-medium">Renders</th>
                         <th className="text-right px-4 py-2.5 font-medium">Last login</th>
+                        <th className="text-right px-4 py-2.5 font-medium">Verified</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.recentLogins.length === 0 ? (
-                        <tr><td colSpan={4} className="px-4 py-8 text-center text-stone-600">No login data yet — populates after users log in post-deploy</td></tr>
+                        <tr><td colSpan={5} className="px-4 py-8 text-center text-stone-600">No login data yet — populates after users log in post-deploy</td></tr>
                       ) : data.recentLogins.map((u, i) => (
                         <tr key={i} className="border-b border-stone-800/50 hover:bg-stone-800/20">
                           <td className="px-4 py-2.5 text-stone-300 font-mono text-xs">{u.email}</td>
@@ -359,6 +368,12 @@ export default function ClientsPage() {
                               : u.lastLoginDaysAgo <= 7
                               ? <span className="text-emerald-600">{u.lastLoginDaysAgo}d ago</span>
                               : <span className="text-stone-500">{u.lastLoginDaysAgo}d ago</span>
+                            }
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-xs">
+                            {u.emailVerified
+                              ? <span className="text-emerald-400">✓</span>
+                              : <span className="text-amber-500">⏳</span>
                             }
                           </td>
                         </tr>

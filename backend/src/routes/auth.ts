@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { createRequire as _createRequire } from "node:module";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Env } from "../env.js";
@@ -8,6 +9,9 @@ import { track } from "../lib/analytics.js";
 import { exportUserData, deleteUserData } from "../services/gdpr.service.js";
 import { emailService, verifyUnsubToken } from "../services/email.service.js";
 
+const _require        = _createRequire(import.meta.url);
+const disposableDomains: string[] = _require("disposable-email-domains");
+
 const passwordSchema = z
   .string()
   .min(8, "Password must be at least 8 characters")
@@ -15,10 +19,11 @@ const passwordSchema = z
   .regex(/\d/, "Password must contain at least one number");
 
 const registerBody = z.object({
-  email:             z.string().email(),
-  password:          passwordSchema,
-  marketingConsent:  z.boolean().optional().default(false),
-  referredBy:        z.string().optional(),
+  email:            z.string().email(),
+  password:         passwordSchema,
+  marketingConsent: z.boolean().optional().default(false),
+  referredBy:       z.string().optional(),
+  phone_number:     z.string().optional(), // honeypot — must stay empty
 });
 
 const loginBody = z.object({
@@ -53,6 +58,20 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       return reply.status(400).send({ error: msg });
     }
     const body = parsed.data;
+
+    // Honeypot — bots fill hidden fields; humans leave them blank
+    if (body.phone_number && body.phone_number.length > 0) {
+      console.log("[Bot] Honeypot triggered from", request.ip);
+      // Return fake success — don't alert the bot
+      return { token: "", user: { id: "", email: body.email, tier: "free", isAdmin: false, marketingConsent: false, emailVerified: false } };
+    }
+
+    // Block disposable email domains
+    const emailDomain = body.email.toLowerCase().split("@")[1] ?? "";
+    if (disposableDomains.includes(emailDomain)) {
+      return reply.status(400).send({ error: "Please use a permanent email address to register." });
+    }
+
     const existing = await prisma.user.findUnique({ where: { email: body.email } });
     if (existing) {
       return reply.status(409).send({ error: "Email already registered" });

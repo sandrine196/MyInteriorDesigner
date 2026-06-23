@@ -71,6 +71,7 @@ export async function adminRoutes(app: FastifyInstance) {
       freeUsers,
       proUsers,
       newSignups7d,
+      unverifiedUsers,
       totalRenders,
       // Fetch everything needed for derived metrics in parallel
       projectsForStats,
@@ -84,6 +85,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.user.count({ where: { tier: "free" } }),
       prisma.user.count({ where: { tier: "pro" } }),
       prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+      prisma.user.count({ where: { emailVerified: false } }),
       prisma.render.count(),
 
       // For style/retailer/budget stats
@@ -181,7 +183,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const rendersPerUser = totalUsers > 0 ? totalRenders / totalUsers : 0;
 
     return {
-      users: { total: totalUsers, free: freeUsers, pro: proUsers },
+      users: { total: totalUsers, free: freeUsers, pro: proUsers, unverified: unverifiedUsers },
       newSignups7d,
       totalRenders,
       activeUsers7d,
@@ -606,7 +608,7 @@ export async function adminRoutes(app: FastifyInstance) {
       }),
       prisma.user.findMany({
         select: {
-          id: true, email: true, tier: true, createdAt: true, lastLoginAt: true,
+          id: true, email: true, tier: true, createdAt: true, lastLoginAt: true, emailVerified: true,
           projects: {
             select: {
               renders: {
@@ -682,6 +684,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const clickThroughRate = usersWhoRendered.length > 0
       ? Math.round(usersWhoClicked.length / usersWhoRendered.length * 100) : 0;
 
+    const unverifiedCount = userStats.filter(u => !u.emailVerified).length;
+
     // Top 10
     const top10 = [...userStats]
       .sort((a, b) => b.renderCount - a.renderCount)
@@ -694,6 +698,7 @@ export async function adminRoutes(app: FastifyInstance) {
         lastLoginDaysAgo: u.lastLoginAt
           ? Math.floor((now.getTime() - u.lastLoginAt.getTime()) / 86400000)
           : null,
+        emailVerified: u.emailVerified,
       }));
 
     // Recent logins — last 20 users to log in
@@ -707,6 +712,7 @@ export async function adminRoutes(app: FastifyInstance) {
         lastLoginDaysAgo: Math.floor((now.getTime() - u.lastLoginAt!.getTime()) / 86400000),
         lastLoginAt: u.lastLoginAt!.toISOString(),
         renderCount: u.renderCount,
+        emailVerified: u.emailVerified,
       }));
 
     const totalRenders      = userStats.reduce((s, u) => s + u.renderCount, 0);
@@ -728,6 +734,7 @@ export async function adminRoutes(app: FastifyInstance) {
       limitTable,
       top10,
       recentLogins,
+      unverifiedCount,
       registrationTrend: groupByDay(signupDates.map(u => u.createdAt), days),
     };
   });
