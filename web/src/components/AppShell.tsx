@@ -4,6 +4,37 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { auth, clearToken, usage as usageApi, type User, type Usage } from "@/lib/api";
 
+function EmailVerificationBanner({ email }: { email: string }) {
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function resend() {
+    setLoading(true);
+    try { await auth.resendVerification(); setSent(true); } finally { setLoading(false); }
+  }
+
+  return (
+    <div className="border-b px-6 py-3 text-sm flex items-center justify-center gap-2 flex-wrap"
+      style={{ background: "#fffbeb", borderColor: "#fde68a", color: "#92400e" }}>
+      <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+      </svg>
+      <span>
+        Please verify your email to start generating designs. Check <strong>{email}</strong>.
+      </span>
+      {sent ? (
+        <span className="font-medium text-green-700">New link sent!</span>
+      ) : (
+        <button onClick={resend} disabled={loading}
+          className="font-semibold underline hover:no-underline disabled:opacity-50">
+          {loading ? "Sending…" : "Resend link"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -101,6 +132,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </header>
+
+      {user && !user.emailVerified && <EmailVerificationBanner email={user.email} />}
 
       {usageData && user?.tier === "free" && usageData.usedThisMonth >= usageData.freeLimit && (
         <div

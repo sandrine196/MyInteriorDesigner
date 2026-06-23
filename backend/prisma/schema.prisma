@@ -8,21 +8,25 @@ datasource db {
 }
 
 model User {
-  id                   String               @id @default(cuid())
-  email                String               @unique
-  passwordHash         String
-  tier                 String               @default("free")
-  suspended            Boolean              @default(false)
-  isAdmin              Boolean              @default(false)
-  createdAt            DateTime             @default(now())
-  marketingConsent     Boolean              @default(false)
-  marketingConsentDate DateTime?
-  referredBy           String?
-  lastLoginAt          DateTime?
-  projects             Project[]
-  resetTokens          PasswordResetToken[]
+  id                            String               @id @default(cuid())
+  email                         String               @unique
+  passwordHash                  String
+  tier                          String               @default("free")
+  suspended                     Boolean              @default(false)
+  isAdmin                       Boolean              @default(false)
+  emailVerified                 Boolean              @default(false)
+  emailVerificationToken        String?
+  emailVerificationTokenExpiry  DateTime?
+  createdAt                     DateTime             @default(now())
+  marketingConsent              Boolean              @default(false)
+  marketingConsentDate          DateTime?
+  referredBy                    String?
+  lastLoginAt                   DateTime?
+  projects                      Project[]
+  resetTokens                   PasswordResetToken[]
 
   @@index([referredBy])
+  @@index([emailVerificationToken])
 }
 
 model Agent {

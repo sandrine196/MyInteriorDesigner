@@ -450,12 +450,18 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
 
       const user = await prisma.user.findUnique({
         where: { id: u.sub },
-        select: { email: true, suspended: true, marketingConsent: true },
+        select: { email: true, suspended: true, marketingConsent: true, emailVerified: true },
       });
       if (user?.suspended) {
         return reply.status(403).send({
           error: "Your account has been suspended. Please contact support.",
           code: "SUSPENDED",
+        });
+      }
+      if (!user?.emailVerified) {
+        return reply.status(403).send({
+          error: "Please verify your email address before generating designs.",
+          code: "EMAIL_NOT_VERIFIED",
         });
       }
 

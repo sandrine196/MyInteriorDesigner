@@ -77,6 +77,29 @@ async function send(subject: string, to: string, html: string): Promise<void> {
 // ── Email methods ──────────────────────────────────────────────────────────────
 
 export const emailService = {
+  async sendEmailVerification(to: string, token: string): Promise<void> {
+    const name       = displayName(to);
+    const verifyUrl  = `${config.server.frontendUrl}/verify-email?token=${token}`;
+    try {
+      await send(
+        "Verify your email — My Interior Designer",
+        to,
+        `<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#062C3D;">Welcome, ${name}! One quick step…</h2>
+          <p>Thanks for joining My Interior Designer. Please verify your email address to start generating room designs.</p>
+          <div style="margin:30px 0;">
+            <a href="${verifyUrl}" style="background:#D4A574;color:#062C3D;padding:14px 28px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:600;font-size:16px;">Verify my email →</a>
+          </div>
+          <p style="color:#666;font-size:13px;">Or copy this link: ${verifyUrl}</p>
+          <p style="color:#666;font-size:13px;">This link expires in 24 hours.</p>
+          <p style="color:#666;font-size:13px;">If you didn't create an account, you can safely ignore this email.</p>
+        </div>`,
+      );
+    } catch {
+      // Never break registration
+    }
+  },
+
   async sendWelcome(to: string): Promise<void> {
     const name = displayName(to);
     try {

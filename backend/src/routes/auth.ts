@@ -64,20 +64,24 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       if (agent) validReferralCode = agent.referralCode;
     }
 
-    const passwordHash = await hashPassword(body.password);
+    const passwordHash     = await hashPassword(body.password);
+    const verificationToken = randomBytes(32).toString("hex");
     const user = await prisma.user.create({
       data: {
-        email:                body.email,
+        email:                           body.email,
         passwordHash,
-        marketingConsent:     body.marketingConsent,
-        marketingConsentDate: body.marketingConsent ? new Date() : null,
-        referredBy:           validReferralCode,
-        lastLoginAt:          new Date(),
+        marketingConsent:                body.marketingConsent,
+        marketingConsentDate:            body.marketingConsent ? new Date() : null,
+        referredBy:                      validReferralCode,
+        lastLoginAt:                     new Date(),
+        emailVerified:                   false,
+        emailVerificationToken:          verificationToken,
+        emailVerificationTokenExpiry:    new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
       select: { id: true, email: true, tier: true, isAdmin: true, marketingConsent: true },
     });
     track("user_signup", user.id, { email: user.email, referredBy: validReferralCode });
-    void emailService.sendWelcome(user.email);
+    void emailService.sendEmailVerification(user.email, verificationToken);
 
     // Increment agent's clientsReferred count
     if (validReferralCode) {
@@ -87,7 +91,63 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       });
     }
     const token = await reply.jwtSign({ sub: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin });
-    return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin, marketingConsent: user.marketingConsent } };
+    return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin, marketingConsent: user.marketingConsent, emailVerified: false } };
+  });
+
+  // ── GET /auth/verify-email?token= ────────────────────────────────────────────
+
+  app.get("/auth/verify-email", async (request, reply) => {
+    const { token } = request.query as { token?: string };
+    if (!token) return reply.status(400).send({ error: "Missing token" });
+
+    const user = await prisma.user.findFirst({
+      where: {
+        emailVerificationToken:       token,
+        emailVerificationTokenExpiry: { gt: new Date() },
+      },
+      select: { id: true, email: true, tier: true, isAdmin: true },
+    });
+
+    if (!user) return reply.status(400).send({ error: "Invalid or expired verification link" });
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified:                true,
+        emailVerificationToken:       null,
+        emailVerificationTokenExpiry: null,
+      },
+    });
+
+    track("email_verified", user.id, { email: user.email });
+    void emailService.sendWelcome(user.email);
+
+    return { verified: true };
+  });
+
+  // ── POST /auth/resend-verification ───────────────────────────────────────────
+
+  app.post("/auth/resend-verification", { preHandler: [app.authenticate], config: { rateLimit: { max: 3, timeWindow: "1 hour" } } }, async (request) => {
+    const u = request.user as { sub: string; email: string };
+
+    const user = await prisma.user.findUnique({
+      where: { id: u.sub },
+      select: { emailVerified: true },
+    });
+
+    if (!user || user.emailVerified) return { sent: false };
+
+    const verificationToken = randomBytes(32).toString("hex");
+    await prisma.user.update({
+      where: { id: u.sub },
+      data: {
+        emailVerificationToken:       verificationToken,
+        emailVerificationTokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    void emailService.sendEmailVerification(u.email, verificationToken);
+    return { sent: true };
   });
 
   app.post("/auth/login", authRateLimit, async (request, reply) => {
@@ -117,9 +177,9 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       const u = request.user as { sub: string; email: string; tier: string; isAdmin: boolean };
       const user = await prisma.user.findUnique({
         where: { id: u.sub },
-        select: { marketingConsent: true },
+        select: { marketingConsent: true, emailVerified: true },
       });
-      return { id: u.sub, email: u.email, tier: u.tier, isAdmin: u.isAdmin, marketingConsent: user?.marketingConsent ?? false };
+      return { id: u.sub, email: u.email, tier: u.tier, isAdmin: u.isAdmin, marketingConsent: user?.marketingConsent ?? false, emailVerified: user?.emailVerified ?? false };
     }
   );
 

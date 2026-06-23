@@ -76,7 +76,7 @@ export class ApiError extends Error {
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
-export type User = { id: string; email: string; tier: "free" | "pro"; isAdmin?: boolean; marketingConsent: boolean };
+export type User = { id: string; email: string; tier: "free" | "pro"; isAdmin?: boolean; marketingConsent: boolean; emailVerified: boolean };
 export type AuthResponse = { token: string; user: User };
 
 export const auth = {
@@ -93,6 +93,10 @@ export const auth = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<User>("/auth/me"),
+  verifyEmail: (token: string) =>
+    request<{ verified: boolean }>(`/auth/verify-email?token=${encodeURIComponent(token)}`, { method: "GET", auth: false }),
+  resendVerification: () =>
+    request<{ sent: boolean }>("/auth/resend-verification", { method: "POST" }),
   exportData: async (): Promise<Blob> => {
     const t = token();
     const headers: Record<string, string> = {};
