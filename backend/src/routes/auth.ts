@@ -109,8 +109,14 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
         data:  { clientsReferred: { increment: 1 } },
       });
     }
+    // Auto-create first project so the user lands somewhere useful
+    const firstProject = await prisma.project.create({
+      data: { userId: user.id, name: "My First Room" },
+      select: { id: true },
+    });
+
     const token = await reply.jwtSign({ sub: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin });
-    return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin, marketingConsent: user.marketingConsent, emailVerified: false } };
+    return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin, marketingConsent: user.marketingConsent, emailVerified: false }, firstProjectId: firstProject.id };
   });
 
   // ── GET /auth/verify-email?token= ────────────────────────────────────────────

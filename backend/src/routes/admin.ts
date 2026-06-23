@@ -1055,6 +1055,40 @@ export async function adminRoutes(app: FastifyInstance) {
     return { url: product.affiliateUrl ?? product.productUrl };
   });
 
+  // ── GET /admin/users ─────────────────────────────────────────────────────
+  app.get("/admin/users", auth, async () => {
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true, email: true, tier: true, suspended: true,
+        emailVerified: true, createdAt: true, lastLoginAt: true,
+        _count: { select: { projects: true } },
+      },
+    });
+    return users.map(u => ({
+      id:            u.id,
+      email:         u.email,
+      tier:          u.tier,
+      suspended:     u.suspended,
+      emailVerified: u.emailVerified,
+      createdAt:     u.createdAt.toISOString(),
+      lastLoginAt:   u.lastLoginAt?.toISOString() ?? null,
+      projectCount:  u._count.projects,
+    }));
+  });
+
+  // ── PATCH /admin/users/:id/suspend ───────────────────────────────────────
+  app.patch("/admin/users/:id/suspend", auth, async (request, reply) => {
+    const { id }        = request.params as { id: string };
+    const { suspended } = request.body   as { suspended: boolean };
+    const user = await prisma.user.update({
+      where: { id },
+      data:  { suspended },
+      select: { id: true, suspended: true },
+    });
+    return user;
+  });
+
   // ── POST /admin/impersonate/user ──────────────────────────────────────────
   // Generate a 2-hour user session token for any account — admin testing only.
   app.post("/admin/impersonate/user", auth, async (request, reply) => {

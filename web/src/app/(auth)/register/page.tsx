@@ -27,10 +27,10 @@ function RegisterForm() {
     setLoading(true);
     const storedRef = sessionStorage.getItem("mid_ref") ?? refCode ?? undefined;
     try {
-      const { token } = await auth.register(email, password, marketingConsent, storedRef || undefined, honeypot || undefined);
+      const { token, firstProjectId } = await auth.register(email, password, marketingConsent, storedRef || undefined, honeypot || undefined);
       if (storedRef) sessionStorage.removeItem("mid_ref");
       saveToken(token);
-      router.push("/projects");
+      router.push(firstProjectId ? `/projects/${firstProjectId}` : "/projects");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Registration failed");
       setLoading(false);

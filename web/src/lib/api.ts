@@ -77,7 +77,7 @@ export class ApiError extends Error {
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
 export type User = { id: string; email: string; tier: "free" | "pro"; isAdmin?: boolean; marketingConsent: boolean; emailVerified: boolean };
-export type AuthResponse = { token: string; user: User };
+export type AuthResponse = { token: string; user: User; firstProjectId?: string };
 
 export const auth = {
   register: (email: string, password: string, marketingConsent = false, referredBy?: string, phone_number?: string) =>
@@ -563,6 +563,10 @@ export const admin = {
     assignStyles:  () => request<{ success: boolean; processed: number; skipped: number; byStyle: Record<string, number> }>("/admin/products/assign-styles", { method: "POST" }),
     dbCheck:       () => request<{ total: number; byRetailer: { retailer: string; source: string | null; _count: { _all: number } }[]; databaseUrl: string }>("/admin/products/db-check"),
     recategorise:  () => request<{ success: boolean; processed: number; skipped: number; byCategory: Record<string, number> }>("/admin/products/recategorise", { method: "POST" }),
+  },
+  users: {
+    list: () => request<Array<{ id: string; email: string; tier: string; suspended: boolean; emailVerified: boolean; createdAt: string; lastLoginAt: string | null; projectCount: number }>>("/admin/users"),
+    setSuspended: (id: string, suspended: boolean) => request<{ id: string; suspended: boolean }>(`/admin/users/${id}/suspend`, { method: "PATCH", body: JSON.stringify({ suspended }) }),
   },
   agents: {
     list:         () => request<{ agents: Array<{ id: string; name: string; agencyName: string; email: string; referralCode: string; status: string; clientsReferred: number; designsCreated: number; createdAt: string; lastLoginAt: string | null }> }>("/admin/agents"),
