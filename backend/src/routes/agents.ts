@@ -22,13 +22,8 @@ function looksLikeRandomString(str: string): boolean {
   const s = str.replace(/\s+/g, "");
   if (s.length < 8) return false;
   const vowels = (s.match(/[aeiouAEIOU]/g) ?? []).length;
-  const vowelRatio = vowels / s.length;
-  // Random strings have very few vowels and random mixed case
-  if (vowelRatio < 0.15) return true;
-  const hasLower = /[a-z]/.test(s);
-  const hasUpper = /[A-Z]/.test(s);
-  if (hasLower && hasUpper && s.length > 10 && vowelRatio < 0.22) return true;
-  return false;
+  // Random strings have very few vowels (bots score ~10%; real names ~30%+)
+  return vowels / s.length < 0.15;
 }
 
 function generateReferralCode(agencyName: string): string {
