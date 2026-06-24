@@ -15,6 +15,7 @@ export default function AgentsPage() {
   const [agencyName, setAgencyName] = useState("");
   const [email,      setEmail]      = useState("");
   const [phone,      setPhone]      = useState("");
+  const [honeypot,   setHoneypot]   = useState("");
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState("");
   const [success,    setSuccess]    = useState<{ referralUrl: string } | null>(null);
@@ -24,7 +25,7 @@ export default function AgentsPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await agents.register({ name, agencyName, email, phone: phone || undefined });
+      const res = await agents.register({ name, agencyName, email, phone: phone || undefined, phone_number: honeypot || undefined });
       setSuccess({ referralUrl: res.agent.referralUrl });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong — please try again");
@@ -158,6 +159,18 @@ export default function AgentsPage() {
                     className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
                   />
                 </div>
+
+                {/* Honeypot — hidden from humans, filled by bots */}
+                <input
+                  type="text"
+                  name="phone_number"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  style={{ display: "none" }}
+                />
 
                 <button
                   type="submit"

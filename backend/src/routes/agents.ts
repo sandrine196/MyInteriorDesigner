@@ -11,11 +11,25 @@ import { config } from "../config/index.js";
 const STAGING_PHOTO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB — real photos are larger than floor plans
 
 const registerBody = z.object({
-  name:       z.string().min(1).max(100),
-  agencyName: z.string().min(1).max(200),
-  email:      z.string().email(),
-  phone:      z.string().optional(),
+  name:         z.string().min(1).max(100),
+  agencyName:   z.string().min(1).max(200),
+  email:        z.string().email(),
+  phone:        z.string().optional(),
+  phone_number: z.string().optional(), // honeypot — must stay empty
 });
+
+function looksLikeRandomString(str: string): boolean {
+  const s = str.replace(/\s+/g, "");
+  if (s.length < 8) return false;
+  const vowels = (s.match(/[aeiouAEIOU]/g) ?? []).length;
+  const vowelRatio = vowels / s.length;
+  // Random strings have very few vowels and random mixed case
+  if (vowelRatio < 0.15) return true;
+  const hasLower = /[a-z]/.test(s);
+  const hasUpper = /[A-Z]/.test(s);
+  if (hasLower && hasUpper && s.length > 10 && vowelRatio < 0.22) return true;
+  return false;
+}
 
 function generateReferralCode(agencyName: string): string {
   const slug = agencyName
@@ -34,7 +48,19 @@ export async function agentRoutes(app: FastifyInstance) {
       const msg = parsed.error.issues[0]?.message ?? "Invalid request";
       return reply.status(400).send({ error: msg });
     }
-    const { name, agencyName, email, phone } = parsed.data;
+    const { name, agencyName, email, phone, phone_number } = parsed.data;
+
+    // Honeypot — bots fill hidden fields
+    if (phone_number && phone_number.length > 0) {
+      console.log("[Bot] Agent honeypot triggered from", request.ip);
+      return reply.status(201).send({ ok: true, agent: { id: "", name, agencyName, referralCode: "", referralUrl: "", dashboardUrl: "" } });
+    }
+
+    // Reject random-string names — bots submit gibberish
+    if (looksLikeRandomString(name) || looksLikeRandomString(agencyName)) {
+      console.log("[Bot] Random-string name rejected:", name, "/", agencyName);
+      return reply.status(201).send({ ok: true, agent: { id: "", name, agencyName, referralCode: "", referralUrl: "", dashboardUrl: "" } });
+    }
 
     const existing = await prisma.agent.findUnique({ where: { email } });
     if (existing) {

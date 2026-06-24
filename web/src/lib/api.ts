@@ -589,6 +589,7 @@ export type AgentRegistration = {
   agencyName: string;
   email: string;
   phone?: string;
+  phone_number?: string;
 };
 
 export type AgentDashboard = {
