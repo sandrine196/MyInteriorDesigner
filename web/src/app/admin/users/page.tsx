@@ -2,10 +2,19 @@
 import { useEffect, useState } from "react";
 import { admin } from "@/lib/api";
 
+type ProjectSummary = {
+  name: string;
+  roomType: string | null;
+  renderCount: number;
+  latestRenderUrl: string | null;
+};
+
 type AdminUser = {
   id: string; email: string; tier: string;
   suspended: boolean; emailVerified: boolean;
-  createdAt: string; lastLoginAt: string | null; projectCount: number;
+  createdAt: string; lastLoginAt: string | null;
+  projectCount: number;
+  projects: ProjectSummary[];
 };
 
 type Filter = "all" | "unverified" | "suspended" | "no-project";
@@ -140,7 +149,35 @@ export default function AdminUsersPage() {
                         : <span className="text-amber-500">⏳</span>
                       }
                     </td>
-                    <td className="px-4 py-3 text-center text-xs text-stone-400">{u.projectCount}</td>
+                    <td className="px-4 py-3 text-xs text-stone-400">
+                      {u.projects.length === 0
+                        ? <span className="text-stone-600">—</span>
+                        : <div className="space-y-2">
+                            {u.projects.map((p, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                {p.latestRenderUrl
+                                  ? <img
+                                      src={p.latestRenderUrl}
+                                      alt=""
+                                      className="w-12 h-9 object-cover rounded flex-shrink-0"
+                                      style={{ border: "1px solid #1e3d54" }}
+                                    />
+                                  : <div className="w-12 h-9 rounded flex-shrink-0 flex items-center justify-center text-stone-700"
+                                      style={{ background: "#1a3044", border: "1px solid #1e3d54" }}>
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    </div>
+                                }
+                                <div>
+                                  <div className="text-stone-300">{p.roomType ?? p.name}</div>
+                                  <div className="text-stone-600">
+                                    {p.renderCount === 0 ? "no renders" : `${p.renderCount} render${p.renderCount > 1 ? "s" : ""}`}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                      }
+                    </td>
                     <td className="px-4 py-3 text-right text-xs text-stone-500">
                       {joinedDays === 0 ? "Today" : joinedDays === 1 ? "Yesterday" : `${joinedDays}d ago`}
                     </td>

@@ -6,6 +6,7 @@ import { config } from "../config/index.js";
 import { importRaftProducts, getRaftSourceStats, mapToRoomCategory } from "../services/cjApi.service.js";
 import { assignMissingStyles } from "../services/styleDetection.service.js";
 import { getAllCosts } from "../services/costs.service.js";
+import { storage } from "../services/storage.service.js";
 
 const COST_PER_RENDER_GBP = 0.03;
 const PRO_PRICE_GBP = 9.99;
@@ -1062,7 +1063,20 @@ export async function adminRoutes(app: FastifyInstance) {
       select: {
         id: true, email: true, tier: true, suspended: true,
         emailVerified: true, createdAt: true, lastLoginAt: true,
-        _count: { select: { projects: true } },
+        projects: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            name: true,
+            roomType: true,
+            _count: { select: { renders: { where: { deletedAt: null } } } },
+            renders: {
+              where: { deletedAt: null, imageKey: { not: null } },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { imageKey: true },
+            },
+          },
+        },
       },
     });
     return users.map(u => ({
@@ -1073,7 +1087,13 @@ export async function adminRoutes(app: FastifyInstance) {
       emailVerified: u.emailVerified,
       createdAt:     u.createdAt.toISOString(),
       lastLoginAt:   u.lastLoginAt?.toISOString() ?? null,
-      projectCount:  u._count.projects,
+      projectCount:  u.projects.length,
+      projects:      u.projects.map(p => ({
+        name:            p.name,
+        roomType:        p.roomType ?? null,
+        renderCount:     p._count.renders,
+        latestRenderUrl: p.renders[0]?.imageKey ? storage.getUrl(p.renders[0].imageKey) : null,
+      })),
     }));
   });
 

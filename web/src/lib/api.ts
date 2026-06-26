@@ -565,7 +565,7 @@ export const admin = {
     recategorise:  () => request<{ success: boolean; processed: number; skipped: number; byCategory: Record<string, number> }>("/admin/products/recategorise", { method: "POST" }),
   },
   users: {
-    list: () => request<Array<{ id: string; email: string; tier: string; suspended: boolean; emailVerified: boolean; createdAt: string; lastLoginAt: string | null; projectCount: number }>>("/admin/users"),
+    list: () => request<Array<{ id: string; email: string; tier: string; suspended: boolean; emailVerified: boolean; createdAt: string; lastLoginAt: string | null; projectCount: number; projects: { name: string; roomType: string | null; renderCount: number; latestRenderUrl: string | null }[] }>>("/admin/users"),
     setSuspended: (id: string, suspended: boolean) => request<{ id: string; suspended: boolean }>(`/admin/users/${id}/suspend`, { method: "PATCH", body: JSON.stringify({ suspended }) }),
   },
   agents: {
