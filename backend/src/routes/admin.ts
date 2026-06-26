@@ -11,6 +11,32 @@ import { storage } from "../services/storage.service.js";
 const COST_PER_RENDER_GBP = 0.03;
 const PRO_PRICE_GBP = 9.99;
 
+type GeoInfo = { country: string; countryCode: string; city: string } | null;
+
+async function geoLookup(ips: (string | null)[]): Promise<Map<string, GeoInfo>> {
+  const unique = [...new Set(ips.filter((ip): ip is string => !!ip && ip !== "::1" && ip !== "127.0.0.1"))];
+  const result = new Map<string, GeoInfo>();
+  if (unique.length === 0) return result;
+  try {
+    const res = await fetch("http://ip-api.com/batch?fields=status,country,countryCode,city,query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(unique.map(q => ({ query: q }))),
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return result;
+    const rows = await res.json() as Array<{ status: string; query: string; country?: string; countryCode?: string; city?: string }>;
+    for (const row of rows) {
+      if (row.status === "success") {
+        result.set(row.query, { country: row.country ?? "", countryCode: row.countryCode ?? "", city: row.city ?? "" });
+      }
+    }
+  } catch {
+    // geo is best-effort — don't fail the request
+  }
+  return result;
+}
+
 function parseRetailers(raw: string | null): string[] {
   if (!raw) return [];
   try { return JSON.parse(raw) as string[]; } catch { return []; }
@@ -1062,7 +1088,7 @@ export async function adminRoutes(app: FastifyInstance) {
       orderBy: { createdAt: "desc" },
       select: {
         id: true, email: true, tier: true, suspended: true,
-        emailVerified: true, createdAt: true, lastLoginAt: true,
+        emailVerified: true, createdAt: true, lastLoginAt: true, lastLoginIp: true,
         projects: {
           orderBy: { createdAt: "asc" },
           select: {
@@ -1079,6 +1105,7 @@ export async function adminRoutes(app: FastifyInstance) {
         },
       },
     });
+    const geo = await geoLookup(users.map(u => u.lastLoginIp));
     return users.map(u => ({
       id:            u.id,
       email:         u.email,
@@ -1087,6 +1114,8 @@ export async function adminRoutes(app: FastifyInstance) {
       emailVerified: u.emailVerified,
       createdAt:     u.createdAt.toISOString(),
       lastLoginAt:   u.lastLoginAt?.toISOString() ?? null,
+      lastLoginIp:   u.lastLoginIp ?? null,
+      location:      u.lastLoginIp ? (geo.get(u.lastLoginIp) ?? null) : null,
       projectCount:  u.projects.length,
       projects:      u.projects.map(p => ({
         name:            p.name,

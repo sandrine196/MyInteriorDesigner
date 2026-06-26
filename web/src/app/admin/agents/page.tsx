@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { admin } from "@/lib/api";
 
+type GeoInfo = { country: string; countryCode: string; city: string } | null;
+
 type Agent = {
   id:              string;
   name:            string;
@@ -13,6 +15,8 @@ type Agent = {
   designsCreated:  number;
   createdAt:       string;
   lastLoginAt:     string | null;
+  lastLoginIp:     string | null;
+  location:        GeoInfo;
 };
 
 const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
@@ -113,11 +117,18 @@ export default function AdminAgentsPage() {
                         ? <span className="text-stone-600">—</span>
                         : (() => {
                             const daysAgo = Math.floor((Date.now() - new Date(agent.lastLoginAt).getTime()) / 86400000);
-                            return daysAgo === 0
-                              ? <span className="text-emerald-400">Today</span>
-                              : daysAgo <= 7
-                              ? <span className="text-emerald-600">{daysAgo}d ago</span>
-                              : <span className="text-stone-500">{daysAgo}d ago</span>;
+                            return (
+                              <div>
+                                <div className={daysAgo === 0 ? "text-emerald-400" : daysAgo <= 7 ? "text-emerald-600" : "text-stone-500"}>
+                                  {daysAgo === 0 ? "Today" : `${daysAgo}d ago`}
+                                </div>
+                                {agent.location && (
+                                  <div className="text-stone-600 mt-0.5">
+                                    {agent.location.city}, {agent.location.countryCode}
+                                  </div>
+                                )}
+                              </div>
+                            );
                           })()
                       }
                     </td>

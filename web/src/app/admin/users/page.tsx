@@ -9,10 +9,13 @@ type ProjectSummary = {
   latestRenderUrl: string | null;
 };
 
+type GeoInfo = { country: string; countryCode: string; city: string } | null;
+
 type AdminUser = {
   id: string; email: string; tier: string;
   suspended: boolean; emailVerified: boolean;
   createdAt: string; lastLoginAt: string | null;
+  lastLoginIp: string | null; location: GeoInfo;
   projectCount: number;
   projects: ProjectSummary[];
 };
@@ -184,9 +187,16 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3 text-right text-xs">
                       {loginDays == null
                         ? <span className="text-stone-600">—</span>
-                        : loginDays === 0
-                        ? <span className="text-emerald-400">Today</span>
-                        : <span className="text-stone-500">{loginDays}d ago</span>
+                        : <div>
+                            <div className={loginDays === 0 ? "text-emerald-400" : "text-stone-500"}>
+                              {loginDays === 0 ? "Today" : `${loginDays}d ago`}
+                            </div>
+                            {u.location && (
+                              <div className="text-stone-600 mt-0.5">
+                                {u.location.city}, {u.location.countryCode}
+                              </div>
+                            )}
+                          </div>
                       }
                     </td>
                     <td className="px-4 py-3 text-right">

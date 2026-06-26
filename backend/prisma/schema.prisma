@@ -22,6 +22,7 @@ model User {
   marketingConsentDate          DateTime?
   referredBy                    String?
   lastLoginAt                   DateTime?
+  lastLoginIp                   String?
   projects                      Project[]
   resetTokens                   PasswordResetToken[]
 
@@ -41,6 +42,7 @@ model Agent {
   clientsReferred Int      @default(0)
   designsCreated  Int      @default(0)
   lastLoginAt     DateTime?
+  lastLoginIp     String?
 
   @@index([referralCode])
   @@index([status])

@@ -10,6 +10,32 @@ import { config } from "../config/index.js";
 
 const STAGING_PHOTO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB — real photos are larger than floor plans
 
+type GeoInfo = { country: string; countryCode: string; city: string } | null;
+
+async function geoLookup(ips: (string | null)[]): Promise<Map<string, GeoInfo>> {
+  const unique = [...new Set(ips.filter((ip): ip is string => !!ip && ip !== "::1" && ip !== "127.0.0.1"))];
+  const result = new Map<string, GeoInfo>();
+  if (unique.length === 0) return result;
+  try {
+    const res = await fetch("http://ip-api.com/batch?fields=status,country,countryCode,city,query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(unique.map(q => ({ query: q }))),
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return result;
+    const rows = await res.json() as Array<{ status: string; query: string; country?: string; countryCode?: string; city?: string }>;
+    for (const row of rows) {
+      if (row.status === "success") {
+        result.set(row.query, { country: row.country ?? "", countryCode: row.countryCode ?? "", city: row.city ?? "" });
+      }
+    }
+  } catch {
+    // geo is best-effort — don't fail the request
+  }
+  return result;
+}
+
 const registerRateLimit = {
   config: {
     rateLimit: {
@@ -169,7 +195,7 @@ export async function agentRoutes(app: FastifyInstance) {
     const agent = await prisma.agent.findUnique({ where: { id: payload.agentId } });
     if (!agent) return reply.status(404).send({ error: "Agent not found." });
 
-    void prisma.agent.update({ where: { id: agent.id }, data: { lastLoginAt: new Date() } })
+    void prisma.agent.update({ where: { id: agent.id }, data: { lastLoginAt: new Date(), lastLoginIp: request.ip } })
       .catch((err) => console.error("[Agents] Failed to update lastLoginAt:", err));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -249,10 +275,17 @@ export async function agentRoutes(app: FastifyInstance) {
       select: {
         id: true, name: true, agencyName: true, email: true,
         referralCode: true, status: true, clientsReferred: true,
-        designsCreated: true, createdAt: true, lastLoginAt: true,
+        designsCreated: true, createdAt: true, lastLoginAt: true, lastLoginIp: true,
       },
     });
-    return { agents };
+    const geo = await geoLookup(agents.map(a => a.lastLoginIp));
+    return {
+      agents: agents.map(a => ({
+        ...a,
+        lastLoginIp: a.lastLoginIp ?? null,
+        location:    a.lastLoginIp ? (geo.get(a.lastLoginIp) ?? null) : null,
+      })),
+    };
   });
 
   // ── Admin: PATCH /admin/agents/:id/status ─────────────────────────────────
