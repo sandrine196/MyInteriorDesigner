@@ -10,6 +10,19 @@ import { config } from "../config/index.js";
 
 const STAGING_PHOTO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB — real photos are larger than floor plans
 
+const registerRateLimit = {
+  config: {
+    rateLimit: {
+      max: 5,
+      timeWindow: "1 hour",
+      errorResponseBuilder: (_req: unknown, ctx: { max: number; ttl: number }) => ({
+        error: `Too many attempts. Try again in ${Math.ceil(ctx.ttl / 60_000)} minutes.`,
+        code: "RATE_LIMIT",
+      }),
+    },
+  },
+} as const;
+
 const registerBody = z.object({
   name:         z.string().min(1).max(100),
   agencyName:   z.string().min(1).max(200),
@@ -40,7 +53,7 @@ function generateReferralCode(agencyName: string): string {
 
 export async function agentRoutes(app: FastifyInstance) {
   // ── POST /agents/register ─────────────────────────────────────────────────
-  app.post("/agents/register", async (request, reply) => {
+  app.post("/agents/register", registerRateLimit, async (request, reply) => {
     const parsed = registerBody.safeParse(request.body);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "Invalid request";
