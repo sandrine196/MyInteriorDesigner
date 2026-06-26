@@ -19,11 +19,14 @@ const registerBody = z.object({
 });
 
 function looksLikeRandomString(str: string): boolean {
-  const s = str.replace(/\s+/g, "");
-  if (s.length < 8) return false;
-  const vowels = (s.match(/[aeiouAEIOU]/g) ?? []).length;
-  // Random strings have very few vowels (bots score ~10%; real names ~30%+)
-  return vowels / s.length < 0.15;
+  for (const word of str.trim().split(/\s+/)) {
+    if (word.length < 5) continue;
+    const vowels = (word.match(/[aeiouAEIOU]/g) ?? []).length;
+    if (vowels / word.length < 0.15) return true;
+    // 4+ consecutive consonants never occur in real names/agencies
+    if (/[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ]{4}/.test(word)) return true;
+  }
+  return false;
 }
 
 function generateReferralCode(agencyName: string): string {
