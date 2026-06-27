@@ -126,8 +126,9 @@ export default function AdminUsersPage() {
           <div className="w-6 h-6 rounded-full border-2 border-mid-blue border-t-mid-gold animate-spin" />
         </div>
       ) : (
-        <div className="rounded-2xl overflow-hidden border border-stone-800">
-          <table className="w-full text-sm">
+        <div className="rounded-2xl border border-stone-800">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[900px]">
             <thead style={{ background: "#1a3044" }}>
               <tr className="text-xs text-stone-500 border-b border-stone-800">
                 <th className="text-left px-4 py-3 font-medium">Email</th>
@@ -239,6 +240,7 @@ export default function AdminUsersPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

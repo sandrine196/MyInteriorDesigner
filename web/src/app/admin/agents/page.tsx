@@ -87,8 +87,9 @@ export default function AdminAgentsPage() {
           <p className="text-stone-500 text-xs mt-1">They&apos;ll appear here when agents sign up at /agents</p>
         </div>
       ) : (
-        <div className="rounded-2xl overflow-hidden border" style={{ borderColor: "#1e3d54" }}>
-          <table className="w-full text-sm">
+        <div className="rounded-2xl border" style={{ borderColor: "#1e3d54" }}>
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[900px]">
             <thead style={{ background: "#122c3f" }}>
               <tr className="text-left">
                 {["Agent", "Agency", "Referral code", "Clients", "Designs", "Status", "Joined", "Last login", "Location", "Actions"].map((h) => (
@@ -168,6 +169,7 @@ export default function AdminAgentsPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
