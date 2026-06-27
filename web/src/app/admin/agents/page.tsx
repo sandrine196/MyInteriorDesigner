@@ -81,7 +81,7 @@ export default function AdminAgentsPage() {
           <table className="w-full text-sm">
             <thead style={{ background: "#122c3f" }}>
               <tr className="text-left">
-                {["Agent", "Agency", "Referral code", "Clients", "Designs", "Status", "Joined", "Last login", "Actions"].map((h) => (
+                {["Agent", "Agency", "Referral code", "Clients", "Designs", "Status", "Joined", "Last login", "Location", "Actions"].map((h) => (
                   <th key={h} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-stone-400">{h}</th>
                 ))}
               </tr>
@@ -118,18 +118,17 @@ export default function AdminAgentsPage() {
                         : (() => {
                             const daysAgo = Math.floor((Date.now() - new Date(agent.lastLoginAt).getTime()) / 86400000);
                             return (
-                              <div>
-                                <div className={daysAgo === 0 ? "text-emerald-400" : daysAgo <= 7 ? "text-emerald-600" : "text-stone-500"}>
-                                  {daysAgo === 0 ? "Today" : `${daysAgo}d ago`}
-                                </div>
-                                {agent.location && (
-                                  <div className="text-stone-600 mt-0.5">
-                                    {agent.location.city}, {agent.location.countryCode}
-                                  </div>
-                                )}
-                              </div>
+                              <span className={daysAgo === 0 ? "text-emerald-400" : daysAgo <= 7 ? "text-emerald-600" : "text-stone-500"}>
+                                {daysAgo === 0 ? "Today" : `${daysAgo}d ago`}
+                              </span>
                             );
                           })()
+                      }
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {agent.location
+                        ? <span className="text-stone-300">{agent.location.city}, {agent.location.countryCode}</span>
+                        : <span className="text-stone-600">—</span>
                       }
                     </td>
                     <td className="px-4 py-3">

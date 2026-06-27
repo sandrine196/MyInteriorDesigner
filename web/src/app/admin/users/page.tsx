@@ -126,12 +126,13 @@ export default function AdminUsersPage() {
                 <th className="text-center px-4 py-3 font-medium">Projects</th>
                 <th className="text-right px-4 py-3 font-medium">Joined</th>
                 <th className="text-right px-4 py-3 font-medium">Last login</th>
+                <th className="text-right px-4 py-3 font-medium">Location</th>
                 <th className="text-right px-4 py-3 font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
               {visible.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-stone-600">No users match</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-stone-600">No users match</td></tr>
               ) : visible.map(u => {
                 const joinedDays   = daysAgo(u.createdAt);
                 const loginDays    = daysAgo(u.lastLoginAt);
@@ -187,16 +188,15 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3 text-right text-xs">
                       {loginDays == null
                         ? <span className="text-stone-600">—</span>
-                        : <div>
-                            <div className={loginDays === 0 ? "text-emerald-400" : "text-stone-500"}>
-                              {loginDays === 0 ? "Today" : `${loginDays}d ago`}
-                            </div>
-                            {u.location && (
-                              <div className="text-stone-600 mt-0.5">
-                                {u.location.city}, {u.location.countryCode}
-                              </div>
-                            )}
-                          </div>
+                        : <span className={loginDays === 0 ? "text-emerald-400" : "text-stone-500"}>
+                            {loginDays === 0 ? "Today" : `${loginDays}d ago`}
+                          </span>
+                      }
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs">
+                      {u.location
+                        ? <span className="text-stone-300">{u.location.city}, {u.location.countryCode}</span>
+                        : <span className="text-stone-600">—</span>
                       }
                     </td>
                     <td className="px-4 py-3 text-right">
