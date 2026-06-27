@@ -12,23 +12,48 @@ const STAGING_PHOTO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB — real photos are l
 
 type GeoInfo = { country: string; countryCode: string; city: string } | null;
 
+function normaliseIp(ip: string): string {
+  return ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+}
+
+function isPrivateIp(ip: string): boolean {
+  return (
+    ip === "::1" ||
+    ip === "127.0.0.1" ||
+    ip.startsWith("10.") ||
+    ip.startsWith("192.168.") ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
+  );
+}
+
 async function geoLookup(ips: (string | null)[]): Promise<Map<string, GeoInfo>> {
-  const unique = [...new Set(ips.filter((ip): ip is string => !!ip && ip !== "::1" && ip !== "127.0.0.1"))];
+  const normMap = new Map<string, string>();
+  for (const ip of ips) {
+    if (!ip) continue;
+    const norm = normaliseIp(ip);
+    if (!isPrivateIp(norm)) normMap.set(ip, norm);
+  }
   const result = new Map<string, GeoInfo>();
-  if (unique.length === 0) return result;
+  if (normMap.size === 0) return result;
+  const uniqueNorm = [...new Set(normMap.values())];
   try {
     const res = await fetch("http://ip-api.com/batch?fields=status,country,countryCode,city,query", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(unique.map(q => ({ query: q }))),
+      body: JSON.stringify(uniqueNorm.map(q => ({ query: q }))),
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) return result;
     const rows = await res.json() as Array<{ status: string; query: string; country?: string; countryCode?: string; city?: string }>;
+    const byNorm = new Map<string, GeoInfo>();
     for (const row of rows) {
       if (row.status === "success") {
-        result.set(row.query, { country: row.country ?? "", countryCode: row.countryCode ?? "", city: row.city ?? "" });
+        byNorm.set(row.query, { country: row.country ?? "", countryCode: row.countryCode ?? "", city: row.city ?? "" });
       }
+    }
+    for (const [orig, norm] of normMap) {
+      const geo = byNorm.get(norm);
+      if (geo) result.set(orig, geo);
     }
   } catch {
     // geo is best-effort — don't fail the request
