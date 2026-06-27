@@ -120,7 +120,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
 
         {/* ── Main content ─────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 text-stone-100">
+        <main className="flex-1 overflow-y-auto overflow-x-auto p-4 md:p-8 text-stone-100">
           {children}
         </main>
       </div>
