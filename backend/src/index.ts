@@ -31,6 +31,7 @@ const app = Fastify({
     // Never log Authorization headers or request bodies
     redact: ["req.headers.authorization", "req.body.password"],
   },
+  trustProxy: true, // read real client IP from x-forwarded-for (Vercel/proxy)
 });
 
 // ── Security headers ──────────────────────────────────────────────────────────
