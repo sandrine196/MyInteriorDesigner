@@ -59,6 +59,16 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function deleteUser(u: AdminUser) {
+    if (!confirm(`Permanently delete ${u.email}? This cannot be undone.`)) return;
+    try {
+      await admin.users.delete(u.id);
+      setUsers(prev => prev.filter(x => x.id !== u.id));
+    } catch {
+      alert("Failed to delete user");
+    }
+  }
+
   const visible = users
     .filter(u => {
       if (search) return u.email.toLowerCase().includes(search.toLowerCase());
@@ -202,16 +212,27 @@ export default function AdminUsersPage() {
                       }
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => toggleSuspend(u)}
-                        className="text-xs px-2.5 py-1 rounded-lg transition-colors"
-                        style={u.suspended
-                          ? { background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.3)" }
-                          : { background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)" }
-                        }
-                      >
-                        {u.suspended ? "Unsuspend" : "Suspend"}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => toggleSuspend(u)}
+                          className="text-xs px-2.5 py-1 rounded-lg transition-colors"
+                          style={u.suspended
+                            ? { background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.3)" }
+                            : { background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)" }
+                          }
+                        >
+                          {u.suspended ? "Unsuspend" : "Suspend"}
+                        </button>
+                        {u.suspended && (
+                          <button
+                            onClick={() => deleteUser(u)}
+                            className="text-xs px-2.5 py-1 rounded-lg transition-colors"
+                            style={{ background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.4)" }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

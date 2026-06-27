@@ -324,6 +324,16 @@ export async function agentRoutes(app: FastifyInstance) {
     return { ok: true, status: agent.status };
   });
 
+  // ── Admin: DELETE /admin/agents/:id ──────────────────────────────────────
+  app.delete("/admin/agents/:id", { preHandler: [app.authenticateAdmin] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const agent = await prisma.agent.findUnique({ where: { id }, select: { status: true } });
+    if (!agent) return reply.status(404).send({ error: "Agent not found" });
+    if (agent.status !== "suspended") return reply.status(400).send({ error: "Agent must be suspended before deletion" });
+    await prisma.agent.delete({ where: { id } });
+    return { ok: true };
+  });
+
   // ── POST /agents/staging ──────────────────────────────────────────────────
   // Virtual staging: agent uploads a real room photo + plain-English brief.
   // Gemini reads the actual photo and stages it according to the brief.

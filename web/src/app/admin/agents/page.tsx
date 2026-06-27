@@ -50,6 +50,16 @@ export default function AdminAgentsPage() {
     }
   }
 
+  async function deleteAgent(agent: Agent) {
+    if (!confirm(`Permanently delete ${agent.name} (${agent.email})? This cannot be undone.`)) return;
+    try {
+      await admin.agents.delete(agent.id);
+      setAgents((prev) => prev.filter((a) => a.id !== agent.id));
+    } catch {
+      alert("Failed to delete agent");
+    }
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center py-24">
       <div className="w-8 h-8 rounded-full border-2 border-mid-blue border-t-mid-gold animate-spin" />
@@ -143,6 +153,15 @@ export default function AdminAgentsPage() {
                         <option value="active">active</option>
                         <option value="suspended">suspended</option>
                       </select>
+                      {agent.status === "suspended" && (
+                        <button
+                          onClick={() => deleteAgent(agent)}
+                          className="text-xs px-2.5 py-1 rounded-lg transition-colors ml-2"
+                          style={{ background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.4)" }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

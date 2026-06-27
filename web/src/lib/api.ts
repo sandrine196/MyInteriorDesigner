@@ -567,10 +567,12 @@ export const admin = {
   users: {
     list: () => request<Array<{ id: string; email: string; tier: string; suspended: boolean; emailVerified: boolean; createdAt: string; lastLoginAt: string | null; lastLoginIp: string | null; location: { country: string; countryCode: string; city: string } | null; projectCount: number; projects: { name: string; roomType: string | null; renderCount: number; latestRenderUrl: string | null }[] }>>("/admin/users"),
     setSuspended: (id: string, suspended: boolean) => request<{ id: string; suspended: boolean }>(`/admin/users/${id}/suspend`, { method: "PATCH", body: JSON.stringify({ suspended }) }),
+    delete: (id: string) => request<{ ok: boolean }>(`/admin/users/${id}`, { method: "DELETE" }),
   },
   agents: {
     list:         () => request<{ agents: Array<{ id: string; name: string; agencyName: string; email: string; referralCode: string; status: string; clientsReferred: number; designsCreated: number; createdAt: string; lastLoginAt: string | null; lastLoginIp: string | null; location: { country: string; countryCode: string; city: string } | null }> }>("/admin/agents"),
     updateStatus: (id: string, status: string) => request<{ ok: boolean; status: string }>(`/admin/agents/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+    delete: (id: string) => request<{ ok: boolean }>(`/admin/agents/${id}`, { method: "DELETE" }),
   },
   impersonate: {
     list: () => request<{

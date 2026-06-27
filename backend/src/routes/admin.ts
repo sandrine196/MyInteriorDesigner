@@ -1166,6 +1166,16 @@ export async function adminRoutes(app: FastifyInstance) {
     return user;
   });
 
+  // ── DELETE /admin/users/:id ───────────────────────────────────────────────
+  app.delete("/admin/users/:id", auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = await prisma.user.findUnique({ where: { id }, select: { suspended: true } });
+    if (!user) return reply.status(404).send({ error: "User not found" });
+    if (!user.suspended) return reply.status(400).send({ error: "User must be suspended before deletion" });
+    await prisma.user.delete({ where: { id } });
+    return { ok: true };
+  });
+
   // ── POST /admin/impersonate/user ──────────────────────────────────────────
   // Generate a 2-hour user session token for any account — admin testing only.
   app.post("/admin/impersonate/user", auth, async (request, reply) => {
