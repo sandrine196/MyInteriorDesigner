@@ -72,6 +72,17 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       return reply.status(400).send({ error: "Please use a permanent email address to register." });
     }
 
+    // Block heavily-dotted Gmail addresses — bots insert dots between every letter
+    // to bypass duplicate checks (Gmail ignores dots). Real users never have 3+ dots.
+    if (emailDomain === "gmail.com" || emailDomain === "googlemail.com") {
+      const localPart = body.email.toLowerCase().split("@")[0] ?? "";
+      const dotCount = (localPart.match(/\./g) ?? []).length;
+      if (dotCount >= 3) {
+        console.log("[Bot] Dotted Gmail rejected:", body.email, "from", request.ip);
+        return reply.status(400).send({ error: "Please use your Gmail address without dots (Gmail ignores them)." });
+      }
+    }
+
     const existing = await prisma.user.findUnique({ where: { email: body.email } });
     if (existing) {
       return reply.status(409).send({ error: "Email already registered" });
