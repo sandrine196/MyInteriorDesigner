@@ -1169,10 +1169,31 @@ export async function adminRoutes(app: FastifyInstance) {
   // ── DELETE /admin/users/:id ───────────────────────────────────────────────
   app.delete("/admin/users/:id", auth, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const user = await prisma.user.findUnique({ where: { id }, select: { suspended: true } });
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        suspended: true,
+        projects: {
+          select: {
+            renders: { select: { imageKey: true, alternativeImageKey: true } },
+          },
+        },
+      },
+    });
     if (!user) return reply.status(404).send({ error: "User not found" });
     if (!user.suspended) return reply.status(400).send({ error: "User must be suspended before deletion" });
+
+    // Collect all R2 image keys before cascade-deleting the DB rows
+    const imageKeys = user.projects.flatMap(p =>
+      p.renders.flatMap(r => [r.imageKey, r.alternativeImageKey].filter((k): k is string => !!k))
+    );
+
+    // Delete from DB first (cascade removes projects + renders)
     await prisma.user.delete({ where: { id } });
+
+    // Best-effort R2 cleanup — don't fail the request if some keys are missing
+    await Promise.allSettled(imageKeys.map(key => storage.delete(key)));
+
     return { ok: true };
   });
 

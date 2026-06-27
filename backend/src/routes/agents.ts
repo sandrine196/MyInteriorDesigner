@@ -330,7 +330,14 @@ export async function agentRoutes(app: FastifyInstance) {
     const agent = await prisma.agent.findUnique({ where: { id }, select: { status: true } });
     if (!agent) return reply.status(404).send({ error: "Agent not found" });
     if (agent.status !== "suspended") return reply.status(400).send({ error: "Agent must be suspended before deletion" });
+
+    // List all staging images for this agent and delete them from R2
+    const stagingKeys = await storage.listByPrefix(`agent-staging/${id}/`);
+
     await prisma.agent.delete({ where: { id } });
+
+    await Promise.allSettled(stagingKeys.map(key => storage.delete(key)));
+
     return { ok: true };
   });
 

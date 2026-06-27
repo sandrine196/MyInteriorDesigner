@@ -1,6 +1,6 @@
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { config } from "../config/index.js";
 
 const UPLOADS_ROOT = join(process.cwd(), "uploads");
@@ -18,6 +18,8 @@ export interface StorageService {
   getUrl(key: string): string;
   /** Read a stored file and return its raw bytes. */
   download(key: string): Promise<Buffer>;
+  /** List all keys under a given prefix. */
+  listByPrefix(prefix: string): Promise<string[]>;
 }
 
 // ── Local filesystem (current) ─────────────────────────────────────────────────
@@ -40,6 +42,8 @@ class LocalStorageService implements StorageService {
   async download(key: string): Promise<Buffer> {
     return readFile(join(UPLOADS_ROOT, key));
   }
+
+  async listByPrefix(_prefix: string): Promise<string[]> { return []; }
 }
 
 // ── Cloudflare R2 ──────────────────────────────────────────────────────────────
@@ -95,6 +99,23 @@ class R2StorageService implements StorageService {
     }
     return Buffer.concat(chunks);
   }
+
+  async listByPrefix(prefix: string): Promise<string[]> {
+    const keys: string[] = [];
+    let token: string | undefined;
+    do {
+      const res = await this.client.send(new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: prefix,
+        ContinuationToken: token,
+      }));
+      for (const obj of res.Contents ?? []) {
+        if (obj.Key) keys.push(obj.Key);
+      }
+      token = res.NextContinuationToken;
+    } while (token);
+    return keys;
+  }
 }
 
 // ── AWS S3 ─────────────────────────────────────────────────────────────────────
@@ -119,6 +140,8 @@ class S3StorageService implements StorageService {
     if (!res.ok) throw new Error(`S3 download failed for key "${key}": ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
   }
+
+  async listByPrefix(_prefix: string): Promise<string[]> { return []; }
 }
 
 // ── Scaleway Object Storage ────────────────────────────────────────────────────
@@ -146,6 +169,8 @@ class ScalewayStorageService implements StorageService {
     if (!res.ok) throw new Error(`Scaleway download failed for key "${key}": ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
   }
+
+  async listByPrefix(_prefix: string): Promise<string[]> { return []; }
 }
 
 // ── Factory + singleton ────────────────────────────────────────────────────────
