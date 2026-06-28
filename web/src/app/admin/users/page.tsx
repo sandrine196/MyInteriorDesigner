@@ -209,6 +209,8 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3 text-right text-xs">
                       {u.location
                         ? <span className="text-stone-300">{u.location.city}, {u.location.countryCode}</span>
+                        : u.lastLoginIp
+                        ? <span className="text-stone-600 font-mono">{u.lastLoginIp}</span>
                         : <span className="text-stone-600">—</span>
                       }
                     </td>
