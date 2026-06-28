@@ -199,8 +199,11 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
     if (user.suspended) {
       return reply.status(403).send({ error: "Account suspended. Contact support.", code: "SUSPENDED" });
     }
+    const loginIp = (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+      ?? request.ip
+      ?? null;
     track("user_login", user.id);
-    void prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: request.ip } })
+    void prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: loginIp } })
       .catch((err) => console.error("[Auth] Failed to update lastLoginAt:", err));
     const token = await reply.jwtSign({ sub: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin });
     return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin } };

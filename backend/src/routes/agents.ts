@@ -220,7 +220,10 @@ export async function agentRoutes(app: FastifyInstance) {
     const agent = await prisma.agent.findUnique({ where: { id: payload.agentId } });
     if (!agent) return reply.status(404).send({ error: "Agent not found." });
 
-    void prisma.agent.update({ where: { id: agent.id }, data: { lastLoginAt: new Date(), lastLoginIp: request.ip } })
+    const loginIp = (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+      ?? request.ip
+      ?? null;
+    void prisma.agent.update({ where: { id: agent.id }, data: { lastLoginAt: new Date(), lastLoginIp: loginIp } })
       .catch((err) => console.error("[Agents] Failed to update lastLoginAt:", err));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
