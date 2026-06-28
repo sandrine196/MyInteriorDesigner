@@ -796,6 +796,30 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // ── System: database stats ────────────────────────────────────────────────
 
+  // ── GET /admin/reve-status ────────────────────────────────────────────────
+  app.get("/admin/reve-status", auth, async () => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24h
+    const recentErrors = await prisma.render.findMany({
+      where: {
+        status: "failed",
+        createdAt: { gte: since },
+        errorMessage: { not: null },
+      },
+      select: { errorMessage: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const outOfCredits = recentErrors.find(r => r.errorMessage?.includes("REVE_OUT_OF_CREDITS"));
+    const rateLimited  = recentErrors.find(r => r.errorMessage?.includes("REVE_RATE_LIMITED"));
+
+    return {
+      ok:            !outOfCredits && !rateLimited,
+      outOfCredits:  !!outOfCredits,
+      rateLimited:   !!rateLimited,
+      lastErrorAt:   outOfCredits?.createdAt ?? rateLimited?.createdAt ?? null,
+    };
+  });
+
   app.get("/admin/system/stats", auth, async () => {
     const [users, projects, renders, products, clicks, costs, revenues] = await Promise.all([
       prisma.user.count(),

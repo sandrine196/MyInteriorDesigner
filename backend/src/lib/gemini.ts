@@ -843,7 +843,13 @@ async function stageWithReve(
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("[Staging] Reve API error:", errorText);
+    console.error("[Staging] Reve API error:", response.status, errorText);
+    if (response.status === 402) {
+      throw new Error("REVE_OUT_OF_CREDITS: Reve budget exhausted — top up credits to resume renders");
+    }
+    if (response.status === 429) {
+      throw new Error("REVE_RATE_LIMITED: Reve rate limit exceeded — too many requests");
+    }
     throw new Error(`Reve error: ${response.status} — ${errorText}`);
   }
 

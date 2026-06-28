@@ -557,6 +557,9 @@ export const admin = {
     stats:   () => request<BackupStats>("/admin/backups/stats"),
     restore: (backupKey: string) => request<{ success: boolean; rowsRestored: number }>("/admin/backups/restore", { method: "POST", body: JSON.stringify({ backupKey, confirm: "RESTORE" }) }),
   },
+  reve: {
+    status: () => request<{ ok: boolean; outOfCredits: boolean; rateLimited: boolean; lastErrorAt: string | null }>("/admin/reve-status"),
+  },
   products: {
     sources:      () => request<{ sources: ProductSourceStats[] }>("/admin/products/sources"),
     importRaft:   () => request<{ success: boolean; imported: number; updated: number; skipped: number; total: number; withDimensions: number; stylesAssigned: number; firstError?: string }>("/admin/products/import/raft", { method: "POST" }),

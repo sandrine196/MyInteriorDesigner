@@ -610,6 +610,55 @@ function ProductSourcesSection() {
   );
 }
 
+// ── Reve status ───────────────────────────────────────────────────────────────
+
+function ReveStatusSection() {
+  const [status, setStatus] = useState<{ ok: boolean; outOfCredits: boolean; rateLimited: boolean; lastErrorAt: string | null } | null>(null);
+
+  useEffect(() => {
+    admin.reve.status().then(setStatus).catch(() => setStatus(null));
+  }, []);
+
+  if (!status) return null;
+
+  if (status.ok) {
+    return (
+      <div className="space-y-4">
+        <SectionHeader title="Reve AI" />
+        <Card>
+          <div className="flex items-center gap-2 text-sm text-emerald-400">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+            No credit or rate limit issues in the last 24 hours
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const message = status.outOfCredits
+    ? "Reve is out of credits — renders are failing. Top up your Reve budget to resume."
+    : "Reve rate limit hit — too many requests in a short period. Should recover automatically.";
+
+  const lastAt = status.lastErrorAt
+    ? new Date(status.lastErrorAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Reve AI" />
+      <Card>
+        <div className="flex items-start gap-3">
+          <span className="inline-block w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: status.outOfCredits ? "#ef4444" : "#f59e0b" }} />
+          <div>
+            <p className="text-sm font-semibold" style={{ color: status.outOfCredits ? "#f87171" : "#fbbf24" }}>{message}</p>
+            {lastAt && <p className="text-xs text-stone-500 mt-1">Last error: {lastAt}</p>}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function SystemPage() {
@@ -619,6 +668,7 @@ export default function SystemPage() {
         <h1 className="text-2xl font-bold text-white">System</h1>
         <p className="text-stone-500 text-sm mt-1">Backups, database stats, and service health</p>
       </div>
+      <ReveStatusSection />
       <DbCheckSection />
       <ProductSourcesSection />
       <BackupSection />
