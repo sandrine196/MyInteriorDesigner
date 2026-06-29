@@ -96,6 +96,12 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
 
     const passwordHash     = await hashPassword(body.password);
     const verificationToken = randomBytes(32).toString("hex");
+    const registerIp =
+      (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+      ?? (request.headers["x-real-ip"] as string | undefined)
+      ?? (request.headers["cf-connecting-ip"] as string | undefined)
+      ?? request.ip
+      ?? null;
     const user = await prisma.user.create({
       data: {
         email:                           body.email,
@@ -104,6 +110,7 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
         marketingConsentDate:            body.marketingConsent ? new Date() : null,
         referredBy:                      validReferralCode,
         lastLoginAt:                     new Date(),
+        lastLoginIp:                     registerIp,
         emailVerified:                   false,
         emailVerificationToken:          verificationToken,
         emailVerificationTokenExpiry:    new Date(Date.now() + 24 * 60 * 60 * 1000),
