@@ -80,11 +80,11 @@ export type User = { id: string; email: string; tier: "free" | "pro"; isAdmin?: 
 export type AuthResponse = { token: string; user: User; firstProjectId?: string };
 
 export const auth = {
-  register: (email: string, password: string, marketingConsent = false, referredBy?: string, phone_number?: string) =>
+  register: (email: string, password: string, marketingConsent = false, referredBy?: string, phone_number?: string, cfTurnstileToken?: string) =>
     request<AuthResponse>("/auth/register", {
       method: "POST",
       auth: false,
-      body: JSON.stringify({ email, password, marketingConsent, ...(referredBy ? { referredBy } : {}), ...(phone_number ? { phone_number } : {}) }),
+      body: JSON.stringify({ email, password, marketingConsent, ...(referredBy ? { referredBy } : {}), ...(phone_number ? { phone_number } : {}), ...(cfTurnstileToken ? { cfTurnstileToken } : {}) }),
     }),
   login: (email: string, password: string) =>
     request<AuthResponse>("/auth/login", {

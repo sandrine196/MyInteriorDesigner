@@ -1,7 +1,9 @@
 "use client";
-import { useState, FormEvent, useEffect, Suspense } from "react";
+import { useState, useRef, FormEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Turnstile } from "@marsidev/react-turnstile";
+import type { TurnstileInstance } from "@marsidev/react-turnstile";
 import { auth, saveToken, ApiError } from "@/lib/api";
 
 function RegisterForm() {
@@ -15,6 +17,8 @@ function RegisterForm() {
   const [honeypot,         setHoneypot]         = useState("");
   const [error,            setError]            = useState("");
   const [loading,          setLoading]          = useState(false);
+  const [cfToken,          setCfToken]          = useState("");
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
   // Persist ref code in sessionStorage so it survives page navigation
   useEffect(() => {
@@ -27,13 +31,15 @@ function RegisterForm() {
     setLoading(true);
     const storedRef = sessionStorage.getItem("mid_ref") ?? refCode ?? undefined;
     try {
-      const { token, firstProjectId } = await auth.register(email, password, marketingConsent, storedRef || undefined, honeypot || undefined);
+      const { token, firstProjectId } = await auth.register(email, password, marketingConsent, storedRef || undefined, honeypot || undefined, cfToken);
       if (storedRef) sessionStorage.removeItem("mid_ref");
       saveToken(token);
       router.push(firstProjectId ? `/projects/${firstProjectId}` : "/projects");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Registration failed");
       setLoading(false);
+      turnstileRef.current?.reset();
+      setCfToken("");
     }
   }
 
@@ -124,9 +130,18 @@ function RegisterForm() {
             style={{ display: "none" }}
           />
 
+          <Turnstile
+            ref={turnstileRef}
+            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""}
+            onSuccess={setCfToken}
+            onError={() => setCfToken("")}
+            onExpire={() => setCfToken("")}
+            options={{ theme: "light", size: "flexible" }}
+          />
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !cfToken}
             className="w-full disabled:opacity-50 rounded-xl py-2.5 text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
             style={{ background: "#D4A574", color: "#1B4965" }}
           >

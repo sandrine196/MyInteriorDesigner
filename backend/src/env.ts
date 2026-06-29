@@ -19,6 +19,7 @@ const schema = z.object({
   ALERT_EMAIL: z.string().email().optional(),
   RESEND_API_KEY: z.string().optional(),
   USE_MOCK_RENDER: z.string().optional().transform((v) => v === "true"),
+  TURNSTILE_SECRET_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

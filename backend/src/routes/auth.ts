@@ -19,11 +19,12 @@ const passwordSchema = z
   .regex(/\d/, "Password must contain at least one number");
 
 const registerBody = z.object({
-  email:            z.string().email(),
-  password:         passwordSchema,
-  marketingConsent: z.boolean().optional().default(false),
-  referredBy:       z.string().optional(),
-  phone_number:     z.string().optional(), // honeypot — must stay empty
+  email:             z.string().email(),
+  password:          passwordSchema,
+  marketingConsent:  z.boolean().optional().default(false),
+  referredBy:        z.string().optional(),
+  phone_number:      z.string().optional(), // honeypot — must stay empty
+  cfTurnstileToken:  z.string().optional(),
 });
 
 const loginBody = z.object({
@@ -64,6 +65,24 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       console.log("[Bot] Honeypot triggered from", request.ip);
       // Return fake success — don't alert the bot
       return { token: "", user: { id: "", email: body.email, tier: "free", isAdmin: false, marketingConsent: false, emailVerified: false } };
+    }
+
+    // Turnstile verification
+    const turnstileSecret = env.TURNSTILE_SECRET_KEY;
+    if (turnstileSecret) {
+      if (!body.cfTurnstileToken) {
+        return reply.status(400).send({ error: "Security check required. Please reload and try again." });
+      }
+      const verifyRes = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: turnstileSecret, response: body.cfTurnstileToken }),
+      });
+      const verifyData = await verifyRes.json() as { success: boolean };
+      if (!verifyData.success) {
+        console.log("[Bot] Turnstile failed from", request.ip);
+        return reply.status(400).send({ error: "Security check failed. Please reload and try again." });
+      }
     }
 
     // Block disposable email domains
