@@ -199,12 +199,16 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
     if (user.suspended) {
       return reply.status(403).send({ error: "Account suspended. Contact support.", code: "SUSPENDED" });
     }
-    const loginIp = (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+    const loginIp =
+      (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+      ?? (request.headers["x-real-ip"] as string | undefined)
+      ?? (request.headers["cf-connecting-ip"] as string | undefined)
       ?? request.ip
       ?? null;
+    console.log("[Auth] Login IP debug — xff:", request.headers["x-forwarded-for"], "x-real-ip:", request.headers["x-real-ip"], "request.ip:", request.ip, "resolved:", loginIp);
     track("user_login", user.id);
     void prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: loginIp } })
-      .catch((err) => console.error("[Auth] Failed to update lastLoginAt:", err));
+      .catch((err) => console.error("[Auth] Failed to update lastLoginIp:", err));
     const token = await reply.jwtSign({ sub: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin });
     return { token, user: { id: user.id, email: user.email, tier: user.tier, isAdmin: user.isAdmin } };
   });

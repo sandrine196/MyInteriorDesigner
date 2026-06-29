@@ -220,11 +220,15 @@ export async function agentRoutes(app: FastifyInstance) {
     const agent = await prisma.agent.findUnique({ where: { id: payload.agentId } });
     if (!agent) return reply.status(404).send({ error: "Agent not found." });
 
-    const loginIp = (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+    const loginIp =
+      (request.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+      ?? (request.headers["x-real-ip"] as string | undefined)
+      ?? (request.headers["cf-connecting-ip"] as string | undefined)
       ?? request.ip
       ?? null;
+    console.log("[Agents] Login IP debug — xff:", request.headers["x-forwarded-for"], "x-real-ip:", request.headers["x-real-ip"], "request.ip:", request.ip, "resolved:", loginIp);
     void prisma.agent.update({ where: { id: agent.id }, data: { lastLoginAt: new Date(), lastLoginIp: loginIp } })
-      .catch((err) => console.error("[Agents] Failed to update lastLoginAt:", err));
+      .catch((err) => console.error("[Agents] Failed to update lastLoginIp:", err));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sessionToken = (app.jwt.sign as any)(
