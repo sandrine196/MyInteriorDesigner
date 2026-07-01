@@ -90,6 +90,47 @@ const STYLE_KEYWORDS: Record<string, string[]> = {
     "air-purifying", "organic mattress", "smart lighting", "olive",
     "sage green", "biophilic", "natural fibre", "plant",
   ],
+  // ── Dining room ─────────────────────────────────────────────────────────
+  dining_warm_minimalist: [
+    "plaster table", "concrete table", "sculptural", "geometric table",
+    "thick leg", "low-profile chair",
+  ],
+  dining_modern_heritage: [
+    "pedestal table", "timber dining", "upholstered dining chair",
+    "wall panelling", "traditional wallpaper",
+  ],
+  dining_midcentury: [
+    "teak dining", "wishbone chair", "molded plywood", "sputnik",
+    "tapered leg", "mid-century dining",
+  ],
+  dining_japandi: [
+    "paper-cord", "paper cord", "oak dining", "lantern pendant",
+    "low-slung", "japandi dining",
+  ],
+  dining_curated_maximalist: [
+    "lacquered wall", "mismatched vintage", "velvet dining chair",
+    "statement chandelier", "bold wallpaper", "jewel box",
+  ],
+  dining_organic_bohemian: [
+    "raw-edge", "raw edge", "rattan dining", "wicker dining",
+    "linen runner", "hanging plant", "dried botanical",
+  ],
+  dining_elevated_rustic: [
+    "farmhouse table", "reclaimed pine", "bistro chair", "linen drapery",
+    "wrought-iron", "wrought iron",
+  ],
+  dining_boutique_glamour: [
+    "high-gloss dining", "bouclé dining", "brushed brass", "bar cart",
+    "wine storage", "velvet dining",
+  ],
+  dining_industrial_loft: [
+    "steel-framed table", "leather dining chair", "filament bulb",
+    "exposed brick dining", "industrial dining",
+  ],
+  dining_new_coastal: [
+    "whitewashed oak", "slipcovered dining", "jute rug", "woven bead",
+    "coastal dining",
+  ],
 };
 
 const DEFAULT_STYLE = "warm_minimalism";

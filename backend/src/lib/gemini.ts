@@ -84,12 +84,27 @@ const DESIGN_STYLE_LABELS: Record<string, string> = {
   bath_mediterranean:   "Mediterranean Plaster",
   bath_color_drenched:  "Color-Drenched Modern",
   // Kitchen styles
-  kitchen_shaker:    "Shaker",
-  kitchen_handleless: "Modern Handleless",
-  kitchen_industrial: "Industrial",
-  kitchen_farmhouse:  "Country & Farmhouse",
-  kitchen_scandi:     "Scandi & Minimal",
-  kitchen_bold:       "Bold & Colourful",
+  kitchen_modern_heritage:    "Modern Heritage",
+  kitchen_warm_minimalist:    "Warm Minimalist",
+  kitchen_organic_biophilic:  "Organic Modern / Biophilic",
+  kitchen_transitional:       "Sophisticated Transitional",
+  kitchen_english_country:    "English Country / DeVOL",
+  kitchen_japandi:            "Japandi",
+  kitchen_industrial_refined: "Industrial Refined",
+  kitchen_boutique_dramatic:  "Boutique Dramatic",
+  kitchen_coastal_organic:    "Coastal Organic",
+  kitchen_eclectic_collected: "Eclectic Collected",
+  // Dining room styles
+  dining_warm_minimalist:    "Warm Minimalist",
+  dining_modern_heritage:    "Modern Heritage",
+  dining_midcentury:         "Mid-Century Modern",
+  dining_japandi:            "Japandi",
+  dining_curated_maximalist: "Curated Maximalist",
+  dining_organic_bohemian:   "Organic Bohemian",
+  dining_elevated_rustic:    "Elevated European Rustic",
+  dining_boutique_glamour:   "Boutique Hotel Glamour",
+  dining_industrial_loft:    "Industrial Loft",
+  dining_new_coastal:        "New Coastal",
 };
 
 // ── Room features types (mirrors frontend api.ts) ─────────────────────────────

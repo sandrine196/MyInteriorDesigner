@@ -115,18 +115,36 @@ const BATHROOM_STYLES = [
 ];
 
 const KITCHEN_STYLES = [
-  { id: "kitchen_shaker",     label: "Shaker",               desc: "Classic UK kitchen",            from: "#D8CDB8", to: "#B8A890" },
-  { id: "kitchen_handleless", label: "Modern Handleless",    desc: "Sleek, integrated look",        from: "#3A3A3A", to: "#1C1C1C" },
-  { id: "kitchen_industrial", label: "Industrial",           desc: "Raw steel, open shelving",      from: "#5C5C5C", to: "#3C3C3C" },
-  { id: "kitchen_farmhouse",  label: "Country & Farmhouse",  desc: "Warm, rustic, traditional",     from: "#C8B49A", to: "#9E8A72" },
-  { id: "kitchen_scandi",     label: "Scandi & Minimal",     desc: "Light woods, clean lines",      from: "#F0EDE8", to: "#D4C9B5" },
-  { id: "kitchen_bold",       label: "Bold & Colourful",     desc: "Statement colour, playful",     from: "#D44A6A", to: "#7B3D73" },
+  { id: "kitchen_modern_heritage", label: "Modern Heritage",       desc: "Shaker cabinets in rich colour, waterfall marble", from: "#294A3C", to: "#152A22" },
+  { id: "kitchen_warm_minimalist", label: "Warm Minimalist",       desc: "Handleless flat-panel, rich wood grain, cream",     from: "#D8C4A0", to: "#A98E68" },
+  { id: "kitchen_organic_biophilic", label: "Organic Modern / Biophilic", desc: "Natural light, brass, open shelving, veined stone", from: "#C9C2A8", to: "#8C9270" },
+  { id: "kitchen_transitional",    label: "Sophisticated Transitional", desc: "Timeless cabinetry, stone counters, polished nickel", from: "#D8D2C6", to: "#A8A090" },
+  { id: "kitchen_english_country", label: "English Country / DeVOL", desc: "Antique hutches, peg rails, terracotta tile",      from: "#C9A97C", to: "#8C6E44" },
+  { id: "kitchen_japandi",         label: "Japandi",               desc: "Low-profile cabinetry, light oak, matte black",     from: "#D4C9B5", to: "#8B9E8B" },
+  { id: "kitchen_industrial_refined", label: "Industrial Refined", desc: "Blackened steel, exposed brick, warm walnut",       from: "#4A4A4A", to: "#2A2A2A" },
+  { id: "kitchen_boutique_dramatic", label: "Boutique Dramatic",   desc: "Dark colour drenching, veined marble, gold accents",from: "#2C2430", to: "#16121A" },
+  { id: "kitchen_coastal_organic", label: "Coastal Organic",       desc: "Sandy neutrals, bleached oak, rattan barstools",    from: "#D8CBB0", to: "#B0A480" },
+  { id: "kitchen_eclectic_collected", label: "Eclectic Collected", desc: "Mismatched cabinetry, vintage meets lacquer",       from: "#B0784C", to: "#3A3A3A" },
+];
+
+const DINING_STYLES = [
+  { id: "dining_warm_minimalist",  label: "Warm Minimalist",       desc: "Sculptural plaster or concrete table, clean chairs", from: "#D8C4A0", to: "#A98E68" },
+  { id: "dining_modern_heritage",  label: "Modern Heritage",       desc: "Rich timber table, upholstered chairs, panelling",   from: "#7B5C3C", to: "#4A3624" },
+  { id: "dining_midcentury",       label: "Mid-Century Modern",    desc: "Teak table, tapered legs, sputnik chandelier",       from: "#D4A847", to: "#B07D2E" },
+  { id: "dining_japandi",          label: "Japandi",                desc: "Low oak furniture, paper-cord chairs, lantern light",from: "#D4C9B5", to: "#8B9E8B" },
+  { id: "dining_curated_maximalist", label: "Curated Maximalist",  desc: "Bold wallpaper, lacquered walls, statement chandelier", from: "#3D2C56", to: "#6E2E3A" },
+  { id: "dining_organic_bohemian", label: "Organic Bohemian",      desc: "Raw-edge wood, rattan chairs, linen, hanging plants", from: "#C17B4B", to: "#7B8F5C" },
+  { id: "dining_elevated_rustic",  label: "Elevated European Rustic", desc: "Reclaimed farmhouse table, bistro chairs, iron",  from: "#8C6244", to: "#5A3E29" },
+  { id: "dining_boutique_glamour", label: "Boutique Hotel Glamour", desc: "High-gloss table, velvet chairs, brushed brass",    from: "#2C1A3A", to: "#4A2E5C" },
+  { id: "dining_industrial_loft",  label: "Industrial Loft",       desc: "Steel-framed table, leather chairs, exposed brick", from: "#5C5C5C", to: "#3C3C3C" },
+  { id: "dining_new_coastal",      label: "New Coastal",           desc: "Whitewashed oak, slipcovers, jute, woven lighting", from: "#7BACC4", to: "#D8E4E8" },
 ];
 
 function stylesForRoomType(roomType: string | null | undefined) {
   if (roomType === "bathroom") return BATHROOM_STYLES;
   if (roomType === "kitchen") return KITCHEN_STYLES;
   if (roomType === "bedroom_primary" || roomType === "bedroom_secondary") return BEDROOM_STYLES;
+  if (roomType === "dining_room") return DINING_STYLES;
   return DESIGN_STYLES;
 }
 
@@ -708,7 +726,7 @@ export default function ProjectWorkspacePage() {
     (b) => b.min === project.budgetMin && b.max === project.budgetMax
   )?.label;
   const styleLabel = (
-    [...DESIGN_STYLES, ...BEDROOM_STYLES, ...BATHROOM_STYLES, ...KITCHEN_STYLES]
+    [...DESIGN_STYLES, ...BEDROOM_STYLES, ...DINING_STYLES, ...BATHROOM_STYLES, ...KITCHEN_STYLES]
       .find((s) => s.id === project.designStyle)?.label
   );
   const wallLabel = project.wallColorPalette
