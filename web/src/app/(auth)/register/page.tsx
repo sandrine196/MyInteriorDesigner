@@ -6,6 +6,152 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import type { TurnstileInstance } from "@marsidev/react-turnstile";
 import { auth, saveToken, ApiError } from "@/lib/api";
 
+// ── Check-email screen ───────────────────────────────────────────────────────
+
+const EMAIL_PROVIDER_LINKS: Record<string, { label: string; url: string }> = {
+  "gmail.com":       { label: "Open Gmail →",        url: "https://mail.google.com" },
+  "googlemail.com":  { label: "Open Gmail →",        url: "https://mail.google.com" },
+  "outlook.com":     { label: "Open Outlook →",      url: "https://outlook.live.com" },
+  "hotmail.com":     { label: "Open Outlook →",      url: "https://outlook.live.com" },
+  "hotmail.co.uk":   { label: "Open Outlook →",      url: "https://outlook.live.com" },
+  "live.com":        { label: "Open Outlook →",      url: "https://outlook.live.com" },
+  "live.co.uk":      { label: "Open Outlook →",      url: "https://outlook.live.com" },
+  "yahoo.com":       { label: "Open Yahoo Mail →",   url: "https://mail.yahoo.com" },
+  "yahoo.co.uk":     { label: "Open Yahoo Mail →",   url: "https://mail.yahoo.com" },
+  "icloud.com":      { label: "Open iCloud Mail →",  url: "https://www.icloud.com/mail" },
+  "me.com":          { label: "Open iCloud Mail →",  url: "https://www.icloud.com/mail" },
+  "mac.com":         { label: "Open iCloud Mail →",  url: "https://www.icloud.com/mail" },
+  "aol.com":         { label: "Open AOL Mail →",     url: "https://mail.aol.com" },
+  "protonmail.com":  { label: "Open ProtonMail →",   url: "https://mail.proton.me" },
+  "proton.me":       { label: "Open ProtonMail →",   url: "https://mail.proton.me" },
+  "tutamail.com":    { label: "Open Tuta Mail →",    url: "https://app.tuta.com" },
+  "tuta.com":        { label: "Open Tuta Mail →",    url: "https://app.tuta.com" },
+};
+
+function CheckEmailScreen({ email }: { email: string }) {
+  const router = useRouter();
+  const [resent,   setResent]   = useState(false);
+  const [resending, setResending] = useState(false);
+  const [cooldown,  setCooldown]  = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  async function handleResend() {
+    setResending(true);
+    try {
+      await auth.resendVerification();
+      setResent(true);
+      setCooldown(60);
+    } catch {
+      // silently ignore — user can try again
+    } finally {
+      setResending(false);
+    }
+  }
+
+  const domain = email.toLowerCase().split("@")[1] ?? "";
+  const providerLink = EMAIL_PROVIDER_LINKS[domain];
+  // Fallback: show both Gmail and Outlook for unknown providers
+  const fallbackLinks = [
+    { label: "Open Gmail →",   url: "https://mail.google.com" },
+    { label: "Open Outlook →", url: "https://outlook.live.com" },
+  ];
+
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center p-6"
+      style={{ background: "linear-gradient(135deg, #1B4965 0%, #2A5F7F 100%)" }}
+    >
+      <div className="w-full max-w-sm">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 space-y-5 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/MIDLogo.png" alt="My Interior Designer" className="h-12 mx-auto object-contain" />
+
+          <div className="text-5xl">📧</div>
+
+          <div>
+            <h1 className="text-xl font-bold tracking-tight" style={{ color: "#1B4965" }}>
+              Check your email!
+            </h1>
+            <p className="text-sm text-stone-500 mt-2 leading-relaxed">
+              We&apos;ve sent a verification link to:
+            </p>
+            <p className="text-sm font-semibold mt-1 break-all" style={{ color: "#1B4965" }}>
+              {email}
+            </p>
+          </div>
+
+          <p className="text-sm text-stone-500 leading-relaxed">
+            Click the link in that email to activate your account and start generating designs.
+          </p>
+
+          {/* Tips */}
+          <div className="bg-stone-50 rounded-xl px-5 py-4 text-left space-y-1.5">
+            <p className="text-xs font-semibold text-stone-600 mb-2">Can&apos;t find it? Check:</p>
+            <p className="text-xs text-stone-500">📁 Your spam / junk folder</p>
+            <p className="text-xs text-stone-500">📂 Gmail &ldquo;Promotions&rdquo; tab</p>
+            <p className="text-xs text-stone-500">⏱️ It may take 1–2 minutes to arrive</p>
+          </div>
+
+          {/* Resend */}
+          {resent ? (
+            <p className="text-sm text-green-600 font-medium">Email resent! Check your inbox.</p>
+          ) : (
+            <button
+              onClick={handleResend}
+              disabled={resending || cooldown > 0}
+              className="w-full border border-stone-200 rounded-xl py-2.5 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors disabled:opacity-50"
+            >
+              {resending ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend verification email"}
+            </button>
+          )}
+
+          {/* Open email app */}
+          <div className={`grid gap-2 ${providerLink ? "grid-cols-1" : "grid-cols-2"}`}>
+            {providerLink ? (
+              <a
+                href={providerLink.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-xl py-2.5 text-sm font-semibold text-center transition-all hover:opacity-90 active:scale-95"
+                style={{ background: "#D4A574", color: "#1B4965" }}
+              >
+                {providerLink.label}
+              </a>
+            ) : (
+              fallbackLinks.map((l) => (
+                <a
+                  key={l.url}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-xl py-2.5 text-sm font-semibold text-center transition-all hover:opacity-90 active:scale-95"
+                  style={{ background: "#D4A574", color: "#1B4965" }}
+                >
+                  {l.label}
+                </a>
+              ))
+            )}
+          </div>
+
+          <button
+            onClick={() => router.push("/")}
+            className="text-xs text-stone-400 hover:text-stone-600 transition-colors"
+          >
+            I&apos;ll verify later →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Registration form ────────────────────────────────────────────────────────
+
 function RegisterForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -18,9 +164,9 @@ function RegisterForm() {
   const [error,            setError]            = useState("");
   const [loading,          setLoading]          = useState(false);
   const [cfToken,          setCfToken]          = useState("");
+  const [registeredEmail,  setRegisteredEmail]  = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileInstance>(null);
 
-  // Persist ref code in sessionStorage so it survives page navigation
   useEffect(() => {
     if (refCode) sessionStorage.setItem("mid_ref", refCode);
   }, [refCode]);
@@ -31,16 +177,20 @@ function RegisterForm() {
     setLoading(true);
     const storedRef = sessionStorage.getItem("mid_ref") ?? refCode ?? undefined;
     try {
-      const { token, firstProjectId } = await auth.register(email, password, marketingConsent, storedRef || undefined, honeypot || undefined, cfToken);
+      const { token } = await auth.register(email, password, marketingConsent, storedRef || undefined, honeypot || undefined, cfToken);
       if (storedRef) sessionStorage.removeItem("mid_ref");
       saveToken(token);
-      router.push(firstProjectId ? `/projects/${firstProjectId}` : "/projects");
+      setRegisteredEmail(email);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Registration failed");
       setLoading(false);
       turnstileRef.current?.reset();
       setCfToken("");
     }
+  }
+
+  if (registeredEmail) {
+    return <CheckEmailScreen email={registeredEmail} />;
   }
 
   const isReferred = !!(refCode || (typeof window !== "undefined" && sessionStorage.getItem("mid_ref")));
