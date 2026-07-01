@@ -210,6 +210,19 @@ export default function ProjectWorkspacePage() {
       .finally(() => setLoading(false));
   }, [id, router]);
 
+  // Poll while any render is pending so the card updates without a manual
+  // refresh (e.g. after a reload mid-render or a dropped connection).
+  const hasPendingRender = project?.renders.some((r) => r.status === "pending") ?? false;
+  useEffect(() => {
+    if (!hasPendingRender) return;
+    const interval = setInterval(() => {
+      api.get(id)
+        .then(({ project: p }) => setProject(p))
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [hasPendingRender, id]);
+
   const isBathroomOrKitchen = project?.roomType === "bathroom" || project?.roomType === "kitchen";
 
   const setupComplete =
@@ -1522,6 +1535,7 @@ export default function ProjectWorkspacePage() {
               <RenderCard
                 key={r.id}
                 render={r}
+                projectId={id}
                 roomType={project.roomType}
                 onDelete={async () => {
                   await api.deleteRender(id, r.id);
@@ -1702,11 +1716,14 @@ const LOADING_STEPS = [
   "Finding furniture…",
 ];
 
-function RenderCard({ render, roomType, onDelete }: { render: Render; roomType: string | null; onDelete: () => Promise<void> }) {
+function RenderCard({ render, projectId, roomType, onDelete }: { render: Render; projectId: string; roomType: string | null; onDelete: () => Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedView, setSelectedView] = useState<1 | 2>(1);
   const [loadingStep, setLoadingStep] = useState(0);
+  const [altUrl, setAltUrl] = useState<string | null>(null);
+  const [altLoading, setAltLoading] = useState(false);
+  const [altError, setAltError] = useState("");
 
   // Cycle through loading steps while pending
   useEffect(() => {
@@ -1727,12 +1744,28 @@ function RenderCard({ render, roomType, onDelete }: { render: Render; roomType: 
     ? render.imageUrl.startsWith("http") ? render.imageUrl : `${API_BASE}${render.imageUrl}`
     : null;
 
-  const altSrc = render.alternativeImageUrl
-    ? render.alternativeImageUrl.startsWith("http") ? render.alternativeImageUrl : `${API_BASE}${render.alternativeImageUrl}`
+  const storedAlt = altUrl ?? render.alternativeImageUrl ?? null;
+  const altSrc = storedAlt
+    ? storedAlt.startsWith("http") ? storedAlt : `${API_BASE}${storedAlt}`
     : null;
 
-  const hasAlt = render.status === "done" && !!altSrc;
   const activeSrc = selectedView === 2 && altSrc ? altSrc : imgSrc;
+
+  async function handleViewSelect(v: 1 | 2) {
+    setAltError("");
+    if (v === 1 || altSrc) { setSelectedView(v); return; }
+    // View 2 doesn't exist yet — generate it on demand
+    setAltLoading(true);
+    try {
+      const { alternativeImageUrl } = await api.generateAlternative(projectId, render.id);
+      setAltUrl(alternativeImageUrl);
+      setSelectedView(2);
+    } catch (err) {
+      setAltError(err instanceof ApiError ? err.message : "Could not generate the second view");
+    } finally {
+      setAltLoading(false);
+    }
+  }
 
   const products = render.products ?? [];
   const hasProducts = render.status === "done" && products.length > 0;
@@ -1780,24 +1813,28 @@ function RenderCard({ render, roomType, onDelete }: { render: Render; roomType: 
         </div>
       )}
 
-      {/* View selector tabs for primary / alternative */}
-      {hasAlt && (
+      {/* View selector tabs — View 2 (alternative angle) is generated on demand */}
+      {render.status === "done" && (
         <div className="flex border-b border-stone-100">
           {([1, 2] as const).map((v) => (
             <button
               key={v}
-              onClick={() => setSelectedView(v)}
-              className="flex-1 py-2 text-xs font-medium transition-colors"
+              onClick={() => handleViewSelect(v)}
+              disabled={altLoading}
+              className="flex-1 py-2 text-xs font-medium transition-colors disabled:opacity-60"
               style={{
                 color: selectedView === v ? "#1B4965" : "#a8a29e",
                 borderBottom: selectedView === v ? "2px solid #1B4965" : "2px solid transparent",
                 background: "transparent",
               }}
             >
-              {v === 1 ? "View 1" : "View 2"}
+              {v === 1 ? "View 1" : altLoading ? "Generating…" : altSrc ? "View 2" : "✨ View 2"}
             </button>
           ))}
         </div>
+      )}
+      {altError && (
+        <p className="text-xs text-amber-600 px-5 pt-2">{altError}</p>
       )}
 
       <div className="p-5">

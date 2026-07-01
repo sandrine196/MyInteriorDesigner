@@ -14,9 +14,9 @@ export default function ProductLink({ id, href, className, style, onClick, child
   async function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
     e.preventDefault();
     onClick?.();
-    // Open window synchronously within the click handler so browsers don't
-    // treat the later window.open() call (after the async API round-trip) as a popup.
-    const win = window.open("", "_blank", "noopener,noreferrer");
+    // Open without noopener so we keep the win reference to set location.href later.
+    // noopener causes Chrome to return null, breaking the deferred navigation.
+    const win = window.open("", "_blank");
     try {
       const { url } = await products.click(id);
       if (win) win.location.href = url ?? href;

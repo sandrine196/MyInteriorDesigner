@@ -119,25 +119,25 @@ export async function redesignRoutes(app: FastifyInstance) {
     const prefix     = `redesigns/${sessionId}`;
     const geminiCfg  = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
 
-    // Upload original
-    const originalKey = `${prefix}/${uuid}-original`;
-    await storage.upload(originalKey, photoBuffer, photoMimeType);
-    const originalImageUrl = storage.getUrl(originalKey);
+    // The original photo is NOT stored — the browser already has it for the
+    // before/after slider, so persisting it would be pure storage waste.
 
-    // Step 1: Clear furniture
+    // Step 1: Clear furniture. The cleared room is kept (needed for restage
+    // within the 24h session); expired session files are removed by the daily
+    // cleanup job.
     const cleared = await clearFurnishedRoom({ reveApiKey: config.ai.reveApiKey }, { photoData, photoMimeType });
-    const emptyKey = `${prefix}/${uuid}-empty.png`;
-    await storage.upload(emptyKey, cleared.buffer, "image/png");
+    const emptyKey = `${prefix}/${uuid}-empty.jpg`;
+    await storage.upload(emptyKey, cleared.buffer, "image/jpeg");
     const emptyRoomUrl = storage.getUrl(emptyKey);
 
     // Step 2: Stage
     const staged = await virtualStageRoom(geminiCfg, {
       photoData:     cleared.buffer.toString("base64"),
-      photoMimeType: "image/png",
+      photoMimeType: "image/jpeg",
       brief,
     });
-    const stagedKey = `${prefix}/${uuid}-staged.png`;
-    await storage.upload(stagedKey, staged.buffer, "image/png");
+    const stagedKey = `${prefix}/${uuid}-staged.jpg`;
+    await storage.upload(stagedKey, staged.buffer, "image/jpeg");
     const stagedImageUrl = storage.getUrl(stagedKey);
 
     // Save empty room URL for cheap restage later, increment counter
@@ -150,7 +150,6 @@ export async function redesignRoutes(app: FastifyInstance) {
 
     return reply.send({
       success: true,
-      originalImageUrl,
       stagedImageUrl,
       emptyRoomUrl,
     });
@@ -198,12 +197,13 @@ export async function redesignRoutes(app: FastifyInstance) {
     const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
     const staged = await virtualStageRoom(geminiCfg, {
       photoData:     clearedBuffer.toString("base64"),
-      photoMimeType: "image/png",
+      // Older sessions may still hold PNG cleared images
+      photoMimeType: session.emptyRoomUrl.endsWith(".png") ? "image/png" : "image/jpeg",
       brief:         STYLE_BRIEFS[style],
     });
 
-    const stagedKey = `redesigns/${sessionId}/${randomUUID()}-staged.png`;
-    await storage.upload(stagedKey, staged.buffer, "image/png");
+    const stagedKey = `redesigns/${sessionId}/${randomUUID()}-staged.jpg`;
+    await storage.upload(stagedKey, staged.buffer, "image/jpeg");
     const stagedImageUrl = storage.getUrl(stagedKey);
 
     const updated = await prisma.redesignSession.update({

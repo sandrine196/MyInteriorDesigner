@@ -30,7 +30,7 @@ export async function placeholderBuffer(): Promise<Buffer> {
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
     "base64"
   );
-  return sharp(onePx).resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" }).png().toBuffer();
+  return sharp(onePx).resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" }).jpeg({ quality: 88, progressive: true }).toBuffer();
 }
 
 const WALL_COLOR_DESCRIPTIONS: Record<string, string> = {
@@ -661,7 +661,7 @@ export async function clearFurnishedRoom(
     const cleared = await stageWithReve(imageBuffer, CLEAR_ROOM_INSTRUCTION, cfg.reveApiKey, true);
     const buffer  = await sharp(cleared)
       .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
-      .png()
+      .jpeg({ quality: 88, progressive: true })
       .toBuffer();
     console.log(`[Staging/Clear] Done — ${buffer.length} bytes`);
     return { buffer, usedReve: true };
@@ -743,7 +743,7 @@ export async function virtualStageRoom(
 
       const buffer = await sharp(reveBuffer)
         .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
-        .png()
+        .jpeg({ quality: 88, progressive: true })
         .toBuffer();
 
       console.log(`[Staging] Complete via Reve — ${buffer.length} bytes`);
@@ -783,7 +783,7 @@ export async function virtualStageRoom(
 
   const buffer = await sharp(Buffer.from(imageBase64, "base64"))
     .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
-    .png()
+    .jpeg({ quality: 88, progressive: true })
     .toBuffer();
 
   console.log(`[Staging] Complete via Gemini fallback — ${buffer.length} bytes`);
@@ -950,7 +950,9 @@ export async function generateRoomImage(
   const response = await ai.models.generateContent({
     model: cfg.model,
     contents,
-    config: { responseModalities: ["IMAGE"] },
+    // Low temperature: architectural renders need consistency and spatial
+    // precision, not creative variance.
+    config: { responseModalities: ["IMAGE"], temperature: 0.3 },
   });
 
   const parts = response.candidates?.[0]?.content?.parts ?? [];
@@ -973,10 +975,10 @@ export async function generateRoomImage(
 
   const buffer = await sharp(Buffer.from(imageBase64, "base64"))
     .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
-    .png()
+    .jpeg({ quality: 88, progressive: true })
     .toBuffer();
 
-  console.log(`[Gemini] Done — PNG buffer size: ${buffer.length} bytes`);
+  console.log(`[Gemini] Done — JPEG buffer size: ${buffer.length} bytes`);
 
   return { buffer, mock: false, promptTokens, candidateTokens };
 }

@@ -627,7 +627,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           ceilingHeight: project.ceilingHeightMm      ?? 2400,
         };
 
-        const { buffer, alternativeBuffer, floorPlanInterpretation, mock, promptTokens, candidateTokens } = await aiService.generateRoomImage({
+        const { buffer, floorPlanInterpretation, mock, promptTokens, candidateTokens } = await aiService.generateRoomImage({
           userPrompt:           body.prompt,
           floorPlanKey:         project.floorPlanKey,
           projectName:          project.name,
@@ -653,23 +653,14 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           room: roomDims,
         });
 
-        const imageKey = `renders/${render.id}.png`;
-        let alternativeImageKey: string | null = null;
-
-        // Upload primary and alternative renders in parallel
-        const uploadTasks: Promise<void>[] = [storage.upload(imageKey, buffer)];
-        if (alternativeBuffer) {
-          alternativeImageKey = `renders/${render.id}-alt.png`;
-          uploadTasks.push(storage.upload(alternativeImageKey, alternativeBuffer));
-        }
-        await Promise.all(uploadTasks);
+        const imageKey = `renders/${render.id}.jpg`;
+        await storage.upload(imageKey, buffer, "image/jpeg");
 
         await prisma.render.update({
           where: { id: render.id },
           data: {
             status: "done",
             imageKey,
-            alternativeImageKey,
             floorPlanInterpretation: floorPlanInterpretation ?? null,
             errorMessage: mock ? "No AI key configured; placeholder image returned." : null,
             promptTokens:    promptTokens    > 0 ? promptTokens    : null,
@@ -695,7 +686,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
             id: render.id,
             status: "done",
             imageUrl: storage.getUrl(imageKey),
-            alternativeImageUrl: alternativeImageKey ? storage.getUrl(alternativeImageKey) : null,
+            alternativeImageUrl: null,
             floorPlanInterpretation: floorPlanInterpretation ?? null,
             mock,
           },
@@ -728,7 +719,92 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
       if (render.imageKey && !render.imageKey.startsWith("http")) {
         await storage.delete(render.imageKey).catch(() => {});
       }
+      if (render.alternativeImageKey && !render.alternativeImageKey.startsWith("http")) {
+        await storage.delete(render.alternativeImageKey).catch(() => {});
+      }
       return { ok: true };
+    }
+  );
+
+  // ── Generate alternative camera angle on demand ───────────────────────────
+  // The secondary angle is no longer generated with every render; users request
+  // it explicitly, so we only pay for angles that are actually viewed.
+
+  app.post(
+    "/projects/:projectId/renders/:renderId/alternative",
+    { preHandler: [app.authenticate], config: { rateLimit: { max: 10, timeWindow: "1 hour" } } },
+    async (request, reply) => {
+      const u = request.user as { sub: string };
+      const { projectId, renderId } = request.params as { projectId: string; renderId: string };
+      const render = await prisma.render.findFirst({
+        where: { id: renderId, projectId, project: { userId: u.sub }, deletedAt: null },
+        include: { project: true },
+      });
+      if (!render) return reply.status(404).send({ error: "Not found" });
+      if (render.status !== "done") return reply.status(400).send({ error: "Render is not complete yet" });
+
+      // Idempotent: if the alternative already exists, return it
+      if (render.alternativeImageKey) {
+        return { alternativeImageUrl: toImageUrl(render.alternativeImageKey) };
+      }
+
+      const project = render.project;
+
+      // Rebuild the product list from the snapshot taken at render time
+      let productIds: string[] = [];
+      try {
+        productIds = (JSON.parse(render.productsSnapshot ?? "[]") as { id: string }[])
+          .map((p) => p.id)
+          .filter(Boolean);
+      } catch { /* corrupt snapshot — render without products */ }
+      const products = productIds.length
+        ? await prisma.product.findMany({ where: { id: { in: productIds } } })
+        : [];
+
+      const roomDims = {
+        length:        project.roomLengthMm    ?? (project.roomType === "bathroom" ? 2500 : 4000),
+        width:         project.roomWidthMm     ?? (project.roomType === "bathroom" ? 1800 : 3500),
+        ceilingHeight: project.ceilingHeightMm ?? 2400,
+      };
+
+      try {
+        const { buffer } = await aiService.generateRoomImage({
+          userPrompt:           render.prompt,
+          floorPlanKey:         project.floorPlanKey,
+          projectName:          project.name,
+          designStyle:          project.designStyle,
+          wallColorPalette:     project.wallColorPalette,
+          flooringType:         project.flooringType,
+          roomType:             project.roomType ?? undefined,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          roomFeatures:         (project.roomFeatures as any) ?? null,
+          structuredFloorPlan:  (project.floorPlanAnalysis as FloorPlanAnalysis | null) ?? null,
+          products: products.map((p) => ({
+            title:         p.title,
+            retailer:      p.retailer,
+            priceGbp:      p.priceGbp,
+            category:      p.category,
+            styleTags:     (() => { try { return JSON.parse(p.styleTags ?? "[]") as string[]; } catch { return []; } })(),
+            widthMm:       p.widthMm,
+            depthMm:       p.depthMm,
+            heightMm:      p.heightMm,
+            dimensionsRaw: p.dimensionsRaw,
+            description:   p.description,
+          })),
+          room: roomDims,
+          cameraAngle: "secondary",
+        });
+
+        const alternativeImageKey = `renders/${render.id}-alt.jpg`;
+        await storage.upload(alternativeImageKey, buffer, "image/jpeg");
+        await prisma.render.update({ where: { id: render.id }, data: { alternativeImageKey } });
+        track("alternative_angle_generated", u.sub, { renderId: render.id });
+
+        return { alternativeImageUrl: toImageUrl(alternativeImageKey) };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Alternative render failed";
+        return reply.status(500).send({ error: message });
+      }
     }
   );
 

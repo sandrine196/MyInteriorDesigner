@@ -361,7 +361,7 @@ export default function RedesignPage() {
           <div className="space-y-6">
             {/* Hero before/after slider */}
             <BeforeAfterSlider
-              before={resolve(result.originalImageUrl)}
+              before={photoPreview ?? ""}
               after={resolve(result.stagedImageUrl)}
             />
 

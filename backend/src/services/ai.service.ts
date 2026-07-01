@@ -17,12 +17,13 @@ export type GenerateRoomImageOpts = {
   room: RoomDimensionsMm;
   /** Storage key of the uploaded floor plan. Passed to interpretFloorPlan() for Gemini Vision analysis. */
   floorPlanKey?: string | null;
+  /** Which camera angle to render. Defaults to "primary". Secondary is generated on demand. */
+  cameraAngle?: "primary" | "secondary";
 } & PromptMeta;
 
 export interface AIService {
   generateRoomImage(opts: GenerateRoomImageOpts): Promise<{
     buffer: Buffer;
-    alternativeBuffer?: Buffer;
     floorPlanInterpretation?: string | null;
     mock: boolean;
     promptTokens: number;
@@ -35,7 +36,6 @@ export interface AIService {
 class GeminiAIService implements AIService {
   async generateRoomImage(opts: GenerateRoomImageOpts): Promise<{
     buffer: Buffer;
-    alternativeBuffer?: Buffer;
     floorPlanInterpretation?: string | null;
     mock: boolean;
     promptTokens: number;
@@ -47,19 +47,17 @@ class GeminiAIService implements AIService {
     if (opts.floorPlanKey) {
       const mimeType = opts.floorPlanKey.endsWith(".webp") ? "image/webp" : "image/jpeg";
 
-      // Step A: Download floor plan + run Gemini interpretation in parallel.
-      const [imageBuffer, interpretation] = await Promise.all([
-        storage.download(opts.floorPlanKey).catch((err) => {
-          console.error("[Gemini] Failed to load floor plan image:", err);
-          return null;
-        }),
-        storage.download(opts.floorPlanKey).then((buf) => {
-          return interpretFloorPlan(buf, mimeType);
-        }).catch((err) => {
-          console.error("[Gemini] Failed to interpret floor plan:", err);
-          return null;
-        }),
-      ]);
+      // Step A: Download floor plan once, then interpret it.
+      const imageBuffer = await storage.download(opts.floorPlanKey).catch((err) => {
+        console.error("[Gemini] Failed to load floor plan image:", err);
+        return null;
+      });
+      const interpretation = imageBuffer
+        ? await interpretFloorPlan(imageBuffer, mimeType).catch((err) => {
+            console.error("[Gemini] Failed to interpret floor plan:", err);
+            return null;
+          })
+        : null;
 
       if (imageBuffer) {
         floorPlan = { data: imageBuffer.toString("base64"), mimeType };
@@ -75,22 +73,20 @@ class GeminiAIService implements AIService {
     const sharedOpts = { ...opts, floorPlan, floorPlanInterpretation };
     const geminiCfg  = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region };
 
-    // Step B: Generate primary + secondary renders in parallel.
-    const [primary, secondary] = await Promise.all([
-      geminiGenerateRoomImage(geminiCfg, { ...sharedOpts, cameraAngle: "primary" }),
-      geminiGenerateRoomImage(geminiCfg, { ...sharedOpts, cameraAngle: "secondary" }).catch((err) => {
-        console.error("[Gemini] Secondary render failed — returning primary only:", err);
-        return null;
-      }),
-    ]);
+    // Step B: Generate only the requested camera angle.
+    // The secondary angle is generated on demand (separate request) rather than
+    // eagerly alongside every primary render — halves AI cost and storage.
+    const result = await geminiGenerateRoomImage(geminiCfg, {
+      ...sharedOpts,
+      cameraAngle: opts.cameraAngle ?? "primary",
+    });
 
     return {
-      buffer:               primary.buffer,
-      alternativeBuffer:    secondary?.buffer ?? undefined,
+      buffer:               result.buffer,
       floorPlanInterpretation,
-      mock:                 primary.mock,
-      promptTokens:    primary.promptTokens    + (secondary?.promptTokens    ?? 0),
-      candidateTokens: primary.candidateTokens + (secondary?.candidateTokens ?? 0),
+      mock:                 result.mock,
+      promptTokens:         result.promptTokens,
+      candidateTokens:      result.candidateTokens,
     };
   }
 }
@@ -100,14 +96,13 @@ class GeminiAIService implements AIService {
 class MockAIService implements AIService {
   async generateRoomImage(_opts: GenerateRoomImageOpts): Promise<{
     buffer: Buffer;
-    alternativeBuffer?: Buffer;
     floorPlanInterpretation?: string | null;
     mock: boolean;
     promptTokens: number;
     candidateTokens: number;
   }> {
     const buf = await placeholderBuffer();
-    return { buffer: buf, alternativeBuffer: buf, mock: true, promptTokens: 0, candidateTokens: 0 };
+    return { buffer: buf, mock: true, promptTokens: 0, candidateTokens: 0 };
   }
 }
 
@@ -118,7 +113,6 @@ class MockAIService implements AIService {
 class StabilityAIService implements AIService {
   async generateRoomImage(_opts: GenerateRoomImageOpts): Promise<{
     buffer: Buffer;
-    alternativeBuffer?: Buffer;
     floorPlanInterpretation?: string | null;
     mock: boolean;
     promptTokens: number;
