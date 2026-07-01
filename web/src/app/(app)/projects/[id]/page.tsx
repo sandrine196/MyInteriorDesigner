@@ -76,23 +76,42 @@ const FLOORING_TYPES = [
 ];
 
 const DESIGN_STYLES = [
-  { id: "scandi",       label: "Scandi Minimalist",   desc: "Clean lines, pale woods, natural textures",    from: "#F0EDE8", to: "#D4C9B5" },
-  { id: "industrial",   label: "Modern Industrial",   desc: "Raw metals, exposed brick, dark tones",         from: "#3D3D3D", to: "#2A2A2A" },
-  { id: "traditional",  label: "Cosy Traditional",    desc: "Warm fabrics, classic patterns, rich colours",  from: "#7B4343", to: "#5C3232" },
-  { id: "midcentury",   label: "Mid-Century Modern",  desc: "Bold organic shapes, warm wood, retro palette", from: "#D4A847", to: "#B07D2E" },
-  { id: "bohemian",     label: "Bohemian",            desc: "Eclectic, layered, colourful, free-spirited",   from: "#C17B4B", to: "#7B3D73" },
-  { id: "contemporary", label: "Contemporary Luxe",   desc: "Sleek, sophisticated, polished finishes",       from: "#4A4A4A", to: "#1C1C1C" },
-  { id: "japandi",      label: "Japandi",             desc: "Japanese-Scandi harmony, wabi-sabi calm",       from: "#D4C9B5", to: "#8B9E8B" },
-  { id: "coastal",      label: "Coastal",             desc: "Light, breezy, natural fibres, sea tones",      from: "#7BACC4", to: "#BDD9E8" },
+  { id: "modern_heritage",   label: "Modern Heritage",          desc: "Classic mouldings, sleek contemporary lines",   from: "#D8CBB0", to: "#8C7A5C" },
+  { id: "warm_minimalism",   label: "Warm Minimalism",          desc: "Soft cream, biscuit and clay tones, bouclé",    from: "#EDE3D3", to: "#C9B79A" },
+  { id: "midcentury",        label: "Mid-Century Modern",       desc: "Tapered legs, warm walnut, retro palette",      from: "#D4A847", to: "#B07D2E" },
+  { id: "biophilic",         label: "Biophilic / Organic Modern", desc: "Raw light wood, stone, structural greenery",  from: "#B7C4A6", to: "#7C8F68" },
+  { id: "english_cottage",   label: "Elevated English Cottage", desc: "Layered patterns, slipcovers, mixed woods",     from: "#C9A98C", to: "#8E6B4E" },
+  { id: "curated_maximalism",label: "Curated Maximalism",       desc: "Bold pattern layering, rich paint, antiques",   from: "#3D2C56", to: "#6E2E3A" },
+  { id: "japandi",           label: "Japandi",                  desc: "Japanese-Scandi harmony, wabi-sabi calm",       from: "#D4C9B5", to: "#8B9E8B" },
+  { id: "earthy_rustic",     label: "Earthy Rustic",            desc: "Exposed brick, beams, distressed leather",      from: "#8C6244", to: "#5A3E29" },
+  { id: "regencycore",       label: "Regencycore Revival",      desc: "Elaborate wallpaper, gold filigree, elegance",  from: "#E6C9A8", to: "#B08858" },
+  { id: "hollywood_cottage", label: "Hollywood Cottage",        desc: "Cosy comfort meets glamorous vintage accents",  from: "#C48A9C", to: "#7A3D52" },
+];
+
+const BEDROOM_STYLES = [
+  { id: "bed_quiet_luxury",   label: "Quiet Luxury / Hotel Suite", desc: "Sculptural headboard, sophisticated neutrals", from: "#D8CFC3", to: "#A99D8C" },
+  { id: "bed_scandi_cottage", label: "Scandi-Cottage",             desc: "Light wood, heritage florals, linen",           from: "#EDE7DC", to: "#C4B79E" },
+  { id: "bed_earthy_bohemian",label: "Earthy Bohemian",            desc: "Rattan, macramé, terracotta and sage",          from: "#C17B4B", to: "#7B8F5C" },
+  { id: "bed_romantic_regency",label:"Romantic Regency",           desc: "Sheer canopy, tufted velvet, antique gold",     from: "#E8D5D8", to: "#B98A9C" },
+  { id: "bed_soft_modern",    label: "Soft Modern Minimalist",     desc: "Low-profile bed, clean lines, warm lighting",   from: "#E8E4DC", to: "#B8B0A2" },
+  { id: "bed_atmospheric",    label: "Atmospheric / Dark Moody",   desc: "Deep forest, plum or charcoal, plush textiles", from: "#3A3A42", to: "#241E2C" },
+  { id: "bed_coastal_calm",   label: "Coastal Calm",               desc: "Sand and sky tones, jute, washed wood",         from: "#7BACC4", to: "#D8E4E8" },
+  { id: "bed_urban_loft",     label: "Urban Loft / Soft Industrial", desc: "Iron frame, exposed brick, soft down layers", from: "#6C645C", to: "#3C3630" },
+  { id: "bed_midcentury_retro",label:"Mid-Century Retro",          desc: "Warm walnut, geometric accents, vintage lighting", from: "#C99248", to: "#8C5E2E" },
+  { id: "bed_biophilic",      label: "Biophilic Sanctuary",        desc: "Air-purifying plants, olive and sage tones",    from: "#A8B894", to: "#68785A" },
 ];
 
 const BATHROOM_STYLES = [
-  { id: "bath_spa",        label: "Spa & Minimalist",       desc: "Calm, clean, spa-like",          from: "#E8F0EE", to: "#B8D0C8" },
-  { id: "bath_traditional",label: "Traditional / Edwardian",desc: "Period features, classic tiles", from: "#C8B89A", to: "#9E8C72" },
-  { id: "bath_modern",     label: "Modern & Contemporary",  desc: "Sleek surfaces, bold fixtures",  from: "#3A3A3A", to: "#1C1C1C" },
-  { id: "bath_industrial", label: "Industrial",             desc: "Exposed fittings, dark metal",   from: "#5C5C5C", to: "#3C3C3C" },
-  { id: "bath_coastal",    label: "Coastal & Fresh",        desc: "Sea tones, natural wood",        from: "#7BACC4", to: "#BDD9E8" },
-  { id: "bath_boutique",   label: "Boutique Hotel",         desc: "Luxurious, dramatic, curated",   from: "#2C1A3A", to: "#4A2E5C" },
+  { id: "bath_zen_spa",        label: "Zen Spa",                desc: "Teak, floating stone vanities, pebble tile",   from: "#DCE4DC", to: "#9CB0A2" },
+  { id: "bath_modern_organic", label: "Modern Organic",         desc: "Lime-wash walls, unlacquered brass, light oak",from: "#E4DACA", to: "#B8A488" },
+  { id: "bath_transitional",   label: "Transitional",           desc: "Shaker vanities, subway tile, sleek fixtures", from: "#E0DAD0", to: "#B0A594" },
+  { id: "bath_neo_art_deco",   label: "Neo-Art Deco",           desc: "Fluted fronts, arched mirrors, veined marble", from: "#2C2C34", to: "#4A3E28" },
+  { id: "bath_european_vintage",label:"European Vintage",       desc: "Reclaimed wood, clawfoot tub, ornate mirrors", from: "#C8B89A", to: "#8C7458" },
+  { id: "bath_coastal",        label: "Coastal & Fresh",        desc: "Duck-egg blues, plaster walls, wicker",        from: "#7BACC4", to: "#BDD9E8" },
+  { id: "bath_industrial",     label: "Industrial Chic",        desc: "Matte black steel, raw concrete, warm wood",   from: "#5C5C5C", to: "#3C3C3C" },
+  { id: "bath_boutique",       label: "Boutique Hotel Luxury",  desc: "Moody marble, back-lit mirrors, rain shower",  from: "#2C1A3A", to: "#4A2E5C" },
+  { id: "bath_mediterranean",  label: "Mediterranean Plaster",  desc: "Terracotta plaster, matte tile, archways",     from: "#C9A47C", to: "#93693F" },
+  { id: "bath_color_drenched", label: "Color-Drenched Modern",  desc: "Walls, base and ceiling in one rich earthy tone", from: "#5C6B3E", to: "#3A4526" },
 ];
 
 const KITCHEN_STYLES = [
@@ -103,6 +122,13 @@ const KITCHEN_STYLES = [
   { id: "kitchen_scandi",     label: "Scandi & Minimal",     desc: "Light woods, clean lines",      from: "#F0EDE8", to: "#D4C9B5" },
   { id: "kitchen_bold",       label: "Bold & Colourful",     desc: "Statement colour, playful",     from: "#D44A6A", to: "#7B3D73" },
 ];
+
+function stylesForRoomType(roomType: string | null | undefined) {
+  if (roomType === "bathroom") return BATHROOM_STYLES;
+  if (roomType === "kitchen") return KITCHEN_STYLES;
+  if (roomType === "bedroom_primary" || roomType === "bedroom_secondary") return BEDROOM_STYLES;
+  return DESIGN_STYLES;
+}
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
@@ -534,7 +560,7 @@ export default function ProjectWorkspacePage() {
             <h2 className="font-semibold text-stone-900 mb-1">What's your design style?</h2>
             <p className="text-xs text-stone-400 mb-4">Choose the look that speaks to you most.</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {(project.roomType === "bathroom" ? BATHROOM_STYLES : project.roomType === "kitchen" ? KITCHEN_STYLES : DESIGN_STYLES).map((s) => {
+              {stylesForRoomType(project.roomType).map((s) => {
                 const active = selectedStyle === s.id;
                 return (
                   <button
@@ -682,7 +708,7 @@ export default function ProjectWorkspacePage() {
     (b) => b.min === project.budgetMin && b.max === project.budgetMax
   )?.label;
   const styleLabel = (
-    [...DESIGN_STYLES, ...BATHROOM_STYLES, ...KITCHEN_STYLES]
+    [...DESIGN_STYLES, ...BEDROOM_STYLES, ...BATHROOM_STYLES, ...KITCHEN_STYLES]
       .find((s) => s.id === project.designStyle)?.label
   );
   const wallLabel = project.wallColorPalette
@@ -847,7 +873,7 @@ export default function ProjectWorkspacePage() {
           <div>
             <p className="text-sm font-semibold text-stone-700 mb-3">Design style</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {DESIGN_STYLES.map((s) => {
+              {stylesForRoomType(project.roomType).map((s) => {
                 const active = selectedStyle === s.id;
                 return (
                   <button
