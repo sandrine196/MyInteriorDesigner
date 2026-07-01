@@ -1,50 +1,98 @@
 import { prisma } from "../lib/prisma.js";
 
 // ── Keyword map ───────────────────────────────────────────────────────────────
-// Keys MUST match the style IDs in DESIGN_STYLES on the frontend.
+// Keys MUST match the style IDs in DESIGN_STYLES / BEDROOM_STYLES on the
+// frontend (web/src/app/(app)/projects/[id]/page.tsx). Bathroom/kitchen
+// styles are excluded — those rooms use no product catalogue (inspiration
+// renders only), so Raft/CJ furniture never needs those tags.
 
 const STYLE_KEYWORDS: Record<string, string[]> = {
-  scandi: [
-    "scandi", "scandinavian", "nordic", "danish", "swedish", "norwegian",
-    "hygge", "light oak", "pine", "birch", "natural wood", "clean lines",
-    "functional", "understated", "pale wood", "whitewashed",
+  // ── Living room / general ──────────────────────────────────────────────
+  modern_heritage: [
+    "heritage", "crown molding", "cornice", "picture rail", "panelled",
+    "wainscot", "classic detail", "traditional silhouette", "updated classic",
   ],
-  industrial: [
-    "industrial", "metal frame", "steel", "iron", "cast iron", "raw",
-    "reclaimed", "factory", "loft", "dark metal", "black frame",
-    "pipe", "scaffold", "riveted", "copper",
-  ],
-  traditional: [
-    "traditional", "classic", "heritage", "chesterfield", "button back",
-    "button tufted", "button-tufted", "mahogany", "dark wood", "wingback",
-    "wing back", "roll arm", "georgian", "victorian", "edwardian",
-    "ornate", "carved", "antique", "country", "rustic", "farmhouse",
-    "cottage", "distressed", "painted wood",
+  warm_minimalism: [
+    "boucle", "bouclé", "biscuit", "clay", "warm cream", "low-profile",
+    "modular sofa", "organic shape", "rounded edge", "soft modern", "putty",
   ],
   midcentury: [
     "mid-century", "mid century", "midcentury", "retro", "vintage",
     "walnut", "teak", "rosewood", "tapered leg", "splayed leg",
     "hairpin", "atomic", "50s", "60s", "70s", "eames",
   ],
-  bohemian: [
-    "bohemian", "boho", "eclectic", "macrame", "colourful",
-    "moroccan", "ethnic", "tribal", "mixed patterns", "maximalist",
-    "patchwork", "fringed",
+  biophilic: [
+    "biophilic", "organic modern", "raw wood", "light oak", "natural stone",
+    "woven bamboo", "rattan blind", "greenery", "plant stand", "nature-inspired",
   ],
-  contemporary: [
-    "contemporary", "modern", "sleek", "geometric", "angular",
-    "streamlined", "monochrome", "minimalist", "polished",
-    "sophisticated", "designer", "high gloss", "lacquered",
+  english_cottage: [
+    "cottage", "slipcover", "floral", "vintage print", "gilded frame",
+    "layered pattern", "mixed wood", "english country", "botanical print",
+  ],
+  curated_maximalism: [
+    "maximalist", "bold pattern", "jewel tone", "midnight blue", "plum",
+    "antique", "eclectic", "statement piece", "rich colour",
   ],
   japandi: [
     "japandi", "japanese", "zen", "wabi-sabi", "bamboo", "calm",
     "organic", "handcrafted", "serene", "washi", "shoji",
   ],
-  coastal: [
-    "coastal", "nautical", "beach", "seaside", "rattan", "wicker",
-    "driftwood", "bleached", "rope", "jute", "linen", "seagrass",
+  earthy_rustic: [
+    "rustic", "exposed brick", "ceiling beam", "distressed leather",
+    "terracotta", "rust", "raw texture", "reclaimed wood", "farmhouse",
+  ],
+  regencycore: [
+    "regency", "gold filigree", "pleated", "roll-arm", "roll arm",
+    "elaborate wallpaper", "romantic", "estate luxury", "ornate", "carved",
+  ],
+  hollywood_cottage: [
+    "hollywood", "glamorous", "lacquer", "lacquered", "velvet", "cinematic",
+    "vintage glam", "high gloss",
+  ],
+  // ── Bedroom ─────────────────────────────────────────────────────────────
+  bed_quiet_luxury: [
+    "quiet luxury", "hotel suite", "upholstered headboard", "taupe",
+    "greige", "mushroom", "custom lighting", "plush rug",
+  ],
+  bed_scandi_cottage: [
+    "scandi", "scandinavian", "nordic", "platform bed", "heritage floral",
+    "linen bedding", "light wood bed", "hygge",
+  ],
+  bed_earthy_bohemian: [
+    "bohemian", "boho", "rattan headboard", "macrame", "macramé",
+    "woven wall hanging", "persian rug", "sage", "ochre", "moroccan",
+  ],
+  bed_romantic_regency: [
+    "canopy", "sheer drape", "tufted velvet", "floral wallcovering",
+    "antique gold", "romantic bedroom", "four poster",
+  ],
+  bed_soft_modern: [
+    "floating bed", "low profile bed", "architectural line", "curated minimal",
+    "soft modern", "minimalist bedroom",
+  ],
+  bed_atmospheric: [
+    "dark moody", "forest green", "dark plum", "charcoal", "ambient lighting",
+    "atmospheric", "deep colour",
+  ],
+  bed_coastal_calm: [
+    "coastal", "nautical", "beach", "seaside", "sand and sky", "jute",
+    "washed wood", "linen curtain", "driftwood",
+  ],
+  bed_urban_loft: [
+    "iron bed frame", "exposed brick", "soft industrial", "down comforter",
+    "knit throw", "industrial", "metal frame", "raw",
+  ],
+  bed_midcentury_retro: [
+    "walnut dresser", "nightstand", "geometric pillow", "retro lighting",
+    "mid-century bedroom", "tapered leg", "teak",
+  ],
+  bed_biophilic: [
+    "air-purifying", "organic mattress", "smart lighting", "olive",
+    "sage green", "biophilic", "natural fibre", "plant",
   ],
 };
+
+const DEFAULT_STYLE = "warm_minimalism";
 
 // ── HTML stripping ────────────────────────────────────────────────────────────
 
@@ -78,7 +126,7 @@ export function detectStylesFromText(title: string, description = ""): string[] 
     .slice(0, 3)
     .map(([style]) => style);
 
-  return top.length > 0 ? top : ["contemporary"];
+  return top.length > 0 ? top : [DEFAULT_STYLE];
 }
 
 // ── Force retag all products for a specific retailer ─────────────────────────
