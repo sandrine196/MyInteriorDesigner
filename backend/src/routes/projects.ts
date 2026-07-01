@@ -649,6 +649,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
             heightMm:      p.heightMm,
             dimensionsRaw: p.dimensionsRaw,
             description:   p.description,
+            imageUrl:      p.imageUrl,
           })),
           room: roomDims,
         });
@@ -790,6 +791,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
             heightMm:      p.heightMm,
             dimensionsRaw: p.dimensionsRaw,
             description:   p.description,
+            imageUrl:      p.imageUrl,
           })),
           room: roomDims,
           cameraAngle: "secondary",

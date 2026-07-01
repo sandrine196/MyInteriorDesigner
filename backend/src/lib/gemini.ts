@@ -17,6 +17,8 @@ export type ProductForPrompt = {
   heightMm: number | null;
   dimensionsRaw: string | null;
   description: string | null;
+  /** Retailer product photo — attached to the render request as a visual reference. */
+  imageUrl?: string | null;
 };
 
 export type RoomDimensionsMm = {
@@ -159,6 +161,7 @@ export type PromptMeta = {
   floorPlanInterpretation?: string | null;   // plain-text rich description (Step A of two-step flow)
   cameraAngle?: "primary" | "secondary";     // "secondary" = alternative viewpoint
   virtualStaging?: boolean;                  // agent mode: Gemini imagines furniture freely, no product catalogue
+  productRefCount?: number;                  // how many product reference photos are attached to the request
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -618,8 +621,15 @@ export function buildPrompt(
       "",
       "=== 7. FURNITURE ===",
       "Place these exact pieces in the room. Scale each item accurately — a 2.2m sofa must look 2.2m wide relative to the walls.",
-      ...productLines,
     );
+    if (meta.productRefCount && meta.productRefCount > 0) {
+      lines.push(
+        `⚠️ PRODUCT REFERENCE PHOTOS: ${meta.productRefCount} product photograph(s) are attached to this request, each labelled with its product name.`,
+        "These are the REAL products the customer will buy. Each furnished item must visually MATCH its reference photo — identical shape, colour, upholstery, materials, leg style, and proportions.",
+        "Do NOT design a similar-looking alternative. If a product has a reference photo, the item in the render must be recognisably the same piece.",
+      );
+    }
+    lines.push(...productLines);
   }
 
   // ── 8. PLACEMENT RULES ────────────────────────────────────────────────────────
@@ -925,6 +935,41 @@ Include: cabinet doors and colour suited to the style, worktop material, splashb
 Magazine-quality photorealistic interior photography. Professional lighting. No people.`;
 }
 
+// ── Product reference images ─────────────────────────────────────────────────
+// Download retailer product photos and downscale them so they can be attached
+// to the render request. Visual references let Gemini reproduce the actual
+// product instead of imagining a lookalike from the text description.
+
+const MAX_PRODUCT_REFS = 6;
+
+type ProductRef = { title: string; data: string; mimeType: string };
+
+async function fetchProductReferenceImages(products: ProductForPrompt[]): Promise<ProductRef[]> {
+  const candidates = products.filter((p) => !!p.imageUrl).slice(0, MAX_PRODUCT_REFS);
+  if (candidates.length === 0) return [];
+
+  const results = await Promise.allSettled(
+    candidates.map(async (p) => {
+      const res = await fetch(p.imageUrl!, { signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = Buffer.from(await res.arrayBuffer());
+      // Downscale: 512px is plenty for the model to read shape/colour/material
+      const jpeg = await sharp(raw)
+        .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+      return { title: p.title, data: jpeg.toString("base64"), mimeType: "image/jpeg" } satisfies ProductRef;
+    })
+  );
+
+  const refs: ProductRef[] = [];
+  results.forEach((r, i) => {
+    if (r.status === "fulfilled") refs.push(r.value);
+    else console.warn(`[Gemini] Product reference image failed for "${candidates[i].title}":`, r.reason instanceof Error ? r.reason.message : r.reason);
+  });
+  return refs;
+}
+
 export async function generateRoomImage(
   cfg: { apiKey?: string; model: string; region?: string },
   opts: { userPrompt: string; products: ProductForPrompt[]; room: RoomDimensionsMm; floorPlan?: { data: string; mimeType: string } | null } & PromptMeta
@@ -946,6 +991,12 @@ export async function generateRoomImage(
 
   // Bathroom/kitchen use a purpose-built inspiration prompt (no product catalogue, no floor plan analysis)
   const isInspirationRoom = opts.roomType === "bathroom" || opts.roomType === "kitchen";
+
+  // Product reference photos — downloaded fresh per render (retailer URLs)
+  const productRefs = isInspirationRoom || opts.virtualStaging
+    ? []
+    : await fetchProductReferenceImages(opts.products);
+
   const prompt = isInspirationRoom
     ? buildInspirationPrompt(opts.roomType!, opts.designStyle, opts.userPrompt, opts.room)
     : buildPrompt(opts.userPrompt, opts.products, opts.room, {
@@ -955,22 +1006,33 @@ export async function generateRoomImage(
         flooringType:        opts.flooringType,
         roomFeatures:        opts.roomFeatures,
         structuredFloorPlan: opts.structuredFloorPlan,
+        productRefCount:     productRefs.length,
       });
 
   console.log("[Gemini] Prompt:\n" + prompt);
 
+  // Assemble multimodal request: prompt, then labelled images.
   // Include the floor plan image directly when available — Gemini reads the
   // spatial layout (doors, windows, features) from the image itself.
-  const contents = opts.floorPlan
-    ? [
-        { text: prompt },
-        { inlineData: { mimeType: opts.floorPlan.mimeType, data: opts.floorPlan.data } },
-      ]
-    : prompt;
-
+  type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+  const requestParts: ContentPart[] = [{ text: prompt }];
   if (opts.floorPlan) {
+    requestParts.push(
+      { text: "ATTACHED IMAGE — FLOOR PLAN: the architectural floor plan of this room. Use it for spatial layout only; it is not a product." },
+      { inlineData: { mimeType: opts.floorPlan.mimeType, data: opts.floorPlan.data } },
+    );
     console.log(`[Gemini] Floor plan image included in request (${opts.floorPlan.mimeType})`);
   }
+  productRefs.forEach((ref, i) => {
+    requestParts.push(
+      { text: `ATTACHED IMAGE — PRODUCT REFERENCE ${i + 1}: "${ref.title}". Reproduce this exact item in the render — same shape, colour, materials, and proportions. Do not substitute a similar-looking piece.` },
+      { inlineData: { mimeType: ref.mimeType, data: ref.data } },
+    );
+  });
+  if (productRefs.length > 0) {
+    console.log(`[Gemini] ${productRefs.length} product reference image(s) included in request`);
+  }
+  const contents = requestParts.length > 1 ? requestParts : prompt;
 
   const response = await ai.models.generateContent({
     model: cfg.model,
