@@ -197,8 +197,11 @@ const FALLBACK: FloorPlanAnalysis = {
 };
 
 // ── Analysis model — separate from the image-generation model ─────────────────
-const ANALYSIS_MODEL = "gemini-2.0-flash";
-const INTERPRETATION_MODEL = "gemini-2.0-flash";
+// "gemini-flash-latest" tracks the current Flash release so a model
+// retirement can't silently break floor-plan analysis again (gemini-2.0-flash
+// was retired by Google and 404'd for weeks before anyone noticed).
+const ANALYSIS_MODEL = "gemini-flash-latest";
+const INTERPRETATION_MODEL = "gemini-flash-latest";
 
 const INTERPRETATION_PROMPT = `You are an expert interior designer and architectural analyst. You are looking at a floor plan image.
 
