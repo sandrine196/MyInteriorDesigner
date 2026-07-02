@@ -381,10 +381,6 @@ export const projects = {
     request<{ ok: boolean }>(`/projects/${projectId}/renders/${renderId}`, {
       method: "DELETE",
     }),
-  generateAlternative: (projectId: string, renderId: string) =>
-    request<{ alternativeImageUrl: string }>(`/projects/${projectId}/renders/${renderId}/alternative`, {
-      method: "POST",
-    }),
   delete: (id: string) =>
     request<{ ok: boolean }>(`/projects/${id}`, { method: "DELETE" }),
 };

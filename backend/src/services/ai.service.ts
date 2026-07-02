@@ -17,8 +17,6 @@ export type GenerateRoomImageOpts = {
   room: RoomDimensionsMm;
   /** Storage key of the uploaded floor plan. Passed to interpretFloorPlan() for Gemini Vision analysis. */
   floorPlanKey?: string | null;
-  /** Which camera angle to render. Defaults to "primary". Secondary is generated on demand. */
-  cameraAngle?: "primary" | "secondary";
 } & PromptMeta;
 
 export interface AIService {
@@ -73,12 +71,11 @@ class GeminiAIService implements AIService {
     const sharedOpts = { ...opts, floorPlan, floorPlanInterpretation };
     const geminiCfg  = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region };
 
-    // Step B: Generate only the requested camera angle.
-    // The secondary angle is generated on demand (separate request) rather than
-    // eagerly alongside every primary render — halves AI cost and storage.
+    // Step B: Generate the render (single primary camera angle only —
+    // secondary angles produced unreliable results and were removed).
     const result = await geminiGenerateRoomImage(geminiCfg, {
       ...sharedOpts,
-      cameraAngle: opts.cameraAngle ?? "primary",
+      cameraAngle: "primary",
     });
 
     return {

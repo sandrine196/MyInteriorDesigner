@@ -1579,7 +1579,6 @@ export default function ProjectWorkspacePage() {
               <RenderCard
                 key={r.id}
                 render={r}
-                projectId={id}
                 roomType={project.roomType}
                 onDelete={async () => {
                   await api.deleteRender(id, r.id);
@@ -1760,14 +1759,10 @@ const LOADING_STEPS = [
   "Finding furniture…",
 ];
 
-function RenderCard({ render, projectId, roomType, onDelete }: { render: Render; projectId: string; roomType: string | null; onDelete: () => Promise<void> }) {
+function RenderCard({ render, roomType, onDelete }: { render: Render; roomType: string | null; onDelete: () => Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [selectedView, setSelectedView] = useState<1 | 2>(1);
   const [loadingStep, setLoadingStep] = useState(0);
-  const [altUrl, setAltUrl] = useState<string | null>(null);
-  const [altLoading, setAltLoading] = useState(false);
-  const [altError, setAltError] = useState("");
 
   // Cycle through loading steps while pending
   useEffect(() => {
@@ -1784,32 +1779,9 @@ function RenderCard({ render, projectId, roomType, onDelete }: { render: Render;
     catch { setDeleting(false); setConfirming(false); }
   }
 
-  const imgSrc = render.imageUrl
+  const activeSrc = render.imageUrl
     ? render.imageUrl.startsWith("http") ? render.imageUrl : `${API_BASE}${render.imageUrl}`
     : null;
-
-  const storedAlt = altUrl ?? render.alternativeImageUrl ?? null;
-  const altSrc = storedAlt
-    ? storedAlt.startsWith("http") ? storedAlt : `${API_BASE}${storedAlt}`
-    : null;
-
-  const activeSrc = selectedView === 2 && altSrc ? altSrc : imgSrc;
-
-  async function handleViewSelect(v: 1 | 2) {
-    setAltError("");
-    if (v === 1 || altSrc) { setSelectedView(v); return; }
-    // View 2 doesn't exist yet — generate it on demand
-    setAltLoading(true);
-    try {
-      const { alternativeImageUrl } = await api.generateAlternative(projectId, render.id);
-      setAltUrl(alternativeImageUrl);
-      setSelectedView(2);
-    } catch (err) {
-      setAltError(err instanceof ApiError ? err.message : "Could not generate the second view");
-    } finally {
-      setAltLoading(false);
-    }
-  }
 
   const products = render.products ?? [];
   const hasProducts = render.status === "done" && products.length > 0;
@@ -1851,35 +1823,12 @@ function RenderCard({ render, projectId, roomType, onDelete }: { render: Render;
           </div>
         </div>
       )}
-      {render.status === "failed" && !imgSrc && (
+      {render.status === "failed" && !activeSrc && (
         <div className="w-full h-20 bg-red-50 flex items-center justify-center">
           <p className="text-xs text-red-400">Render failed</p>
         </div>
       )}
 
-      {/* View selector tabs — View 2 (alternative angle) is generated on demand */}
-      {render.status === "done" && (
-        <div className="flex border-b border-stone-100">
-          {([1, 2] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => handleViewSelect(v)}
-              disabled={altLoading}
-              className="flex-1 py-2 text-xs font-medium transition-colors disabled:opacity-60"
-              style={{
-                color: selectedView === v ? "#1B4965" : "#a8a29e",
-                borderBottom: selectedView === v ? "2px solid #1B4965" : "2px solid transparent",
-                background: "transparent",
-              }}
-            >
-              {v === 1 ? "View 1" : altLoading ? "Generating…" : altSrc ? "View 2" : "✨ View 2"}
-            </button>
-          ))}
-        </div>
-      )}
-      {altError && (
-        <p className="text-xs text-amber-600 px-5 pt-2">{altError}</p>
-      )}
 
       <div className="p-5">
         <p className="text-sm text-stone-600 line-clamp-2 leading-relaxed">{render.prompt}</p>
