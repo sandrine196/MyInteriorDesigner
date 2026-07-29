@@ -47,15 +47,13 @@ const BUDGET_OPTIONS = [
   { label: "£5,000+",         min: 5000, max: null   },
 ];
 
+// Only retailers with a live product feed. The other six (John Lewis, Wayfair,
+// Habitat, Dunelm, La Redoute, Muji, Amazon) were seed entries whose product
+// and image URLs pointed at category pages or 404s, so they were removed —
+// add each back here once its affiliate feed is imported.
+// The shop filter UI hides itself while only one retailer exists.
 const SHOPS = [
-  { id: "raft",       label: "Raft Furniture" },
-  { id: "john_lewis", label: "John Lewis" },
-  { id: "wayfair",    label: "Wayfair" },
-  { id: "habitat",    label: "Habitat" },
-  { id: "dunelm",     label: "Dunelm" },
-  { id: "la_redoute", label: "La Redoute" },
-  { id: "muji",       label: "Muji" },
-  { id: "amazon",     label: "Amazon" },
+  { id: "raft", label: "Raft Furniture" },
 ];
 
 const WALL_COLORS = [
@@ -553,8 +551,8 @@ export default function ProjectWorkspacePage() {
             </section>
           )}
 
-          {/* Preferred shops — hidden for bathroom/kitchen */}
-          {!isBathroomOrKitchen && (
+          {/* Preferred shops — hidden for bathroom/kitchen, and while only one retailer exists */}
+          {!isBathroomOrKitchen && SHOPS.length > 1 && (
             <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
@@ -874,8 +872,8 @@ export default function ProjectWorkspacePage() {
             </div>
           </div>
 
-          {/* Preferred shops */}
-          <div>
+          {/* Preferred shops — hidden while only one retailer exists */}
+          <div className={SHOPS.length > 1 ? "" : "hidden"}>
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-semibold text-stone-700">Preferred shops</p>
               <div className="flex gap-2">
