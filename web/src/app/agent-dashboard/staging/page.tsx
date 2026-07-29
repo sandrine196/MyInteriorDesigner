@@ -22,12 +22,12 @@ const LOADING_STEPS_FURNISHED = [
 // ── Brief inspiration chips ────────────────────────────────────────────────────
 
 const INSPIRATIONS = [
-  { label: "Edwardian traditional",  text: "Stage this room with traditional furniture in keeping with an Edwardian house. Add period-appropriate art on the walls, fresh plants, and warm lighting." },
-  { label: "Modern minimalist",      text: "Stage this room with clean, contemporary minimalist furniture. Neutral palette, statement lighting, a few carefully chosen decorative objects." },
-  { label: "Cosy family home",       text: "Stage this as a warm, welcoming family living space. Comfortable sofas, soft furnishings, bookshelves, plants and family-friendly styling." },
-  { label: "Luxury contemporary",    text: "Stage this room to feel high-end and aspirational. Luxurious materials, statement furniture, bold artwork, carefully curated accessories." },
-  { label: "Scandi minimalist",      text: "Stage this with Scandinavian minimalist furniture — pale woods, clean lines, natural textures, neutral colours, and simple greenery." },
-  { label: "Country house",          text: "Stage this as an elegant country house interior. Antique and vintage pieces, floral accents, warm colours, bookshelves and countryside charm." },
+  { id: "agent_edwardian_traditional", label: "Edwardian traditional",  text: "Stage this room with traditional furniture in keeping with an Edwardian house. Add period-appropriate art on the walls, fresh plants, and warm lighting." },
+  { id: "agent_modern_minimalist",     label: "Modern minimalist",      text: "Stage this room with clean, contemporary minimalist furniture. Neutral palette, statement lighting, a few carefully chosen decorative objects." },
+  { id: "agent_cosy_family",           label: "Cosy family home",       text: "Stage this as a warm, welcoming family living space. Comfortable sofas, soft furnishings, bookshelves, plants and family-friendly styling." },
+  { id: "agent_luxury_contemporary",   label: "Luxury contemporary",    text: "Stage this room to feel high-end and aspirational. Luxurious materials, statement furniture, bold artwork, carefully curated accessories." },
+  { id: "agent_scandi_minimalist",     label: "Scandi minimalist",      text: "Stage this with Scandinavian minimalist furniture — pale woods, clean lines, natural textures, neutral colours, and simple greenery." },
+  { id: "agent_country_house",         label: "Country house",          text: "Stage this as an elegant country house interior. Antique and vintage pieces, floral accents, warm colours, bookshelves and countryside charm." },
 ];
 
 // ── Room state selector ────────────────────────────────────────────────────────
@@ -446,20 +446,37 @@ export default function AgentStagingPage() {
                 <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5 space-y-3">
                   <label className="block text-sm font-semibold text-stone-800">Staging brief</label>
 
-                  <div className="flex flex-wrap gap-2">
-                    {INSPIRATIONS.map((ins) => (
-                      <button
-                        key={ins.label}
-                        type="button"
-                        onClick={() => setBrief(ins.text)}
-                        className="text-xs px-3 py-1.5 rounded-full border transition-all"
-                        style={brief === ins.text
-                          ? { borderColor: "#D4A574", background: "rgba(212,165,116,0.12)", color: "#062C3D", fontWeight: 600 }
-                          : { borderColor: "#E7E5E0", background: "white", color: "#6B7280" }}
-                      >
-                        {ins.label}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-3 gap-2">
+                    {INSPIRATIONS.map((ins) => {
+                      const active = brief === ins.text;
+                      return (
+                        <button
+                          key={ins.id}
+                          type="button"
+                          onClick={() => setBrief(ins.text)}
+                          className="text-left rounded-xl border-2 overflow-hidden transition-all"
+                          style={active
+                            ? { borderColor: "#D4A574", outline: "2px solid rgba(212,165,116,0.25)", outlineOffset: "1px" }
+                            : { borderColor: "#E7E5E0" }}
+                        >
+                          <div className="relative h-16 bg-stone-100">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/styles/${ins.id}.jpg`}
+                              alt=""
+                              loading="lazy"
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                          </div>
+                          <p
+                            className="text-xs px-2 py-1.5 leading-snug"
+                            style={active ? { color: "#062C3D", fontWeight: 600 } : { color: "#6B7280" }}
+                          >
+                            {ins.label}
+                          </p>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <textarea

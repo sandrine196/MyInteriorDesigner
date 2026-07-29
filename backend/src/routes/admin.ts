@@ -561,6 +561,64 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+  // ── Onboarding funnel ──────────────────────────────────────────────────────
+  // Counts DISTINCT users reaching each step, so repeated saves don't inflate
+  // a stage. Answers "where do verified users stall before their first render?"
+
+  app.get("/admin/onboarding-funnel", auth, async (request) => {
+    const { range } = request.query as { range?: string };
+    const cutoff = parseRange(range);
+    const where = cutoff ? { createdAt: { gte: cutoff } } : {};
+
+    const STAGES = [
+      { key: "registered",   label: "Registered",        eventType: "user_signup" },
+      { key: "verified",     label: "Verified email",    eventType: "email_verified" },
+      { key: "projectMade",  label: "Created a room",    eventType: "project_created" },
+      { key: "setupSaved",   label: "Chose a style",     eventType: "onboarding_setup_saved" },
+      { key: "dimensions",   label: "Added dimensions",  eventType: "onboarding_dimensions_saved" },
+      { key: "floorPlan",    label: "Uploaded floor plan", eventType: "onboarding_floor_plan_uploaded" },
+      { key: "roomLayout",   label: "Mapped room layout", eventType: "onboarding_room_layout_saved" },
+      { key: "rendered",     label: "Generated a design", eventType: "render_created" },
+    ] as const;
+
+    const counts = await Promise.all(
+      STAGES.map(async (stage) => {
+        const rows = await prisma.analyticsEvent.groupBy({
+          by: ["userId"],
+          where: { ...where, eventType: stage.eventType, userId: { not: null } },
+        });
+        return { key: stage.key, label: stage.label, users: rows.length };
+      })
+    );
+
+    // Floor-plan analysis health — a silent model failure previously degraded
+    // every render for weeks without surfacing anywhere.
+    const planEvents = await prisma.analyticsEvent.findMany({
+      where: { ...where, eventType: "onboarding_floor_plan_uploaded" },
+      select: { metadata: true },
+    });
+    let planTotal = 0, planFailed = 0;
+    for (const e of planEvents) {
+      try {
+        const m = JSON.parse(e.metadata ?? "{}") as { analysisFailed?: boolean };
+        planTotal++;
+        if (m.analysisFailed) planFailed++;
+      } catch { /* skip unparseable metadata */ }
+    }
+
+    const start = counts[0]?.users ?? 0;
+    const stages = counts.map((c, i) => ({
+      ...c,
+      pctOfStart: start > 0 ? Math.round((c.users / start) * 100) : 0,
+      dropFromPrev: i === 0 ? 0 : Math.max(0, (counts[i - 1]?.users ?? 0) - c.users),
+    }));
+
+    return {
+      stages,
+      floorPlanAnalysis: { total: planTotal, failed: planFailed },
+    };
+  });
+
   // ── Redesign funnel metrics ────────────────────────────────────────────────
 
   app.get("/admin/redesign-metrics", auth, async (request) => {

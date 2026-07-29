@@ -443,6 +443,17 @@ export type MarketingMetrics = {
   renderTrend:          Array<{ date: string; count: number }>;
 };
 
+export type OnboardingFunnel = {
+  stages: {
+    key:          string;
+    label:        string;
+    users:        number;
+    pctOfStart:   number;
+    dropFromPrev: number;
+  }[];
+  floorPlanAnalysis: { total: number; failed: number };
+};
+
 export type RedesignMetrics = {
   funnel: {
     redesign_started:          number;
@@ -543,6 +554,8 @@ export const admin = {
     request<MarketingMetrics>(`/admin/marketing-metrics${range ? `?range=${range}` : ""}`),
   redesignMetrics: (range?: string) =>
     request<RedesignMetrics>(`/admin/redesign-metrics${range ? `?range=${range}` : ""}`),
+  onboardingFunnel: (range?: string) =>
+    request<OnboardingFunnel>(`/admin/onboarding-funnel${range ? `?range=${range}` : ""}`),
   clientMetrics: (range?: string) =>
     request<ClientMetrics>(`/admin/client-metrics${range ? `?range=${range}` : ""}`),
 

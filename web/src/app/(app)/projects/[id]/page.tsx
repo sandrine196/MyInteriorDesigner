@@ -612,7 +612,15 @@ export default function ProjectWorkspacePage() {
                       : { borderColor: "#e7e5e4" }
                     }
                   >
-                    <div className="h-14" style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }} />
+                    <div className="relative h-24" style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/styles/${s.id}.jpg`}
+                        alt=""
+                        loading="lazy"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    </div>
                     <div className="p-2.5">
                       <p className="font-semibold text-stone-900 text-xs leading-snug">{s.label}</p>
                       <p className="text-stone-400 text-xs mt-0.5 leading-snug hidden sm:block">{s.desc}</p>
@@ -925,7 +933,15 @@ export default function ProjectWorkspacePage() {
                       : { borderColor: "#e7e5e4" }
                     }
                   >
-                    <div className="h-12" style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }} />
+                    <div className="relative h-20" style={{ background: `linear-gradient(135deg, ${s.from}, ${s.to})` }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/styles/${s.id}.jpg`}
+                        alt=""
+                        loading="lazy"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    </div>
                     <div className="p-2">
                       <p className="font-semibold text-stone-900 text-xs leading-snug">{s.label}</p>
                     </div>

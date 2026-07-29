@@ -267,6 +267,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
         },
         include: { renders: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5 } },
       });
+      track("onboarding_dimensions_saved", u.sub, { projectId });
       return { project: serializeProject(project) };
     }
   );
@@ -304,6 +305,13 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
         include: { renders: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5 } },
       });
 
+      track("onboarding_setup_saved", u.sub, {
+        projectId,
+        designStyle:  body.designStyle,
+        hasBudget:    body.budgetMax != null,
+        hasWallColor: body.wallColorPalette != null,
+        hasFlooring:  body.flooringType != null,
+      });
       return { project: serializeProject(project) };
     }
   );
@@ -328,6 +336,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
         data: { roomFeatures: body.roomFeatures as any },
         include: { renders: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5 } },
       });
+      track("onboarding_room_layout_saved", u.sub, { projectId });
       return { project: serializeProject(project) };
     }
   );
@@ -424,6 +433,14 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
 
       await prisma.project.update({ where: { id: projectId }, data: updateData });
       console.log(`[FloorPlan] Upload complete for project ${projectId} — analysis confidence: ${analysis?.confidence ?? "n/a"}`);
+
+      // Track analysis quality too — a silent model failure (confidence 0) once
+      // went unnoticed for weeks and degraded every render.
+      track("onboarding_floor_plan_uploaded", u.sub, {
+        projectId,
+        analysisConfidence: analysis?.confidence ?? null,
+        analysisFailed:     !analysis || analysis.confidence === 0,
+      });
 
       return {
         floorPlanKey: newKey,

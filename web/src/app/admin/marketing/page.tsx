@@ -4,18 +4,45 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { admin, type MarketingMetrics } from "@/lib/api";
+import { admin, type MarketingMetrics, type OnboardingFunnel } from "@/lib/api";
 
 const STYLE_LABELS: Record<string, string> = {
-  scandi: "Scandi Minimalist", industrial: "Modern Industrial",
-  traditional: "Cosy Traditional", midcentury: "Mid-Century Modern",
-  bohemian: "Bohemian", contemporary: "Contemporary Luxe",
-  japandi: "Japandi", coastal: "Coastal",
+  // Living room / general
+  modern_heritage: "Modern Heritage", warm_minimalism: "Warm Minimalism",
+  midcentury: "Mid-Century Modern", biophilic: "Biophilic / Organic",
+  english_cottage: "Elevated English Cottage", curated_maximalism: "Curated Maximalism",
+  japandi: "Japandi", earthy_rustic: "Earthy Rustic",
+  regencycore: "Regencycore Revival", hollywood_cottage: "Hollywood Cottage",
+  // Bedroom
+  bed_quiet_luxury: "Quiet Luxury", bed_scandi_cottage: "Scandi-Cottage",
+  bed_earthy_bohemian: "Earthy Bohemian", bed_romantic_regency: "Romantic Regency",
+  bed_soft_modern: "Soft Modern Minimalist", bed_atmospheric: "Dark & Moody",
+  bed_coastal_calm: "Coastal Calm", bed_urban_loft: "Urban Loft",
+  bed_midcentury_retro: "Mid-Century Retro", bed_biophilic: "Biophilic Sanctuary",
+  // Dining
+  dining_warm_minimalist: "Warm Minimalist", dining_modern_heritage: "Modern Heritage",
+  dining_midcentury: "Mid-Century Modern", dining_japandi: "Japandi",
+  dining_curated_maximalist: "Curated Maximalist", dining_organic_bohemian: "Organic Bohemian",
+  dining_elevated_rustic: "Elevated European Rustic", dining_boutique_glamour: "Boutique Hotel Glamour",
+  dining_industrial_loft: "Industrial Loft", dining_new_coastal: "New Coastal",
+  // Bathroom
+  bath_zen_spa: "Zen Spa", bath_modern_organic: "Modern Organic",
+  bath_transitional: "Transitional", bath_neo_art_deco: "Neo-Art Deco",
+  bath_european_vintage: "European Vintage", bath_coastal: "Coastal & Fresh",
+  bath_industrial: "Industrial Chic", bath_boutique: "Boutique Hotel Luxury",
+  bath_mediterranean: "Mediterranean Plaster", bath_color_drenched: "Colour-Drenched Modern",
+  // Kitchen
+  kitchen_modern_heritage: "Modern Heritage", kitchen_warm_minimalist: "Warm Minimalist",
+  kitchen_organic_biophilic: "Organic / Biophilic", kitchen_transitional: "Sophisticated Transitional",
+  kitchen_english_country: "English Country", kitchen_japandi: "Japandi",
+  kitchen_industrial_refined: "Industrial Refined", kitchen_boutique_dramatic: "Boutique Dramatic",
+  kitchen_coastal_organic: "Coastal Organic", kitchen_eclectic_collected: "Eclectic Collected",
 };
 const ROOM_LABELS: Record<string, string> = {
   living_room: "Living Room", dining_room: "Dining Room",
   living_dining: "Living / Dining", bedroom_primary: "Primary Bedroom",
   bedroom_secondary: "Guest Bedroom", home_office: "Home Office",
+  bathroom: "Bathroom", kitchen: "Kitchen",
 };
 const COLORS = ["#1B4965", "#D4A574", "#2A5F7F", "#C4935F", "#4A8FA8", "#E5C9A8", "#163d54", "#6BAFC7"];
 
@@ -47,6 +74,7 @@ function Empty({ text }: { text: string }) {
 
 export default function MarketingPage() {
   const [data,      setData]      = useState<MarketingMetrics | null>(null);
+  const [funnel,    setFunnel]    = useState<OnboardingFunnel | null>(null);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState("");
   const [range,     setRange]     = useState<Range>("30d");
@@ -56,8 +84,12 @@ export default function MarketingPage() {
     setLoading(true);
     setError("");
     try {
-      const d = await admin.marketingMetrics(range);
+      const [d, f] = await Promise.all([
+        admin.marketingMetrics(range),
+        admin.onboardingFunnel(range).catch(() => null),
+      ]);
       setData(d);
+      setFunnel(f);
       setUpdatedAt(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -128,6 +160,54 @@ export default function MarketingPage() {
       {loading && !data && (
         <div className="flex items-center justify-center h-64">
           <div className="w-6 h-6 rounded-full border-2 border-mid-blue border-t-mid-gold animate-spin" />
+        </div>
+      )}
+
+      {funnel && funnel.stages.some(s => s.users > 0) && (
+        <div>
+          <SectionHeader title="Onboarding funnel" />
+          <ChartCard title="Where users stall before their first design">
+            <div className="space-y-2.5">
+              {funnel.stages.map((s, i) => {
+                const prev = i === 0 ? null : funnel.stages[i - 1];
+                const bigDrop = !!prev && prev.users > 0 && s.dropFromPrev / prev.users >= 0.4;
+                return (
+                  <div key={s.key} className="flex items-center gap-3">
+                    <span className="text-xs text-stone-400 w-40 shrink-0">{s.label}</span>
+                    <div className="flex-1 h-6 rounded-md overflow-hidden" style={{ background: "#12222f" }}>
+                      <div
+                        className="h-full rounded-md transition-all"
+                        style={{
+                          width: `${Math.max(s.pctOfStart, s.users > 0 ? 4 : 0)}%`,
+                          background: bigDrop ? "#C4935F" : "#4A8FA8",
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs text-stone-300 w-24 shrink-0 text-right">
+                      {s.users} <span className="text-stone-600">({s.pctOfStart}%)</span>
+                    </span>
+                    <span className="text-xs w-20 shrink-0 text-right" style={{ color: bigDrop ? "#C4935F" : "#4b5563" }}>
+                      {s.dropFromPrev > 0 ? `−${s.dropFromPrev}` : ""}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-stone-600 mt-4 leading-relaxed">
+              Distinct users reaching each step. Amber marks a drop of 40%+ from the previous step.
+              Room size, floor plan and room layout are optional — low numbers there are expected.
+            </p>
+            {funnel.floorPlanAnalysis.total > 0 && (
+              <p
+                className="text-xs mt-2"
+                style={{ color: funnel.floorPlanAnalysis.failed > 0 ? "#E5A54F" : "#4b5563" }}
+              >
+                Floor plan analysis: {funnel.floorPlanAnalysis.total - funnel.floorPlanAnalysis.failed}/
+                {funnel.floorPlanAnalysis.total} succeeded
+                {funnel.floorPlanAnalysis.failed > 0 && " — failures degrade render accuracy, check the AI model is current"}
+              </p>
+            )}
+          </ChartCard>
         </div>
       )}
 
