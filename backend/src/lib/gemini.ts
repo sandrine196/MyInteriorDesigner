@@ -1034,30 +1034,68 @@ export async function generateRoomImage(
   }
   const contents = requestParts.length > 1 ? requestParts : prompt;
 
-  const response = await ai.models.generateContent({
-    model: cfg.model,
-    contents,
-    // Low temperature: architectural renders need consistency and spatial
-    // precision, not creative variance.
-    config: { responseModalities: ["IMAGE"], temperature: 0.3 },
-  });
+  // Low temperature: architectural renders need consistency and spatial
+  // precision, not creative variance.
+  const genConfig = { responseModalities: ["IMAGE"], temperature: 0.3 };
 
-  const parts = response.candidates?.[0]?.content?.parts ?? [];
-  let imageBase64: string | undefined;
-  for (const part of parts) {
-    if (part.inlineData?.data) {
-      imageBase64 = part.inlineData.data;
-      break;
+  async function requestImage(payload: unknown) {
+    const res = await ai.models.generateContent({
+      model: cfg.model,
+      contents: payload as never,
+      config: genConfig,
+    });
+    const found = (res.candidates?.[0]?.content?.parts ?? []).find((p) => p.inlineData?.data);
+    return {
+      imageBase64:     found?.inlineData?.data,
+      blockReason:     res.promptFeedback?.blockReason ?? null,
+      promptTokens:    res.usageMetadata?.promptTokenCount    ?? 0,
+      candidateTokens: res.usageMetadata?.candidatesTokenCount ?? 0,
+    };
+  }
+
+  let result = await requestImage(contents);
+
+  // A single product photo can trip the safety filter and block the WHOLE
+  // request (a framed nude figure-study art print in the catalogue did exactly
+  // this). Losing product fidelity beats losing the render, so retry without
+  // the reference photos rather than failing outright.
+  if (!result.imageBase64 && productRefs.length > 0) {
+    console.warn(
+      `[Gemini] Request blocked (${result.blockReason ?? "no image returned"}) with ${productRefs.length} product reference(s) — retrying without them. Products: ${productRefs.map((r) => r.title).join(", ")}`
+    );
+    const retryPrompt = isInspirationRoom
+      ? prompt
+      : buildPrompt(opts.userPrompt, opts.products, opts.room, {
+          projectName:         opts.projectName,
+          designStyle:         opts.designStyle,
+          wallColorPalette:    opts.wallColorPalette,
+          flooringType:        opts.flooringType,
+          roomFeatures:        opts.roomFeatures,
+          structuredFloorPlan: opts.structuredFloorPlan,
+          productRefCount:     0,
+        });
+    const retryParts: ContentPart[] = [{ text: retryPrompt }];
+    if (opts.floorPlan) {
+      retryParts.push(
+        { text: "ATTACHED IMAGE — FLOOR PLAN: the architectural floor plan of this room. Use it for spatial layout only; it is not a product." },
+        { inlineData: { mimeType: opts.floorPlan.mimeType, data: opts.floorPlan.data } },
+      );
     }
+    result = await requestImage(retryParts.length > 1 ? retryParts : retryPrompt);
   }
 
-  if (!imageBase64) {
-    console.error("[Gemini] Response contained no image data:", JSON.stringify(response.candidates?.[0]));
-    throw new Error("Model returned no image. Check model name and API access.");
+  if (!result.imageBase64) {
+    console.error(`[Gemini] No image returned — blockReason: ${result.blockReason ?? "none"}`);
+    throw new Error(
+      result.blockReason
+        ? `Image generation was blocked by the safety filter (${result.blockReason}). Try a different room or style.`
+        : "Model returned no image. Check model name and API access."
+    );
   }
 
-  const promptTokens    = response.usageMetadata?.promptTokenCount    ?? 0;
-  const candidateTokens = response.usageMetadata?.candidatesTokenCount ?? 0;
+  const imageBase64     = result.imageBase64;
+  const promptTokens    = result.promptTokens;
+  const candidateTokens = result.candidateTokens;
   console.log(`[Gemini] Tokens — prompt: ${promptTokens}, candidates: ${candidateTokens}`);
 
   const buffer = await sharp(Buffer.from(imageBase64, "base64"))
