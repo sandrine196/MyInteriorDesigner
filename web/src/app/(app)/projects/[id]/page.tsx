@@ -273,6 +273,28 @@ export default function ProjectWorkspacePage() {
     project !== null &&
     project.designStyle !== null &&
     (isBathroomOrKitchen || (project.wallColorPalette !== null && project.flooringType !== null));
+
+  // Auto-compose the render prompt from the user's setup choices so nobody
+  // faces a blank textarea — they can still edit it before generating.
+  useEffect(() => {
+    if (!project || !setupComplete || prompt) return;
+    const style = stylesForRoomType(project.roomType).find((s) => s.id === project.designStyle)?.label;
+    const wall  = project.wallColorPalette
+      ? (WALL_COLORS.find((w) => w.id === project.wallColorPalette)?.label.toLowerCase() ?? project.wallColorPalette)
+      : null;
+    const floor = project.flooringType
+      ? (FLOORING_TYPES.find((f) => f.id === project.flooringType)?.label.toLowerCase() ?? project.flooringType)
+      : null;
+    const room = (project.roomType ?? "room").replace(/_/g, " ").replace("bedroom primary", "bedroom").replace("bedroom secondary", "guest bedroom");
+    const pieces = [
+      style ? `${style} ${room}` : `Beautifully designed ${room}`,
+      wall ? `${wall} walls` : null,
+      floor ? `${floor} flooring` : null,
+      "bright natural light, warm and inviting",
+    ].filter(Boolean);
+    setPrompt(pieces.join(", "));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.designStyle, project?.wallColorPalette, project?.flooringType, setupComplete, prompt]);
   const retailersKey = project?.preferredRetailers.join(",") ?? "";
   const maxBudget = project?.budgetMax ?? null;
 
@@ -711,7 +733,7 @@ export default function ProjectWorkspacePage() {
         { n: 3, label: "Generate",    done: project.renders.length > 0 },
       ]
     : [
-        { n: 1, label: "Room size",   done: hasDimensions },
+        { n: 1, label: "Room size",   done: true },  // optional — defaults used when skipped
         { n: 2, label: "Floor plan",  done: !!project.floorPlanKey },
         { n: 3, label: "Room layout", done: hasWallMapping },
         { n: 4, label: "Furniture",   done: furnitureMode === "auto" || selectedProducts.size > 0 },
@@ -1048,7 +1070,7 @@ export default function ProjectWorkspacePage() {
           <StepBadge n={1} done={hasDimensions} current={currentStep === 1} />
           <div className="flex-1">
             <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Step 1 of 4</p>
-            <h2 className="font-semibold text-stone-900">Room dimensions{isBathroomOrKitchen && <span className="text-stone-400 font-normal text-sm ml-1">(optional)</span>}</h2>
+            <h2 className="font-semibold text-stone-900">Room dimensions<span className="text-stone-400 font-normal text-sm ml-1">(optional — improves accuracy)</span></h2>
           </div>
           {/* Unit toggle */}
           <div className="flex rounded-lg border border-stone-200 overflow-hidden text-xs font-semibold">
@@ -1516,14 +1538,14 @@ export default function ProjectWorkspacePage() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
-              disabled={rendering || !hasDimensions || renderError === "FREE_LIMIT_REACHED"}
+              disabled={rendering || renderError === "FREE_LIMIT_REACHED"}
               className="disabled:opacity-40 rounded-xl px-6 py-2.5 text-sm font-semibold transition-all hover:bg-mid-gold-dark active:scale-95"
               style={{ background: "#D4A574", color: "#1B4965" }}
             >
               {rendering ? "Generating your design…" : "Generate design →"}
             </button>
             {!hasDimensions && (
-              <p className="text-xs text-stone-400">Set your room dimensions first</p>
+              <p className="text-xs text-stone-400">Using a typical room size — add your measurements in Step 1 for an accurate render</p>
             )}
             {renderError && renderError !== "FREE_LIMIT_REACHED" && (
               <p className="text-sm text-red-600">{renderError}</p>

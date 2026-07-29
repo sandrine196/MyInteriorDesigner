@@ -35,14 +35,34 @@ export async function runCleanup(): Promise<void> {
     logger.info("Cleanup: deleted stale free-tier renders", { count: staleRenders.length });
   }
 
-  // Delete abandoned projects: created 30+ days ago with no render activity in the last 30 days.
-  const abandonedProjects = await prisma.project.findMany({
+  // Delete abandoned projects: created 30+ days ago with no render activity in
+  // the last 30 days. Each user's most recent project is always kept — deleting
+  // it would leave a returning dormant user with an empty dashboard (and it
+  // erased our onboarding funnel data).
+  const candidates = await prisma.project.findMany({
     where: {
       createdAt: { lt: thirtyDaysAgo },
       renders: { none: { createdAt: { gte: thirtyDaysAgo } } },
     },
-    select: { id: true, floorPlanKey: true },
+    select: { id: true, userId: true, floorPlanKey: true },
   });
+
+  const newestPerUser = await prisma.project.groupBy({
+    by: ["userId"],
+    where: { userId: { in: [...new Set(candidates.map((p) => p.userId))] } },
+    _max: { createdAt: true },
+  });
+  const newestProjectIds = new Set<string>();
+  for (const { userId, _max } of newestPerUser) {
+    if (!_max.createdAt) continue;
+    const newest = await prisma.project.findFirst({
+      where: { userId, createdAt: _max.createdAt },
+      select: { id: true },
+    });
+    if (newest) newestProjectIds.add(newest.id);
+  }
+
+  const abandonedProjects = candidates.filter((p) => !newestProjectIds.has(p.id));
 
   if (abandonedProjects.length > 0) {
     for (const project of abandonedProjects) {
