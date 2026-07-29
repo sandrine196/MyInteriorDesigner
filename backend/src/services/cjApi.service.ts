@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { assignMissingStyles } from "./styleDetection.service.js";
+import { screenRecentProductImages } from "./imageScreening.service.js";
 
 const CJ_API_URL = "https://ads.api.cj.com/query";
 
@@ -329,6 +330,11 @@ export async function importRaftProducts(): Promise<ImportResult> {
   console.log(`[CJ] Import complete — total:${totalCount} imported:${imported} updated:${updated} skipped:${skipped} withDims:${withDimensions}`);
 
   const { processed: stylesAssigned } = await assignMissingStyles();
+
+  // Flag any newly imported photo that would block renders via the safety filter
+  await screenRecentProductImages().catch((err) =>
+    console.error("[CJ] Image screening failed:", err instanceof Error ? err.message : err)
+  );
 
   return { imported, updated, skipped, total: totalCount, withDimensions, stylesAssigned, firstError };
 }

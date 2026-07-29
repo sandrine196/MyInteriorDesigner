@@ -217,6 +217,11 @@ model Product {
   sku            String?
   brand          String?
   inStock        Boolean  @default(true)
+  /// True when this product's photo trips Gemini's safety filter and would
+  /// block the whole render request (e.g. figure-study art prints). The
+  /// product still appears in shopping lists — only its visual reference is
+  /// withheld from the render. Set by the catalogue screening pass.
+  referenceImageBlocked Boolean @default(false)
   /// Import source: 'manual', 'cj_api'
   source         String?
   createdAt      DateTime @default(now())

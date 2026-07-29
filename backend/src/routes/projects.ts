@@ -666,7 +666,10 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
             heightMm:      p.heightMm,
             dimensionsRaw: p.dimensionsRaw,
             description:   p.description,
-            imageUrl:      p.imageUrl,
+            // Withhold photos known to trip the safety filter — sending one
+            // blocks the entire render request. The product still appears in
+            // the shopping list; only its visual reference is omitted.
+            imageUrl:      p.referenceImageBlocked ? null : p.imageUrl,
           })),
           room: roomDims,
         });
