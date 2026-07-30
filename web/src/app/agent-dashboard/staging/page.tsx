@@ -100,11 +100,12 @@ function BeforeAfterSlider({ before, after }: { before: string; after: string })
       onMouseMove={(e) => { if (e.buttons === 1) onMove(e.clientX); }}
       onTouchMove={(e) => { const t = e.touches[0]; if (t) onMove(t.clientX); }}
     >
+      {/* Base layer: "after" fills the frame; the clip overlay on the left reveals "before" up to the handle */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={before} alt="Before" className="absolute inset-0 w-full h-full object-cover" />
+      <img src={after} alt="After" className="absolute inset-0 w-full h-full object-cover" />
       <div className="absolute inset-0 overflow-hidden" style={{ width: `${pos}%` }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={after} alt="After" className="absolute inset-0 w-full h-full object-cover" />
+        <img src={before} alt="Before" className="absolute inset-0 w-full h-full object-cover" />
       </div>
       {/* Divider */}
       <div className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg" style={{ left: `${pos}%` }}>
