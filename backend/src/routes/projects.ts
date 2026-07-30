@@ -156,12 +156,31 @@ async function autoSelectProducts(project: {
   return products;
 }
 
+/**
+ * Map an internal error to something safe and useful for the end user.
+ * The raw text stays in Render.errorMessage for admin diagnostics — users
+ * should never see vendor names, our billing state, or raw API payloads.
+ */
+export function userFacingRenderError(raw: string | null, status: string): string | null {
+  if (!raw) return null;
+  // On a successful render, errorMessage carries the mock-mode notice, not a failure.
+  if (status !== "failed") return raw;
+  if (raw.includes("REVE_OUT_OF_CREDITS") || raw.includes("REVE_RATE_LIMITED")) {
+    return "Our design service is busy right now. Please try again in a few minutes.";
+  }
+  if (raw.includes("PROHIBITED_CONTENT") || raw.toLowerCase().includes("safety filter")) {
+    return "We couldn't generate a design for this room. Try a different style or photo.";
+  }
+  return "Something went wrong generating this design. Please try again.";
+}
+
 function serializeProject(p: Record<string, unknown>) {
   const renders = Array.isArray(p.renders)
     ? (p.renders as Array<Record<string, unknown>>).map((r) => {
         const { productsSnapshot, ...rest } = r;
         return {
           ...rest,
+          errorMessage: userFacingRenderError(r.errorMessage as string | null, r.status as string),
           imageUrl: toImageUrl(r.imageKey as string | null),
           alternativeImageUrl: toImageUrl(r.alternativeImageKey as string | null),
           products: (() => {
@@ -719,7 +738,8 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           data: { status: "failed", errorMessage: message },
         });
         track("render_completed", u.sub, { renderId: render.id, status: "failed" });
-        return reply.status(500).send({ error: message });
+        // Raw `message` is stored above for diagnostics; the user gets a safe version.
+        return reply.status(500).send({ error: userFacingRenderError(message, "failed") });
       }
     }
   );
@@ -766,7 +786,7 @@ export async function projectRoutes(app: FastifyInstance, env: Env) {
           status: render.status,
           prompt: render.prompt,
           imageUrl: toImageUrl(render.imageKey),
-          errorMessage: render.errorMessage,
+          errorMessage: userFacingRenderError(render.errorMessage, render.status),
         },
       };
     }

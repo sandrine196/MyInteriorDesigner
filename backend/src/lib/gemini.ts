@@ -3,6 +3,10 @@ import sharp from "sharp";
 import { analyzeRoomSpatially } from "../services/spatialReasoning.service.js";
 import type { FloorPlanAnalysis } from "../services/floorPlanAnalysis.service.js";
 
+/** Text/vision model for analysis steps. Rolling alias so a Google model
+ *  retirement can't silently break the pipeline (it has, twice). */
+const TEXT_ANALYSIS_MODEL = "gemini-flash-latest";
+
 export const RENDER_WIDTH = 1024;
 export const RENDER_HEIGHT = 768;
 
@@ -735,7 +739,9 @@ export async function virtualStageRoom(
   const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl } });
 
   const analysisResponse = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    // Rolling alias, not a pinned version — a pinned model being retired by
+    // Google has silently broken this pipeline twice (see floorPlanAnalysis).
+    model: TEXT_ANALYSIS_MODEL,
     contents: [
       { text: analysisPrompt },
       { inlineData: { mimeType: opts.photoMimeType, data: opts.photoData } },
@@ -1044,7 +1050,7 @@ export async function generateRoomImage(
   // precision, not creative variance.
   const genConfig = { responseModalities: ["IMAGE"], temperature: 0.3 };
 
-  async function requestImage(payload: unknown) {
+  async function requestImageOnce(payload: unknown) {
     const res = await ai.models.generateContent({
       model: cfg.model,
       contents: payload as never,
@@ -1057,6 +1063,20 @@ export async function generateRoomImage(
       promptTokens:    res.usageMetadata?.promptTokenCount    ?? 0,
       candidateTokens: res.usageMetadata?.candidatesTokenCount ?? 0,
     };
+  }
+
+  // Retry once on a transient API failure (Gemini's "high demand" 503s are
+  // common and usually clear within seconds). Only network/API throws are
+  // retried — a safety-filter block is deterministic and handled separately
+  // below, so retrying it would just burn a second call for the same result.
+  async function requestImage(payload: unknown) {
+    try {
+      return await requestImageOnce(payload);
+    } catch (err) {
+      console.warn("[Gemini] Image request failed, retrying once:", err instanceof Error ? err.message : err);
+      await new Promise((r) => setTimeout(r, 1500));
+      return requestImageOnce(payload);
+    }
   }
 
   let result = await requestImage(contents);
