@@ -454,6 +454,14 @@ export type OnboardingFunnel = {
   floorPlanAnalysis: { total: number; failed: number };
 };
 
+export type BotActivity = {
+  total:         number;
+  lastBlockedAt: string | null;
+  byReason:      Record<string, number>;
+  byRoute:       Record<string, number>;
+  trend:         { date: string; count: number }[];
+};
+
 export type RedesignMetrics = {
   funnel: {
     redesign_started:          number;
@@ -556,6 +564,8 @@ export const admin = {
     request<RedesignMetrics>(`/admin/redesign-metrics${range ? `?range=${range}` : ""}`),
   onboardingFunnel: (range?: string) =>
     request<OnboardingFunnel>(`/admin/onboarding-funnel${range ? `?range=${range}` : ""}`),
+  botActivity: (range?: string) =>
+    request<BotActivity>(`/admin/bot-activity${range ? `?range=${range}` : ""}`),
   clientMetrics: (range?: string) =>
     request<ClientMetrics>(`/admin/client-metrics${range ? `?range=${range}` : ""}`),
 

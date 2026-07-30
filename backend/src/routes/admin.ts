@@ -619,6 +619,42 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+  // ── Bot activity ────────────────────────────────────────────────────────────
+  // Every automated defense (honeypot, Turnstile, disposable-email block,
+  // dotted-Gmail block, agent random-name block) reports here via track().
+  // Before this, blocks only ever went to console.log — no historical record.
+
+  app.get("/admin/bot-activity", auth, async (request) => {
+    const { range } = request.query as { range?: string };
+    const cutoff = parseRange(range);
+    const days   = range === "7d" ? 7 : range === "month" ? 31 : range === "all" ? 365 : 30;
+    const where = { eventType: "bot_blocked", ...(cutoff ? { createdAt: { gte: cutoff } } : {}) };
+
+    const events = await prisma.analyticsEvent.findMany({
+      where,
+      select: { metadata: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const byReason: Record<string, number> = {};
+    const byRoute: Record<string, number> = {};
+    for (const e of events) {
+      try {
+        const m = JSON.parse(e.metadata ?? "{}") as { reason?: string; route?: string };
+        if (m.reason) byReason[m.reason] = (byReason[m.reason] ?? 0) + 1;
+        if (m.route)  byRoute[m.route]   = (byRoute[m.route]   ?? 0) + 1;
+      } catch { /* skip unparseable metadata */ }
+    }
+
+    return {
+      total: events.length,
+      lastBlockedAt: events[0]?.createdAt ?? null,
+      byReason,
+      byRoute,
+      trend: groupByDay(events.map(e => e.createdAt), days),
+    };
+  });
+
   // ── Redesign funnel metrics ────────────────────────────────────────────────
 
   app.get("/admin/redesign-metrics", auth, async (request) => {

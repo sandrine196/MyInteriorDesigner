@@ -116,12 +116,14 @@ export async function agentRoutes(app: FastifyInstance) {
     // Honeypot — bots fill hidden fields
     if (phone_number && phone_number.length > 0) {
       console.log("[Bot] Agent honeypot triggered from", request.ip);
+      track("bot_blocked", null, { reason: "honeypot", route: "agents_register", ip: request.ip });
       return reply.status(201).send({ ok: true, agent: { id: "", name, agencyName, referralCode: "", referralUrl: "", dashboardUrl: "" } });
     }
 
     // Reject random-string names — bots submit gibberish
     if (looksLikeRandomString(name) || looksLikeRandomString(agencyName)) {
       console.log("[Bot] Random-string name rejected:", name, "/", agencyName);
+      track("bot_blocked", null, { reason: "random_string_name", route: "agents_register", ip: request.ip });
       return reply.status(201).send({ ok: true, agent: { id: "", name, agencyName, referralCode: "", referralUrl: "", dashboardUrl: "" } });
     }
 

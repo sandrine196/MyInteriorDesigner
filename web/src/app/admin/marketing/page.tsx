@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { admin, type MarketingMetrics, type OnboardingFunnel } from "@/lib/api";
+import { admin, type MarketingMetrics, type OnboardingFunnel, type BotActivity } from "@/lib/api";
 
 const STYLE_LABELS: Record<string, string> = {
   // Living room / general
@@ -45,6 +45,13 @@ const ROOM_LABELS: Record<string, string> = {
   bathroom: "Bathroom", kitchen: "Kitchen",
 };
 const COLORS = ["#1B4965", "#D4A574", "#2A5F7F", "#C4935F", "#4A8FA8", "#E5C9A8", "#163d54", "#6BAFC7"];
+const BOT_REASON_LABELS: Record<string, string> = {
+  honeypot: "Honeypot field filled",
+  turnstile: "Turnstile failed",
+  disposable_email: "Disposable email",
+  dotted_gmail: "Dotted Gmail bypass",
+  random_string_name: "Gibberish name",
+};
 
 type Range = "7d" | "30d" | "month" | "all";
 
@@ -75,6 +82,7 @@ function Empty({ text }: { text: string }) {
 export default function MarketingPage() {
   const [data,      setData]      = useState<MarketingMetrics | null>(null);
   const [funnel,    setFunnel]    = useState<OnboardingFunnel | null>(null);
+  const [botActivity, setBotActivity] = useState<BotActivity | null>(null);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState("");
   const [range,     setRange]     = useState<Range>("30d");
@@ -84,12 +92,14 @@ export default function MarketingPage() {
     setLoading(true);
     setError("");
     try {
-      const [d, f] = await Promise.all([
+      const [d, f, b] = await Promise.all([
         admin.marketingMetrics(range),
         admin.onboardingFunnel(range).catch(() => null),
+        admin.botActivity(range).catch(() => null),
       ]);
       setData(d);
       setFunnel(f);
+      setBotActivity(b);
       setUpdatedAt(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -206,6 +216,61 @@ export default function MarketingPage() {
                 {funnel.floorPlanAnalysis.total} succeeded
                 {funnel.floorPlanAnalysis.failed > 0 && " — failures degrade render accuracy, check the AI model is current"}
               </p>
+            )}
+          </ChartCard>
+        </div>
+      )}
+
+      {botActivity && (
+        <div>
+          <SectionHeader title="Bot activity" />
+          <ChartCard title={`Registration attempts blocked${botActivity.total > 0 ? ` — ${botActivity.total} total` : ""}`}>
+            {botActivity.total === 0 ? (
+              <Empty text="No bots blocked in this period" />
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={botActivity.trend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e3d54" vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} stroke="#57534e" fontSize={11} />
+                    <YAxis stroke="#57534e" fontSize={11} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{ background: "#12222f", border: "1px solid #243d52", borderRadius: 8, fontSize: 12 }}
+                      labelFormatter={(label) => fmtDate(String(label))}
+                    />
+                    <Bar dataKey="count" fill="#C4935F" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="grid sm:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <p className="text-xs font-medium text-stone-400 mb-2">By defense</p>
+                    <div className="space-y-1.5">
+                      {Object.entries(botActivity.byReason).sort(([, a], [, b]) => b - a).map(([reason, count]) => (
+                        <div key={reason} className="flex items-center justify-between text-xs">
+                          <span className="text-stone-300">{BOT_REASON_LABELS[reason] ?? reason}</span>
+                          <span className="text-stone-500">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-stone-400 mb-2">By route</p>
+                    <div className="space-y-1.5">
+                      {Object.entries(botActivity.byRoute).sort(([, a], [, b]) => b - a).map(([route, count]) => (
+                        <div key={route} className="flex items-center justify-between text-xs">
+                          <span className="text-stone-300">{route === "register" ? "Homeowner sign-up" : route === "agents_register" ? "Agent sign-up" : route}</span>
+                          <span className="text-stone-500">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {botActivity.lastBlockedAt && (
+                  <p className="text-xs text-stone-600 mt-4">
+                    Last blocked {new Date(botActivity.lastBlockedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                )}
+              </>
             )}
           </ChartCard>
         </div>

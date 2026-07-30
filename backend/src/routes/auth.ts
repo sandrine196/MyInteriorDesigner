@@ -63,6 +63,7 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
     // Honeypot — bots fill hidden fields; humans leave them blank
     if (body.phone_number && body.phone_number.length > 0) {
       console.log("[Bot] Honeypot triggered from", request.ip);
+      track("bot_blocked", null, { reason: "honeypot", route: "register", ip: request.ip });
       // Return fake success — don't alert the bot
       return { token: "", user: { id: "", email: body.email, tier: "free", isAdmin: false, marketingConsent: false, emailVerified: false } };
     }
@@ -81,6 +82,7 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       const verifyData = await verifyRes.json() as { success: boolean };
       if (!verifyData.success) {
         console.log("[Bot] Turnstile failed from", request.ip);
+        track("bot_blocked", null, { reason: "turnstile", route: "register", ip: request.ip });
         return reply.status(400).send({ error: "Security check failed. Please reload and try again." });
       }
     }
@@ -88,6 +90,7 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
     // Block disposable email domains
     const emailDomain = body.email.toLowerCase().split("@")[1] ?? "";
     if (disposableDomains.includes(emailDomain)) {
+      track("bot_blocked", null, { reason: "disposable_email", route: "register", ip: request.ip, domain: emailDomain });
       return reply.status(400).send({ error: "Please use a permanent email address to register." });
     }
 
@@ -98,6 +101,7 @@ export async function authRoutes(app: FastifyInstance, env: Env) {
       const dotCount = (localPart.match(/\./g) ?? []).length;
       if (dotCount >= 3) {
         console.log("[Bot] Dotted Gmail rejected:", body.email, "from", request.ip);
+        track("bot_blocked", null, { reason: "dotted_gmail", route: "register", ip: request.ip });
         return reply.status(400).send({ error: "Please use your Gmail address without dots (Gmail ignores them)." });
       }
     }
