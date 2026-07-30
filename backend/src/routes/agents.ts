@@ -7,6 +7,7 @@ import { emailService } from "../services/email.service.js";
 import { storage } from "../services/storage.service.js";
 import { virtualStageRoom, clearFurnishedRoom } from "../lib/gemini.js";
 import { config } from "../config/index.js";
+import { track } from "../lib/analytics.js";
 
 const STAGING_PHOTO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB — real photos are larger than floor plans
 
@@ -393,36 +394,52 @@ export async function agentRoutes(app: FastifyInstance) {
     let reveStageCalls = 0;
     let reveClearCalls = 0;
 
-    if (isFurnished) {
-      console.log("[Staging] Furnished room — clearing furniture first…");
+    try {
+      if (isFurnished) {
+        console.log("[Staging] Furnished room — clearing furniture first…");
 
-      // Step 1: Remove furniture via Reve
-      const cleared = await clearFurnishedRoom(
-        { reveApiKey: config.ai.reveApiKey },
-        { photoData, photoMimeType }
-      );
-      if (cleared.usedReve) reveClearCalls = 1;
+        // Step 1: Remove furniture via Reve
+        const cleared = await clearFurnishedRoom(
+          { reveApiKey: config.ai.reveApiKey },
+          { photoData, photoMimeType }
+        );
+        if (cleared.usedReve) reveClearCalls = 1;
 
-      // Upload the cleared (empty) room image
-      const emptyKey = `agent-staging/${agentId}/${randomUUID()}-empty.png`;
-      await storage.upload(emptyKey, cleared.buffer, "image/png");
-      emptyRoomUrl = storage.getUrl(emptyKey);
+        // Upload the cleared (empty) room image
+        const emptyKey = `agent-staging/${agentId}/${randomUUID()}-empty.png`;
+        await storage.upload(emptyKey, cleared.buffer, "image/png");
+        emptyRoomUrl = storage.getUrl(emptyKey);
 
-      // Step 2: Stage the now-empty room
-      const staged = await virtualStageRoom(geminiCfg, {
-        photoData:     cleared.buffer.toString("base64"),
-        photoMimeType: "image/png",
-        brief,
+        // Step 2: Stage the now-empty room
+        const staged = await virtualStageRoom(geminiCfg, {
+          photoData:     cleared.buffer.toString("base64"),
+          photoMimeType: "image/png",
+          brief,
+        });
+        stagedBuffer = staged.buffer;
+        mock = staged.mock;
+        if (staged.usedReve) reveStageCalls = 1;
+      } else {
+        // Empty room — stage directly
+        const result = await virtualStageRoom(geminiCfg, { photoData, photoMimeType, brief });
+        stagedBuffer = result.buffer;
+        mock = result.mock;
+        if (result.usedReve) reveStageCalls = 1;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Staging failed";
+      console.error("[Agents] Staging pipeline failed:", err);
+      void prisma.agentStagingLog.create({
+        data: { agentId, reveStageCalls, reveClearCalls, errorMessage: message },
+      }).catch((logErr) => console.error("[Agents] Failed to log staging failure:", logErr));
+      track("agent_staging_failed", null, { agentId, error: message });
+      return reply.status(502).send({
+        error: message.includes("REVE_OUT_OF_CREDITS")
+          ? "Staging credits are exhausted — please contact support."
+          : message.includes("REVE_RATE_LIMITED")
+            ? "Too many staging requests right now — please try again in a moment."
+            : "Staging failed — please try again. If this keeps happening, contact support.",
       });
-      stagedBuffer = staged.buffer;
-      mock = staged.mock;
-      if (staged.usedReve) reveStageCalls = 1;
-    } else {
-      // Empty room — stage directly
-      const result = await virtualStageRoom(geminiCfg, { photoData, photoMimeType, brief });
-      stagedBuffer = result.buffer;
-      mock = result.mock;
-      if (result.usedReve) reveStageCalls = 1;
     }
 
     const stagedKey = `agent-staging/${agentId}/${randomUUID()}.png`;

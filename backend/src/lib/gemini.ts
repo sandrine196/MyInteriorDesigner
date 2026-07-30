@@ -788,28 +788,34 @@ export async function virtualStageRoom(
     }
   }
 
-  // Reve not configured or failed — fall back to Gemini image editing
+  // Reve not configured or failed — fall back to Gemini image editing.
+  // This is the last line of defence, so retry once on a transient overload
+  // (Gemini's "high demand" 503) rather than failing the whole request.
   console.log("[Staging] Falling back to Gemini image generation…");
 
   // Put the image first so Gemini treats this as an edit, not a new generation.
   // The instruction is intentionally short to reinforce editing over recreation.
   const geminiEditInstruction = `Edit this photo: keep the walls, floor, windows, and all architectural features exactly as they are in the photo. ${stagingDescription}`;
 
-  const geminiImageResponse = await ai.models.generateContent({
-    model: cfg.model,
-    contents: [
-      {
-        inlineData: { mimeType: opts.photoMimeType, data: opts.photoData },
-      },
-      { text: geminiEditInstruction },
-    ],
-    config: { responseModalities: ["IMAGE"] },
-  });
+  async function requestGeminiEdit() {
+    const res = await ai.models.generateContent({
+      model: cfg.model,
+      contents: [
+        { inlineData: { mimeType: opts.photoMimeType, data: opts.photoData } },
+        { text: geminiEditInstruction },
+      ],
+      config: { responseModalities: ["IMAGE"] },
+    });
+    return (res.candidates?.[0]?.content?.parts ?? []).find((p) => p.inlineData?.data)?.inlineData?.data;
+  }
 
-  const parts = geminiImageResponse.candidates?.[0]?.content?.parts ?? [];
   let imageBase64: string | undefined;
-  for (const part of parts) {
-    if (part.inlineData?.data) { imageBase64 = part.inlineData.data; break; }
+  try {
+    imageBase64 = await requestGeminiEdit();
+  } catch (err) {
+    console.warn("[Staging] Gemini fallback attempt 1 failed, retrying once:", err instanceof Error ? err.message : err);
+    await new Promise((r) => setTimeout(r, 1500));
+    imageBase64 = await requestGeminiEdit();
   }
 
   if (!imageBase64) {

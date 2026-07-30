@@ -855,17 +855,24 @@ export async function adminRoutes(app: FastifyInstance) {
   // ── System: database stats ────────────────────────────────────────────────
 
   // ── GET /admin/reve-status ────────────────────────────────────────────────
+  // Covers both the homeowner render pipeline and the agent staging pipeline
+  // (staging failures previously weren't logged anywhere — see AgentStagingLog).
   app.get("/admin/reve-status", auth, async () => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24h
-    const recentErrors = await prisma.render.findMany({
-      where: {
-        status: "failed",
-        createdAt: { gte: since },
-        errorMessage: { not: null },
-      },
-      select: { errorMessage: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
-    });
+
+    const [renderErrors, stagingErrors] = await Promise.all([
+      prisma.render.findMany({
+        where: { status: "failed", createdAt: { gte: since }, errorMessage: { not: null } },
+        select: { errorMessage: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.agentStagingLog.findMany({
+        where: { createdAt: { gte: since }, errorMessage: { not: null } },
+        select: { errorMessage: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+    const recentErrors = [...renderErrors, ...stagingErrors];
 
     const outOfCredits = recentErrors.find(r => r.errorMessage?.includes("REVE_OUT_OF_CREDITS"));
     const rateLimited  = recentErrors.find(r => r.errorMessage?.includes("REVE_RATE_LIMITED"));

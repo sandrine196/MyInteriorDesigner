@@ -53,6 +53,10 @@ model AgentStagingLog {
   agentId        String
   reveStageCalls Int      @default(0)
   reveClearCalls Int      @default(0)
+  /// Set when the request ultimately failed (Reve + Gemini fallback both
+  /// failed, or another error). Null on success. Lets the admin Reve
+  /// monitor cover this flow, not just homeowner renders.
+  errorMessage   String?
   createdAt      DateTime @default(now())
 
   @@index([agentId])
