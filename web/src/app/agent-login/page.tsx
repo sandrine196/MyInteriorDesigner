@@ -91,6 +91,13 @@ export default function AgentLoginPage() {
               <Link href="/agents" className="text-xs font-medium underline" style={{ color: "#062C3D" }}>
                 Join the partner programme →
               </Link>
+              {/* Way back for anyone who arrives here by mistake */}
+              <p className="text-xs text-stone-400 pt-1">
+                Homeowner?{" "}
+                <Link href="/login" className="font-medium underline" style={{ color: "#062C3D" }}>
+                  Sign in here
+                </Link>
+              </p>
             </div>
           </div>
         )}
