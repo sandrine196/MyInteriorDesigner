@@ -445,7 +445,7 @@ function ExampleGallery() {
               Real rooms, real furniture
             </h2>
             <p className="text-stone-500 text-sm max-w-md leading-relaxed">
-              Every render uses actual pieces from UK retailers — with live prices so you know exactly what it costs to recreate the look.
+              Real furniture from UK retailers, priced individually. Prices shown are for the key pieces — not a full-room total.
             </p>
           </div>
           <Link
@@ -478,7 +478,7 @@ function ExampleGallery() {
             <div className="p-4">
               <p className="text-xs font-medium text-stone-400 uppercase tracking-wide mb-1">{r.room}</p>
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-stone-900">Total cost: {r.cost}</p>
+                <p className="text-sm font-semibold text-stone-900">Key pieces from {r.cost}</p>
               </div>
               <Link
                 href="/register"
