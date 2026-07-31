@@ -100,6 +100,18 @@ export default function LoginPage() {
               Forgot password?
             </Link>
           </div>
+
+          {/* Estate agents authenticate separately (magic link, no password).
+              Without this pointer the natural instinct — sign in here — dead-ends
+              in the homeowner app with no hint the partner dashboard exists. */}
+          <div className="pt-4 mt-1 border-t border-stone-100">
+            <p className="text-xs text-center text-stone-400">
+              Estate agent partner?{" "}
+              <Link href="/agent-login" className="font-semibold hover:opacity-75 transition-opacity" style={{ color: "#1B4965" }}>
+                Sign in here →
+              </Link>
+            </p>
+          </div>
         </form>
       </div>
     </div>

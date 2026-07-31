@@ -583,6 +583,14 @@ export const admin = {
   reve: {
     status: () => request<{ ok: boolean; outOfCredits: boolean; rateLimited: boolean; lastErrorAt: string | null }>("/admin/reve-status"),
   },
+  emailHealth: () => request<{
+    ok: boolean;
+    total: number;
+    magicLinkFailures: number;
+    noProviderConfigured: boolean;
+    bySubject: Record<string, number>;
+    lastFailureAt: string | null;
+  }>("/admin/email-health"),
   products: {
     sources:      () => request<{ sources: ProductSourceStats[] }>("/admin/products/sources"),
     importRaft:   () => request<{ success: boolean; imported: number; updated: number; skipped: number; total: number; withDimensions: number; stylesAssigned: number; firstError?: string }>("/admin/products/import/raft", { method: "POST" }),

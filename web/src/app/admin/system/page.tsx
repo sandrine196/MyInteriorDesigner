@@ -659,6 +659,69 @@ function ReveStatusSection() {
   );
 }
 
+function EmailHealthSection() {
+  const [health, setHealth] = useState<{
+    ok: boolean; total: number; magicLinkFailures: number;
+    noProviderConfigured: boolean; bySubject: Record<string, number>; lastFailureAt: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    admin.emailHealth().then(setHealth).catch(() => setHealth(null));
+  }, []);
+
+  if (!health) return null;
+
+  if (health.ok) {
+    return (
+      <div className="space-y-4">
+        <SectionHeader title="Email delivery" />
+        <Card>
+          <div className="flex items-center gap-2 text-sm text-emerald-400">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+            No email failures in the last 7 days
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const critical = health.magicLinkFailures > 0 || health.noProviderConfigured;
+  const lastAt = health.lastFailureAt
+    ? new Date(health.lastFailureAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Email delivery" />
+      <Card>
+        <div className="flex items-start gap-3">
+          <span className="inline-block w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: critical ? "#ef4444" : "#f59e0b" }} />
+          <div className="flex-1">
+            <p className="text-sm font-semibold" style={{ color: critical ? "#f87171" : "#fbbf24" }}>
+              {health.noProviderConfigured
+                ? "No email provider configured — emails are being silently skipped."
+                : health.magicLinkFailures > 0
+                  ? `${health.magicLinkFailures} agent sign-in link${health.magicLinkFailures === 1 ? "" : "s"} failed to send — those agents cannot log in.`
+                  : `${health.total} email failure${health.total === 1 ? "" : "s"} in the last 7 days.`}
+            </p>
+            {Object.keys(health.bySubject).length > 0 && (
+              <div className="mt-2 space-y-1">
+                {Object.entries(health.bySubject).sort(([, a], [, b]) => b - a).map(([subject, count]) => (
+                  <div key={subject} className="flex items-center justify-between text-xs">
+                    <span className="text-stone-400 truncate pr-3">{subject}</span>
+                    <span className="text-stone-500 flex-shrink-0">{count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {lastAt && <p className="text-xs text-stone-500 mt-2">Last failure: {lastAt}</p>}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function SystemPage() {
@@ -669,6 +732,7 @@ export default function SystemPage() {
         <p className="text-stone-500 text-sm mt-1">Backups, database stats, and service health</p>
       </div>
       <ReveStatusSection />
+      <EmailHealthSection />
       <DbCheckSection />
       <ProductSourcesSection />
       <BackupSection />

@@ -921,6 +921,41 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+  // ── GET /admin/email-health ───────────────────────────────────────────────
+  // Email sends are deliberately non-fatal (a failed email must never break a
+  // request), which previously meant failures left no trace at all. A failed
+  // agent magic link is the worst case — the agent simply cannot sign in.
+  app.get("/admin/email-health", auth, async () => {
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // last 7 days
+
+    const events = await prisma.analyticsEvent.findMany({
+      where: { eventType: { in: ["email_failed", "agent_magic_link_failed"] }, createdAt: { gte: since } },
+      select: { eventType: true, metadata: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    let noProvider = 0;
+    const bySubject: Record<string, number> = {};
+    for (const e of events) {
+      try {
+        const m = JSON.parse(e.metadata ?? "{}") as { reason?: string; subject?: string };
+        if (m.reason === "no_provider_configured") noProvider++;
+        if (m.subject) bySubject[m.subject] = (bySubject[m.subject] ?? 0) + 1;
+      } catch { /* skip unparseable metadata */ }
+    }
+
+    const magicLinkFailures = events.filter(e => e.eventType === "agent_magic_link_failed").length;
+
+    return {
+      ok:               events.length === 0,
+      total:            events.length,
+      magicLinkFailures,
+      noProviderConfigured: noProvider > 0,
+      bySubject,
+      lastFailureAt:    events[0]?.createdAt ?? null,
+    };
+  });
+
   app.get("/admin/system/stats", auth, async () => {
     const [users, projects, renders, products, clicks, costs, revenues] = await Promise.all([
       prisma.user.count(),

@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Resend } from "resend";
 import { config } from "../config/index.js";
+import { track } from "../lib/analytics.js";
 
 function displayName(email: string): string {
   const local = email.split("@")[0];
@@ -60,6 +61,9 @@ async function send(subject: string, to: string, html: string): Promise<void> {
 
   if (provider !== "resend" || !apiKey) {
     console.log("=== EMAIL SKIPPED (provider:", provider, "/ key present:", !!apiKey, ") ===");
+    // A missing provider is itself a silent failure in production — record it,
+    // otherwise a misconfigured deploy looks identical to "email works fine".
+    track("email_failed", null, { subject, reason: "no_provider_configured" });
     return;
   }
 
@@ -70,6 +74,15 @@ async function send(subject: string, to: string, html: string): Promise<void> {
   } catch (err) {
     const e = err as { message?: string; statusCode?: number };
     console.error("=== EMAIL FAILED ===", { message: e.message, code: e.statusCode, details: err });
+    // Callers deliberately swallow this so a failed email never breaks the
+    // request — which also meant failures left no trace anywhere. Record it
+    // here, at the single choke point, so every email type is covered.
+    track("email_failed", null, {
+      subject,
+      reason: "send_error",
+      message: e.message ?? "unknown",
+      statusCode: e.statusCode ?? null,
+    });
     throw err;
   }
 }
@@ -218,8 +231,12 @@ export const emailService = {
           <p style="color:#999;font-size:12px;margin-top:32px;">If you didn't request this, you can safely ignore this email. No action needed.</p>
         </div>`,
       );
-    } catch {
-      // Non-fatal — agent sees a generic success message regardless
+    } catch (err) {
+      // Still non-fatal (the endpoint returns 200 either way so it can't be
+      // used to probe which emails are registered), but this failure means the
+      // agent CANNOT sign in at all — so make it loud rather than silent.
+      console.error(`[Email] CRITICAL: magic-link delivery failed for agent ${to} — they cannot sign in:`, err instanceof Error ? err.message : err);
+      track("agent_magic_link_failed", null, { email: to });
     }
   },
 
