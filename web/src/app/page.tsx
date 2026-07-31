@@ -13,25 +13,27 @@ export const metadata: Metadata = {
 };
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
-// MIDLogo.png            — beige/neutral background, for use on white/light bg
-// MIDLogoPrussianBlue_Gold.png — Prussian Blue background, for dark bg
+// Transparent gold mark — no baked-in background, so the same file reads
+// cleanly on both light and dark surfaces. "icon" is the mark alone (for
+// compact headers, usually paired with adjacent text); "full" includes the
+// wordmark (for standalone/large placements — hero, footer).
 
-function Logo({ onDark = false, className = "" }: { onDark?: boolean; className?: string }) {
-  return onDark ? (
+function Logo({ variant = "full", className = "" }: { variant?: "icon" | "full"; className?: string }) {
+  return variant === "icon" ? (
     <Image
-      src="/MIDLogoPrussianBlue_Gold.png"
+      src="/MIDLogoGold_Icon.png"
       alt="My Interior Designer"
-      width={200}
-      height={140}
+      width={92}
+      height={94}
       className={className}
       priority
     />
   ) : (
     <Image
-      src="/MIDLogo.png"
+      src="/MIDLogoGold_Transparent.png"
       alt="My Interior Designer"
-      width={200}
-      height={140}
+      width={100}
+      height={102}
       className={className}
       priority
     />
@@ -46,7 +48,7 @@ function Header() {
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-stone-200">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5" aria-label="My Interior Designer home">
-          <Logo className="h-10 w-auto object-contain" />
+          <Logo variant="icon" className="h-10 w-auto object-contain" />
           <span className="font-semibold text-[#062C3D] tracking-tight hidden sm:block">My Interior Designer</span>
         </Link>
         <div className="flex items-center gap-3">
@@ -80,7 +82,7 @@ function Hero() {
           <div>
             {/* Logo in hero */}
             <div className="mb-10">
-              <Logo onDark className="h-16 w-auto" />
+              <Logo variant="full" className="h-16 w-auto" />
             </div>
 
             <h1 className="text-4xl sm:text-5xl font-bold text-white leading-tight tracking-tight mb-5">
@@ -521,7 +523,7 @@ function Footer() {
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start justify-between gap-10 mb-10">
           <div className="max-w-xs">
-            <Logo onDark className="h-20 w-auto mb-4" />
+            <Logo variant="full" className="h-20 w-auto mb-4" />
             <p className="text-blue-200/70 text-sm leading-relaxed">
               Your affordable interior designer, powered by AI.
             </p>

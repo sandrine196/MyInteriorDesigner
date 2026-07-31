@@ -59,7 +59,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
           <Link href="/admin" className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/MIDLogoPrussianBlue_Gold.png" alt="My Interior Designer" className="h-7 object-contain" />
+            <img src="/MIDLogoGold_Icon.png" alt="My Interior Designer" className="h-7 object-contain" />
             <span className="font-semibold text-white text-sm tracking-tight hidden sm:block">Admin</span>
           </Link>
         </div>

@@ -82,7 +82,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-8">
           <Link href="/projects" className="flex items-center py-3.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/MIDLogo.png" alt="My Interior Designer" className="h-8 object-contain" />
+            <img src="/MIDLogoGold_Icon.png" alt="My Interior Designer" className="h-8 object-contain" />
           </Link>
           <nav className="flex items-stretch gap-1">
             {navLinks.map((l) => (

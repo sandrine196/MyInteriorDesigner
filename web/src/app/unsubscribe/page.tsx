@@ -96,7 +96,7 @@ export default function UnsubscribePage() {
     >
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 text-center space-y-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/MIDLogo.png" alt="My Interior Designer" className="h-10 mx-auto object-contain" />
+        <img src="/MIDLogoGold_Transparent.png" alt="My Interior Designer" className="h-10 mx-auto object-contain" />
         <Suspense fallback={
           <>
             <div className="w-7 h-7 rounded-full border-2 border-stone-200 border-t-stone-600 animate-spin mx-auto" />

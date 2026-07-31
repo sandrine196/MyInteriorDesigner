@@ -69,7 +69,7 @@ function CheckEmailScreen({ email }: { email: string }) {
       <div className="w-full max-w-sm">
         <div className="bg-white rounded-2xl shadow-2xl p-8 space-y-5 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/MIDLogo.png" alt="My Interior Designer" className="h-12 mx-auto object-contain" />
+          <img src="/MIDLogoGold_Transparent.png" alt="My Interior Designer" className="h-12 mx-auto object-contain" />
 
           <div className="text-5xl">📧</div>
 
@@ -204,7 +204,7 @@ function RegisterForm() {
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-2xl p-8 space-y-5">
           <div className="text-center pb-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/MIDLogo.png" alt="My Interior Designer" className="h-12 mx-auto mb-5 object-contain" />
+            <img src="/MIDLogoGold_Transparent.png" alt="My Interior Designer" className="h-12 mx-auto mb-5 object-contain" />
             {isReferred ? (
               <>
                 <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-3">

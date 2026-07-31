@@ -40,7 +40,7 @@ export default function AgentsPage() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-stone-200">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5" aria-label="My Interior Designer home">
-            <Image src="/MIDLogo.png" alt="My Interior Designer" width={120} height={84} className="h-9 w-auto object-contain" priority />
+            <Image src="/MIDLogoGold_Icon.png" alt="My Interior Designer" width={92} height={94} className="h-9 w-auto object-contain" priority />
             <span className="font-semibold text-[#062C3D] tracking-tight hidden sm:block">My Interior Designer</span>
           </Link>
           <div className="flex items-center gap-3">

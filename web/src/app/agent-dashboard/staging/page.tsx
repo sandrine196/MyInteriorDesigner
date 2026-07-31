@@ -339,7 +339,7 @@ export default function AgentStagingPage() {
       <header className="bg-white border-b border-stone-200">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/MIDLogo.png" alt="My Interior Designer" width={120} height={84} className="h-9 w-auto object-contain" priority />
+            <Image src="/MIDLogoGold_Icon.png" alt="My Interior Designer" width={92} height={94} className="h-9 w-auto object-contain" priority />
             <span className="font-semibold text-[#062C3D] tracking-tight hidden sm:block text-sm">Virtual Staging</span>
           </Link>
           <Link href="/agent-dashboard" className="text-sm text-stone-500 hover:text-stone-900 transition-colors">

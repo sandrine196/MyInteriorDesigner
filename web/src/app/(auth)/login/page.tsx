@@ -45,7 +45,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-2xl p-8 space-y-5">
           <div className="text-center pb-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/MIDLogo.png" alt="My Interior Designer" className="h-12 mx-auto mb-5 object-contain" />
+            <img src="/MIDLogoGold_Transparent.png" alt="My Interior Designer" className="h-12 mx-auto mb-5 object-contain" />
             <h1 className="text-xl font-bold tracking-tight" style={{ color: "#1B4965" }}>Sign in</h1>
             <p className="text-sm text-stone-500 mt-1">Welcome back</p>
           </div>

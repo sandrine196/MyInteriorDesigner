@@ -254,7 +254,7 @@ export default function RedesignPage() {
       <header className="bg-white/80 backdrop-blur-sm border-b border-stone-200/60 sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/">
-            <Image src="/MIDLogo.png" alt="My Interior Designer" width={100} height={70} className="h-8 w-auto object-contain" priority />
+            <Image src="/MIDLogoGold_Icon.png" alt="My Interior Designer" width={78} height={80} className="h-8 w-auto object-contain" priority />
           </Link>
           {screen !== "landing" && (
             <button onClick={resetAll} className="text-xs text-stone-400 hover:text-stone-700 transition-colors">

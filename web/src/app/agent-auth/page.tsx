@@ -39,7 +39,7 @@ function AgentAuthContent() {
       <div className="w-full max-w-sm text-center space-y-6">
 
         <Link href="/">
-          <Image src="/MIDLogo.png" alt="My Interior Designer" width={140} height={98} className="h-12 w-auto object-contain mx-auto" priority />
+          <Image src="/MIDLogoGold_Transparent.png" alt="My Interior Designer" width={100} height={102} className="h-12 w-auto object-contain mx-auto" priority />
         </Link>
 
         {!error ? (

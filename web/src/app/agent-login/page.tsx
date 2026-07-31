@@ -31,7 +31,7 @@ export default function AgentLoginPage() {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <Link href="/">
-            <Image src="/MIDLogo.png" alt="My Interior Designer" width={140} height={98} className="h-12 w-auto object-contain" priority />
+            <Image src="/MIDLogoGold_Transparent.png" alt="My Interior Designer" width={100} height={102} className="h-12 w-auto object-contain" priority />
           </Link>
         </div>
 
