@@ -507,7 +507,9 @@ function About() {
         <p className="text-stone-500 text-sm leading-relaxed mb-6">
           MyInteriorDesigner is an AI-powered interior design tool for UK homeowners.
           Upload your floor plan, choose your style, and let our AI generate beautiful
-          room designs with furniture recommendations that fit your space.
+          room designs with furniture recommendations that fit your space. We also
+          partner with estate agents, helping them virtually stage listings so buyers
+          can see a property&apos;s potential from the very first photo.
         </p>
         <p className="text-sm text-stone-400">Built with love in the UK 🇬🇧</p>
       </div>
