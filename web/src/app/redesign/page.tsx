@@ -98,7 +98,7 @@ function PhotoDropzone({ onFile }: { onFile: (f: File) => void }) {
         <div className="text-5xl">📷</div>
         <div>
           <p className="font-semibold text-stone-800 text-lg">Drop a photo or tap to upload</p>
-          <p className="text-stone-500 text-sm mt-1">Works on any room · JPEG, PNG, WebP · up to 10 MB</p>
+          <p className="text-stone-500 text-sm mt-1">Living rooms, dining rooms &amp; bedrooms · JPEG, PNG, WebP · up to 10 MB</p>
         </div>
         <div
           className="inline-flex items-center gap-2 font-semibold px-6 py-3 rounded-xl text-sm shadow-sm"
@@ -359,7 +359,7 @@ export default function RedesignPage() {
               <h1 className="text-3xl font-bold text-stone-900 tracking-tight leading-tight">
                 See your room redesigned<br />in under a minute
               </h1>
-              <p className="text-stone-500">Upload a photo — AI does the rest</p>
+              <p className="text-stone-500">Upload a photo of your living room, dining room or bedroom</p>
             </div>
 
             <PhotoDropzone onFile={handlePhotoSelect} />
