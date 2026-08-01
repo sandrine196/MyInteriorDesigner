@@ -689,10 +689,11 @@ export type RestageResult = {
 
 export const redesign = {
   // Session is managed via httpOnly cookie — browser sends it automatically with credentials: 'include'
-  full: (photo: File, style: string): Promise<RedesignResult> => {
+  full: (photo: File, style: string, isFurnished: boolean): Promise<RedesignResult> => {
     const form = new FormData();
     form.append("photo", photo);
     form.append("style", style);
+    form.append("isFurnished", String(isFurnished));
     return fetch(`${BASE}/redesign`, {
       method: "POST",
       credentials: "include",

@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
+import sharp from "sharp";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { storage } from "../services/storage.service.js";
-import { clearFurnishedRoom, virtualStageRoom } from "../lib/gemini.js";
+import { clearFurnishedRoom, virtualStageRoom, RENDER_WIDTH, RENDER_HEIGHT } from "../lib/gemini.js";
 import { track } from "../lib/analytics.js";
 import { config } from "../config/index.js";
 
@@ -81,10 +82,14 @@ export async function redesignRoutes(app: FastifyInstance) {
       });
     }
 
-    // Parse multipart — photo + style
+    // Parse multipart — photo + style + isFurnished
     let photoBuffer: Buffer | null = null;
     let photoMimeType = "image/jpeg";
     let style = "";
+    // Default true (assume furnished) when the field is missing — the safe
+    // direction to fail in, since skipping removal on a furnished room stages
+    // new furniture on top of the old rather than just costing an extra call.
+    let isFurnished = true;
 
     const parts = request.parts();
     for await (const part of parts) {
@@ -102,6 +107,8 @@ export async function redesignRoutes(app: FastifyInstance) {
         photoMimeType = part.mimetype;
       } else if (part.type === "field" && part.fieldname === "style") {
         style = (part.value as string).trim();
+      } else if (part.type === "field" && part.fieldname === "isFurnished") {
+        isFurnished = (part.value as string) === "true";
       }
     }
 
@@ -111,7 +118,7 @@ export async function redesignRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: `Invalid style. Must be one of: ${Object.keys(STYLE_BRIEFS).join(", ")}` });
     }
 
-    track("redesign_started", null, { sessionId, style });
+    track("redesign_started", null, { sessionId, style, isFurnished });
 
     const brief      = STYLE_BRIEFS[style];
     const photoData  = photoBuffer.toString("base64");
@@ -122,17 +129,30 @@ export async function redesignRoutes(app: FastifyInstance) {
     // The original photo is NOT stored — the browser already has it for the
     // before/after slider, so persisting it would be pure storage waste.
 
-    // Step 1: Clear furniture. The cleared room is kept (needed for restage
-    // within the 24h session); expired session files are removed by the daily
-    // cleanup job.
-    const cleared = await clearFurnishedRoom({ reveApiKey: config.ai.reveApiKey }, { photoData, photoMimeType });
+    // Step 1: Clear furniture — only if the room actually has any. Mirrors
+    // the agent staging tool: skipping this for an already-empty room saves
+    // a Reve call and roughly halves the wait (~20s vs ~40s).
+    let clearedBuffer: Buffer;
+    if (isFurnished) {
+      const cleared = await clearFurnishedRoom({ reveApiKey: config.ai.reveApiKey }, { photoData, photoMimeType });
+      clearedBuffer = cleared.buffer;
+    } else {
+      // Already empty — normalise to the same size/format the cleared path
+      // would produce, so restage and downstream handling stay consistent.
+      clearedBuffer = await sharp(photoBuffer)
+        .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
+        .jpeg({ quality: 88, progressive: true })
+        .toBuffer();
+    }
+    // Kept for restage within the 24h session; expired session files are
+    // removed by the daily cleanup job.
     const emptyKey = `${prefix}/${uuid}-empty.jpg`;
-    await storage.upload(emptyKey, cleared.buffer, "image/jpeg");
+    await storage.upload(emptyKey, clearedBuffer, "image/jpeg");
     const emptyRoomUrl = storage.getUrl(emptyKey);
 
     // Step 2: Stage
     const staged = await virtualStageRoom(geminiCfg, {
-      photoData:     cleared.buffer.toString("base64"),
+      photoData:     clearedBuffer.toString("base64"),
       photoMimeType: "image/jpeg",
       brief,
     });

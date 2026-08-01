@@ -16,8 +16,14 @@ const STYLES = [
   { id: "mid_century",  label: "Mid-Century",  emoji: "🪑" },
 ];
 
-const LOADING_STEPS = [
+// Mirrors the agent staging tool: skip furniture removal entirely for an
+// already-empty room — faster and cheaper, since there's nothing to clear.
+const LOADING_STEPS_FURNISHED = [
   { label: "Clearing the room",         duration: 15000 },
+  { label: "Imagining your new space",  duration: 5000  },
+  { label: "Bringing it to life",       duration: 15000 },
+];
+const LOADING_STEPS_EMPTY = [
   { label: "Imagining your new space",  duration: 5000  },
   { label: "Bringing it to life",       duration: 15000 },
 ];
@@ -105,9 +111,60 @@ function PhotoDropzone({ onFile }: { onFile: (f: File) => void }) {
   );
 }
 
+// ── Room state selector ────────────────────────────────────────────────────────
+
+function RoomStateSelector({ onSelect }: { onSelect: (furnished: boolean) => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="text-center">
+        <p className="text-sm font-semibold text-stone-800">What is the current state of the room?</p>
+        <p className="text-xs text-stone-400 mt-0.5">This helps us choose the right approach</p>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        {/* Empty room */}
+        <button
+          type="button"
+          onClick={() => onSelect(false)}
+          className="text-left rounded-xl border-2 p-4 transition-all hover:border-[#062C3D] hover:shadow-sm bg-white"
+          style={{ borderColor: "#E7E5E0" }}
+        >
+          <div className="text-2xl mb-2">🏠</div>
+          <p className="text-sm font-semibold text-stone-800 mb-1">Empty room</p>
+          <p className="text-xs text-stone-500 leading-relaxed mb-3">
+            The room has no furniture — ready to stage directly
+          </p>
+          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: "rgba(6,44,61,0.07)", color: "#062C3D" }}>
+            ⚡ ~20 seconds
+          </span>
+        </button>
+
+        {/* Furnished room */}
+        <button
+          type="button"
+          onClick={() => onSelect(true)}
+          className="text-left rounded-xl border-2 p-4 transition-all hover:border-[#062C3D] hover:shadow-sm bg-white"
+          style={{ borderColor: "#E7E5E0" }}
+        >
+          <div className="text-2xl mb-2">🛋️</div>
+          <p className="text-sm font-semibold text-stone-800 mb-1">Furnished room</p>
+          <p className="text-xs text-stone-500 leading-relaxed mb-3">
+            Remove existing furniture first, then stage from scratch
+          </p>
+          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: "rgba(212,165,116,0.12)", color: "#9A6B3A" }}>
+            ✨ ~40 seconds
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Loading steps ─────────────────────────────────────────────────────────────
 
-function LoadingPanel({ step }: { step: number }) {
+function LoadingPanel({ step, isFurnished }: { step: number; isFurnished: boolean }) {
+  const steps = isFurnished ? LOADING_STEPS_FURNISHED : LOADING_STEPS_EMPTY;
   return (
     <div className="flex flex-col items-center gap-8 py-12">
       {/* Animated room icon */}
@@ -117,7 +174,7 @@ function LoadingPanel({ step }: { step: number }) {
       </div>
 
       <div className="w-full max-w-sm space-y-4">
-        {LOADING_STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const isActive = step === i + 1;
           const isDone   = step > i + 1;
           return (
@@ -138,19 +195,26 @@ function LoadingPanel({ step }: { step: number }) {
         })}
       </div>
 
-      <p className="text-sm text-stone-400">This usually takes about 40 seconds</p>
+      <p className="text-sm text-stone-400">
+        This usually takes about {isFurnished ? "40" : "20"} seconds
+      </p>
     </div>
   );
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type Screen = "landing" | "style-pick" | "loading" | "reveal";
+type Screen = "landing" | "room-state" | "style-pick" | "loading" | "reveal";
 
 export default function RedesignPage() {
   const [screen,        setScreen]       = useState<Screen>("landing");
   const [photo,         setPhoto]        = useState<File | null>(null);
   const [photoPreview,  setPhotoPreview] = useState<string | null>(null);
+  const [isFurnished,   setIsFurnished]  = useState(true);
+  // Which step list the LoadingPanel should show — distinct from isFurnished
+  // because restage always skips clearing (fast 2-step path) regardless of
+  // whether the original room was furnished.
+  const [loadingFurnished, setLoadingFurnished] = useState(true);
   const [loadingStep,   setLoadingStep]  = useState(1);
   const [result,        setResult]       = useState<RedesignResult | null>(null);
   const [currentStyle,  setCurrentStyle] = useState<string | null>(null);
@@ -163,11 +227,12 @@ export default function RedesignPage() {
     stepTimers.current = [];
   }
 
-  function startLoadingSteps() {
+  function startLoadingSteps(furnished: boolean) {
     setLoadingStep(1);
+    const steps = furnished ? LOADING_STEPS_FURNISHED : LOADING_STEPS_EMPTY;
     let elapsed = 0;
-    for (let i = 0; i < LOADING_STEPS.length - 1; i++) {
-      elapsed += LOADING_STEPS[i].duration;
+    for (let i = 0; i < steps.length - 1; i++) {
+      elapsed += steps[i].duration;
       const next = i + 2;
       stepTimers.current.push(setTimeout(() => setLoadingStep(next), elapsed));
     }
@@ -178,6 +243,11 @@ export default function RedesignPage() {
     setPhotoPreview(URL.createObjectURL(file));
     setResult(null);
     setError(null);
+    setScreen("room-state");
+  }
+
+  function handleRoomStateSelect(furnished: boolean) {
+    setIsFurnished(furnished);
     setScreen("style-pick");
   }
 
@@ -186,10 +256,11 @@ export default function RedesignPage() {
     setCurrentStyle(styleId);
     setScreen("loading");
     clearTimers();
-    startLoadingSteps();
+    setLoadingFurnished(isFurnished);
+    startLoadingSteps(isFurnished);
     setError(null);
     try {
-      const res = await redesign.full(photo, styleId);
+      const res = await redesign.full(photo, styleId, isFurnished);
       setResult(res);
       setRestagesLeft(2);
       setScreen("reveal");
@@ -210,9 +281,11 @@ export default function RedesignPage() {
     setCurrentStyle(styleId);
     setScreen("loading");
     clearTimers();
-    // Faster: only 2 steps (no furniture removal)
-    setLoadingStep(2); // skip step 1 (already cleared)
-    stepTimers.current.push(setTimeout(() => setLoadingStep(3), LOADING_STEPS[1].duration));
+    // Restage reuses the already-cleared room, so it always follows the
+    // fast 2-step timeline regardless of the original room's state.
+    setLoadingFurnished(false);
+    setLoadingStep(1);
+    stepTimers.current.push(setTimeout(() => setLoadingStep(2), LOADING_STEPS_EMPTY[0].duration));
     setError(null);
     try {
       const res = await redesign.restage(styleId);
@@ -241,6 +314,7 @@ export default function RedesignPage() {
     setScreen("landing");
     setPhoto(null);
     setPhotoPreview(null);
+    setIsFurnished(true);
     setResult(null);
     setCurrentStyle(null);
     setError(null);
@@ -283,7 +357,7 @@ export default function RedesignPage() {
                 FREE · NO SIGN UP NEEDED
               </div>
               <h1 className="text-3xl font-bold text-stone-900 tracking-tight leading-tight">
-                See your room redesigned<br />in 40 seconds
+                See your room redesigned<br />in under a minute
               </h1>
               <p className="text-stone-500">Upload a photo — AI does the rest</p>
             </div>
@@ -293,6 +367,22 @@ export default function RedesignPage() {
             <p className="text-center text-xs text-stone-400">
               ✨ Powered by AI · Your photo stays private
             </p>
+          </div>
+        )}
+
+        {/* ── Screen 1b: Room state ────────────────────────────────────── */}
+        {screen === "room-state" && (
+          <div className="space-y-6">
+            {photoPreview && (
+              <div className="rounded-xl overflow-hidden border border-stone-200 aspect-video">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoPreview} alt="Your room" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <RoomStateSelector onSelect={handleRoomStateSelect} />
+            <button onClick={resetAll} className="w-full text-xs text-stone-400 hover:text-stone-600 transition-colors py-2">
+              ← Choose a different photo
+            </button>
           </div>
         )}
 
@@ -355,7 +445,7 @@ export default function RedesignPage() {
         )}
 
         {/* ── Screen 3: Loading ─────────────────────────────────────────── */}
-        {screen === "loading" && <LoadingPanel step={loadingStep} />}
+        {screen === "loading" && <LoadingPanel step={loadingStep} isFurnished={loadingFurnished} />}
 
         {/* ── Screen 4: Reveal ──────────────────────────────────────────── */}
         {screen === "reveal" && result && (
