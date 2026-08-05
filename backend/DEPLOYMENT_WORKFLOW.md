@@ -218,7 +218,7 @@ STORAGE_PUBLIC_URL=https://pub-xxxx.r2.dev
 EMAIL_PROVIDER=resend
 RESEND_API_KEY=re_...
 EMAIL_FROM=hello@myinteriordesigner.co.uk
-ALERT_EMAIL=sandrine.andre@gmail.com
+ALERT_EMAIL=you@example.com
 
 # ── Rate limits (defaults shown) ───────────────────────────────────────────────
 FREE_RENDERS_PER_MONTH=5
@@ -606,7 +606,7 @@ git log --oneline prisma/migrations/
 
 ### Infrastructure
 
-- [ ] Railway service is not publicly exposing the database port
+- [ ] Database is not publicly reachable from the internet
 - [ ] R2 bucket: public access enabled only for the `renders/` and `floor-plans/` prefixes, not the whole bucket
 - [ ] JWT_SECRET is at least 32 random characters
 - [ ] Admin routes (`/admin/*`) require `isAdmin=true` JWT claim

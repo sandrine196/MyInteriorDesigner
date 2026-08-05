@@ -46,8 +46,9 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-*.swo.DS_Store
-.env
+*.swo
+
+# Backend build artifacts / local DB (duplicated here in case backend/.gitignore is ever removed)
 backend/node_modules/
 backend/dist/
 backend/prisma/dev.db

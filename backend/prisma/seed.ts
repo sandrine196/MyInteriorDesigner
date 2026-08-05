@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
 
 const prisma = new PrismaClient();
 
@@ -655,19 +656,21 @@ const products = [
 
 async function main() {
   // ── Admin user ───────────────────────────────────────────────────────────────
-  // Grants admin to sandrine.andre@gmail.com. If the account doesn't exist yet
-  // it's created with a temporary password — change it after first login.
-  const adminEmail = "sandrine.andre@gmail.com";
+  // Reads from env so no real email/password is hardcoded in source. Falls back
+  // to a generic local-dev address; the password is freshly randomised on every
+  // run and printed once — never persisted anywhere but the hash in the DB.
+  const adminEmail = process.env.ADMIN_EMAIL ?? "admin@example.com";
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
   if (existingAdmin) {
     await prisma.user.update({ where: { email: adminEmail }, data: { isAdmin: true } });
     console.log(`Admin flag set on existing account: ${adminEmail}`);
   } else {
-    const passwordHash = await bcrypt.hash("ChangeMe1!", 10);
+    const generatedPassword = randomBytes(9).toString("base64url"); // 12 chars, URL-safe
+    const passwordHash = await bcrypt.hash(generatedPassword, 10);
     await prisma.user.create({
       data: { email: adminEmail, passwordHash, isAdmin: true },
     });
-    console.log(`Admin account created: ${adminEmail} (password: ChangeMe1! — change immediately)`);
+    console.log(`Admin account created: ${adminEmail} (password: ${generatedPassword} — save this, it won't be shown again)`);
   }
 
   // ── Provider cost entries — seed canonical list for current month ─────────────
