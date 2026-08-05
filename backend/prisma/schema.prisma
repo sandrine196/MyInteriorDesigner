@@ -196,6 +196,13 @@ model RedesignSession {
   emptyRoomUrl        String?
   lastResetAt         DateTime @default(now())
   createdAt           DateTime @default(now())
+  /// Raw failure reason from the last failed /redesign or /redesign/restage
+  /// call (e.g. "REVE_OUT_OF_CREDITS: ..."). Null on success. This public,
+  /// no-signup tool previously had zero error visibility — a Reve outage
+  /// here showed everyone a raw "Internal server error" with no record
+  /// anywhere for admins to notice.
+  lastErrorMessage    String?
+  lastErrorAt         DateTime?
 
   @@index([sessionId])
   @@index([ipAddress])

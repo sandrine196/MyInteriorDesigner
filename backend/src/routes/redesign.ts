@@ -62,6 +62,33 @@ function setCookie(reply: FastifyReply, sessionId: string) {
   });
 }
 
+/**
+ * Map an internal error to something safe to show on this public, no-login
+ * page. The raw text is logged and stored on RedesignSession for admin
+ * diagnostics — visitors should never see "Internal server error" or a raw
+ * vendor exception.
+ */
+function userFacingRedesignError(raw: string): string {
+  if (raw.includes("REVE_OUT_OF_CREDITS") || raw.includes("REVE_RATE_LIMITED")) {
+    return "Our design service is busy right now. Please try again in a few minutes.";
+  }
+  if (raw.includes("PROHIBITED_CONTENT") || raw.toLowerCase().includes("safety filter")) {
+    return "We couldn't generate a design for this photo. Try a different photo or style.";
+  }
+  return "Something went wrong generating your design. Please try again.";
+}
+
+async function recordRedesignFailure(sessionId: string, err: unknown): Promise<string> {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`[Redesign] Pipeline failed for session ${sessionId}:`, err);
+  await prisma.redesignSession.update({
+    where: { sessionId },
+    data: { lastErrorMessage: message, lastErrorAt: new Date() },
+  }).catch((logErr) => console.error("[Redesign] Failed to log failure:", logErr));
+  track("redesign_failed", null, { sessionId, error: message });
+  return userFacingRedesignError(message);
+}
+
 export async function redesignRoutes(app: FastifyInstance) {
 
   // ── POST /redesign ─────────────────────────────────────────────────────────
@@ -129,50 +156,55 @@ export async function redesignRoutes(app: FastifyInstance) {
     // The original photo is NOT stored — the browser already has it for the
     // before/after slider, so persisting it would be pure storage waste.
 
-    // Step 1: Clear furniture — only if the room actually has any. Mirrors
-    // the agent staging tool: skipping this for an already-empty room saves
-    // a Reve call and roughly halves the wait (~20s vs ~40s).
-    let clearedBuffer: Buffer;
-    if (isFurnished) {
-      const cleared = await clearFurnishedRoom({ reveApiKey: config.ai.reveApiKey }, { photoData, photoMimeType });
-      clearedBuffer = cleared.buffer;
-    } else {
-      // Already empty — normalise to the same size/format the cleared path
-      // would produce, so restage and downstream handling stay consistent.
-      clearedBuffer = await sharp(photoBuffer)
-        .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
-        .jpeg({ quality: 88, progressive: true })
-        .toBuffer();
+    try {
+      // Step 1: Clear furniture — only if the room actually has any. Mirrors
+      // the agent staging tool: skipping this for an already-empty room saves
+      // a Reve call and roughly halves the wait (~20s vs ~40s).
+      let clearedBuffer: Buffer;
+      if (isFurnished) {
+        const cleared = await clearFurnishedRoom({ reveApiKey: config.ai.reveApiKey }, { photoData, photoMimeType });
+        clearedBuffer = cleared.buffer;
+      } else {
+        // Already empty — normalise to the same size/format the cleared path
+        // would produce, so restage and downstream handling stay consistent.
+        clearedBuffer = await sharp(photoBuffer)
+          .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
+          .jpeg({ quality: 88, progressive: true })
+          .toBuffer();
+      }
+      // Kept for restage within the 24h session; expired session files are
+      // removed by the daily cleanup job.
+      const emptyKey = `${prefix}/${uuid}-empty.jpg`;
+      await storage.upload(emptyKey, clearedBuffer, "image/jpeg");
+      const emptyRoomUrl = storage.getUrl(emptyKey);
+
+      // Step 2: Stage
+      const staged = await virtualStageRoom(geminiCfg, {
+        photoData:     clearedBuffer.toString("base64"),
+        photoMimeType: "image/jpeg",
+        brief,
+      });
+      const stagedKey = `${prefix}/${uuid}-staged.jpg`;
+      await storage.upload(stagedKey, staged.buffer, "image/jpeg");
+      const stagedImageUrl = storage.getUrl(stagedKey);
+
+      // Save empty room URL for cheap restage later, increment counter
+      await prisma.redesignSession.update({
+        where: { sessionId },
+        data: { fullRedesignsToday: { increment: 1 }, emptyRoomUrl, lastErrorMessage: null, lastErrorAt: null },
+      });
+
+      track("redesign_completed", null, { sessionId, style });
+
+      return reply.send({
+        success: true,
+        stagedImageUrl,
+        emptyRoomUrl,
+      });
+    } catch (err) {
+      const safeMessage = await recordRedesignFailure(sessionId, err);
+      return reply.status(502).send({ error: safeMessage });
     }
-    // Kept for restage within the 24h session; expired session files are
-    // removed by the daily cleanup job.
-    const emptyKey = `${prefix}/${uuid}-empty.jpg`;
-    await storage.upload(emptyKey, clearedBuffer, "image/jpeg");
-    const emptyRoomUrl = storage.getUrl(emptyKey);
-
-    // Step 2: Stage
-    const staged = await virtualStageRoom(geminiCfg, {
-      photoData:     clearedBuffer.toString("base64"),
-      photoMimeType: "image/jpeg",
-      brief,
-    });
-    const stagedKey = `${prefix}/${uuid}-staged.jpg`;
-    await storage.upload(stagedKey, staged.buffer, "image/jpeg");
-    const stagedImageUrl = storage.getUrl(stagedKey);
-
-    // Save empty room URL for cheap restage later, increment counter
-    await prisma.redesignSession.update({
-      where: { sessionId },
-      data: { fullRedesignsToday: { increment: 1 }, emptyRoomUrl },
-    });
-
-    track("redesign_completed", null, { sessionId, style });
-
-    return reply.send({
-      success: true,
-      stagedImageUrl,
-      emptyRoomUrl,
-    });
   });
 
   // ── POST /redesign/track-signup ───────────────────────────────────────────
@@ -209,33 +241,38 @@ export async function redesignRoutes(app: FastifyInstance) {
 
     track("redesign_try_another_style", null, { sessionId, style });
 
-    // Fetch cleared room from R2
-    const imgRes = await fetch(session.emptyRoomUrl, { signal: AbortSignal.timeout(15_000) });
-    if (!imgRes.ok) return reply.status(400).send({ error: "Could not fetch cleared room image" });
-    const clearedBuffer = Buffer.from(await imgRes.arrayBuffer());
+    try {
+      // Fetch cleared room from R2
+      const imgRes = await fetch(session.emptyRoomUrl, { signal: AbortSignal.timeout(15_000) });
+      if (!imgRes.ok) throw new Error("Could not fetch cleared room image");
+      const clearedBuffer = Buffer.from(await imgRes.arrayBuffer());
 
-    const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
-    const staged = await virtualStageRoom(geminiCfg, {
-      photoData:     clearedBuffer.toString("base64"),
-      // Older sessions may still hold PNG cleared images
-      photoMimeType: session.emptyRoomUrl.endsWith(".png") ? "image/png" : "image/jpeg",
-      brief:         STYLE_BRIEFS[style],
-    });
+      const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
+      const staged = await virtualStageRoom(geminiCfg, {
+        photoData:     clearedBuffer.toString("base64"),
+        // Older sessions may still hold PNG cleared images
+        photoMimeType: session.emptyRoomUrl.endsWith(".png") ? "image/png" : "image/jpeg",
+        brief:         STYLE_BRIEFS[style],
+      });
 
-    const stagedKey = `redesigns/${sessionId}/${randomUUID()}-staged.jpg`;
-    await storage.upload(stagedKey, staged.buffer, "image/jpeg");
-    const stagedImageUrl = storage.getUrl(stagedKey);
+      const stagedKey = `redesigns/${sessionId}/${randomUUID()}-staged.jpg`;
+      await storage.upload(stagedKey, staged.buffer, "image/jpeg");
+      const stagedImageUrl = storage.getUrl(stagedKey);
 
-    const updated = await prisma.redesignSession.update({
-      where: { sessionId },
-      data: { restagesUsed: { increment: 1 } },
-    });
+      const updated = await prisma.redesignSession.update({
+        where: { sessionId },
+        data: { restagesUsed: { increment: 1 }, lastErrorMessage: null, lastErrorAt: null },
+      });
 
-    setCookie(reply, sessionId);
-    return reply.send({
-      success: true,
-      stagedImageUrl,
-      restagesRemaining: Math.max(0, MAX_RESTAGES - updated.restagesUsed),
-    });
+      setCookie(reply, sessionId);
+      return reply.send({
+        success: true,
+        stagedImageUrl,
+        restagesRemaining: Math.max(0, MAX_RESTAGES - updated.restagesUsed),
+      });
+    } catch (err) {
+      const safeMessage = await recordRedesignFailure(sessionId, err);
+      return reply.status(502).send({ error: safeMessage });
+    }
   });
 }

@@ -896,7 +896,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/reve-status", auth, async () => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24h
 
-    const [renderErrors, stagingErrors] = await Promise.all([
+    const [renderErrors, stagingErrors, redesignErrors] = await Promise.all([
       prisma.render.findMany({
         where: { status: "failed", createdAt: { gte: since }, errorMessage: { not: null } },
         select: { errorMessage: true, createdAt: true },
@@ -907,8 +907,17 @@ export async function adminRoutes(app: FastifyInstance) {
         select: { errorMessage: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),
+      prisma.redesignSession.findMany({
+        where: { lastErrorAt: { gte: since }, lastErrorMessage: { not: null } },
+        select: { lastErrorMessage: true, lastErrorAt: true },
+        orderBy: { lastErrorAt: "desc" },
+      }),
     ]);
-    const recentErrors = [...renderErrors, ...stagingErrors];
+    const recentErrors = [
+      ...renderErrors,
+      ...stagingErrors,
+      ...redesignErrors.map(r => ({ errorMessage: r.lastErrorMessage, createdAt: r.lastErrorAt! })),
+    ];
 
     const outOfCredits = recentErrors.find(r => r.errorMessage?.includes("REVE_OUT_OF_CREDITS"));
     const rateLimited  = recentErrors.find(r => r.errorMessage?.includes("REVE_RATE_LIMITED"));
