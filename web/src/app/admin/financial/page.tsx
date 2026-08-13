@@ -66,7 +66,7 @@ function LiveCostPanel({ period }: { period: "month" | "week" | "today" }) {
   type CostKey = keyof Omit<LiveCosts["costs"], "total">;
   const rows: Array<{ key: CostKey; label: string }> = [
     { key: "gemini",  label: "Gemini (AI renders)" },
-    { key: "reve",    label: "Reve (virtual staging)" },
+    { key: "reve",    label: "Virtual staging (Gemini)" },
     { key: "railway", label: "Railway (backend hosting)" },
     { key: "r2",      label: "Cloudflare R2 (storage)" },
     { key: "resend",  label: "Resend (email)" },

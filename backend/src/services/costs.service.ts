@@ -75,19 +75,18 @@ async function getGeminiCosts(
   return { cost, source };
 }
 
-// ─── Reve costs — calculated from AgentStagingLog ────────────────────────────
-// Reve has no billing API. We log Reve call counts per staging job in AgentStagingLog.
+// ─── Virtual staging costs — calculated from AgentStagingLog ─────────────────
+// Gemini image generation has no separate per-call billing API, so we log call
+// counts per staging job in AgentStagingLog and price them ourselves.
 //
-// Reve pricing (https://api.reve.com/console/pricing):
-//   Edit      (/v1/image/edit, version: latest): $0.04 per image
-//   Edit Fast (/v1/image/edit, version: fast):   $0.007 per image
+// Previously priced via Reve (sunset 2026-08-14); staging now runs on Gemini
+// (gemini-3.1-flash-lite-image, see backend/src/lib/gemini.ts STAGING_MODEL).
+// The reveStageCalls/reveClearCalls column names were kept as-is rather than
+// migrated — they count Gemini staging calls now.
 //
-// Current usage:
-//   reveStageCalls — staging via Edit ($0.04): Gemini analyses → Reve generates
-//   reveClearCalls — furniture removal via Edit ($0.04): single instruction, no analysis
+// gemini-3.1-flash-lite-image pricing: $0.0336 per image generated.
 
-const REVE_EDIT_USD      = 0.04;   // standard Edit
-const REVE_EDIT_FAST_USD = 0.007;  // Edit Fast (used if we switch clearing to fast)
+const STAGING_IMAGE_USD = 0.0336; // gemini-3.1-flash-lite-image, per image
 
 async function getReveCosts(startDate: Date, endDate: Date): Promise<number> {
   const agg = await prisma.agentStagingLog.aggregate({
@@ -96,9 +95,7 @@ async function getReveCosts(startDate: Date, endDate: Date): Promise<number> {
   });
   const stageCalls = agg._sum.reveStageCalls ?? 0;
   const clearCalls = agg._sum.reveClearCalls ?? 0;
-  // Both currently use the standard Edit endpoint — update clearCalls to REVE_EDIT_FAST_USD
-  // if/when we switch furniture clearing to the fast model.
-  return stageCalls * REVE_EDIT_USD + clearCalls * REVE_EDIT_FAST_USD;
+  return (stageCalls + clearCalls) * STAGING_IMAGE_USD;
 }
 
 // ─── Railway costs — Railway GraphQL API ──────────────────────────────────────

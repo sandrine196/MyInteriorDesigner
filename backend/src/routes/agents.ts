@@ -387,12 +387,16 @@ export async function agentRoutes(app: FastifyInstance) {
     if (!brief) return reply.status(400).send({ error: "Staging brief is required" });
     if (brief.length > 1000) return reply.status(400).send({ error: "Brief must be under 1000 characters" });
 
-    const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
+    const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region };
     const photoData = photoBuffer.toString("base64");
 
     let emptyRoomUrl: string | undefined;
     let stagedBuffer: Buffer;
     let mock = false;
+    // Names kept as-is (reveStageCalls/reveClearCalls) even though these now
+    // count Gemini staging calls — repurposed rather than migrating the
+    // schema/cost-tracking columns. Always 1 on success now (no more
+    // "configured but skipped" case, since Gemini is required, not optional).
     let reveStageCalls = 0;
     let reveClearCalls = 0;
 
@@ -400,33 +404,35 @@ export async function agentRoutes(app: FastifyInstance) {
       if (isFurnished) {
         console.log("[Staging] Furnished room — clearing furniture first…");
 
-        // Step 1: Remove furniture via Reve
-        const cleared = await clearFurnishedRoom(
-          { reveApiKey: config.ai.reveApiKey },
+        // Step 1: Remove furniture via Gemini. clearFurnishedRoom has no mock
+        // mode of its own (no-key just passes the photo through unchanged),
+        // so gate the cost-tracking increment on the key being present.
+        const clearedBuffer = await clearFurnishedRoom(
+          { apiKey: config.ai.apiKey, region: config.ai.region },
           { photoData, photoMimeType }
         );
-        if (cleared.usedReve) reveClearCalls = 1;
+        if (config.ai.apiKey) reveClearCalls = 1;
 
         // Upload the cleared (empty) room image
         const emptyKey = `agent-staging/${agentId}/${randomUUID()}-empty.png`;
-        await storage.upload(emptyKey, cleared.buffer, "image/png");
+        await storage.upload(emptyKey, clearedBuffer, "image/png");
         emptyRoomUrl = storage.getUrl(emptyKey);
 
         // Step 2: Stage the now-empty room
         const staged = await virtualStageRoom(geminiCfg, {
-          photoData:     cleared.buffer.toString("base64"),
+          photoData:     clearedBuffer.toString("base64"),
           photoMimeType: "image/png",
           brief,
         });
         stagedBuffer = staged.buffer;
         mock = staged.mock;
-        if (staged.usedReve) reveStageCalls = 1;
+        if (!staged.mock) reveStageCalls = 1;
       } else {
         // Empty room — stage directly
         const result = await virtualStageRoom(geminiCfg, { photoData, photoMimeType, brief });
         stagedBuffer = result.buffer;
         mock = result.mock;
-        if (result.usedReve) reveStageCalls = 1;
+        if (!result.mock) reveStageCalls = 1;
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Staging failed";

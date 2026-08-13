@@ -51,8 +51,9 @@ export const config = {
     // AI_REGION can route to an EU endpoint when Google makes one available.
     region: process.env.AI_REGION ?? "global",
     useMock: env.USE_MOCK_RENDER,
-    // Reve API key for virtual staging image generation (Step 2 of the two-step pipeline).
-    reveApiKey: process.env.REVE_API_KEY,
+    // reveApiKey removed 2026-08 — Reve API sunset 2026-08-14. Virtual staging
+    // now runs entirely on Gemini (STAGING_MODEL in lib/gemini.ts), reusing
+    // the apiKey above.
   },
 
   email: {

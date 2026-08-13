@@ -7,6 +7,17 @@ import type { FloorPlanAnalysis } from "../services/floorPlanAnalysis.service.js
  *  retirement can't silently break the pipeline (it has, twice). */
 const TEXT_ANALYSIS_MODEL = "gemini-flash-latest";
 
+/**
+ * Image model for virtual staging (furniture removal + staging), replacing
+ * Reve (sunset 2026-08-14). Pinned rather than a rolling alias, unlike
+ * TEXT_ANALYSIS_MODEL above — deliberately, since this exact model was
+ * manually verified against real furnished-room photos before switching.
+ * A "-latest" alias could silently swap in a model with different staging
+ * behaviour. Same retirement risk applies here as it did twice before with
+ * pinned models — if this one 404s, that's the first thing to check.
+ */
+const STAGING_MODEL = "gemini-3.1-flash-lite-image";
+
 export const RENDER_WIDTH = 1024;
 export const RENDER_HEIGHT = 768;
 
@@ -669,8 +680,8 @@ export function buildPrompt(
   return lines.join("\n");
 }
 
-// Reve instruction for furniture removal — short enough to go straight to Reve
-// without a Gemini analysis step. Under 2560 chars.
+// Furniture-removal instruction, sent directly to the staging image model —
+// no separate analysis step needed, the instruction is concise enough on its own.
 const CLEAR_ROOM_INSTRUCTION =
   "Remove all furniture, soft furnishings, curtains, blinds, rugs, artwork, " +
   "decorations, and personal items from this room. The room should appear " +
@@ -679,64 +690,88 @@ const CLEAR_ROOM_INSTRUCTION =
   "features exactly as they are. The result should look like a vacant property " +
   "ready for viewings — clean, empty, and bright.";
 
-/**
- * Remove furniture from a furnished room photo.
- * Uses a single Reve call (no Gemini analysis step needed — prompt is concise).
- * Falls back to returning the original image if Reve is not configured.
- */
-export async function clearFurnishedRoom(
-  cfg: { reveApiKey?: string },
-  opts: { photoData: string; photoMimeType: string }
-): Promise<{ buffer: Buffer; usedReve: boolean }> {
-  const imageBuffer = Buffer.from(opts.photoData, "base64");
-
-  if (!cfg.reveApiKey) {
-    console.log("[Staging/Clear] No Reve API key — skipping furniture removal");
-    return { buffer: imageBuffer, usedReve: false };
-  }
-
-  console.log("[Staging/Clear] Removing furniture via Reve…");
-  try {
-    const cleared = await stageWithReve(imageBuffer, CLEAR_ROOM_INSTRUCTION, cfg.reveApiKey, true);
-    const buffer  = await sharp(cleared)
-      .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
-      .jpeg({ quality: 88, progressive: true })
-      .toBuffer();
-    console.log(`[Staging/Clear] Done — ${buffer.length} bytes`);
-    return { buffer, usedReve: true };
-  } catch (err) {
-    console.error("[Staging/Clear] Reve failed:", err);
-    return { buffer: imageBuffer, usedReve: false };
-  }
+function stagingBaseUrl(region?: string): string {
+  return region === "EU"
+    ? "https://eu-generativelanguage.googleapis.com"
+    : "https://generativelanguage.googleapis.com";
 }
 
-/** Stage a real room photo using a plain-English brief. Returns a PNG buffer. */
+/**
+ * Remove furniture from a furnished room photo, via Gemini image editing.
+ * Retries once on a transient failure before giving up — this has no further
+ * fallback, so a transient blip shouldn't fail the whole request.
+ */
+export async function clearFurnishedRoom(
+  cfg: { apiKey?: string; region?: string },
+  opts: { photoData: string; photoMimeType: string }
+): Promise<Buffer> {
+  const imageBuffer = Buffer.from(opts.photoData, "base64");
+
+  if (!cfg.apiKey) {
+    console.log("[Staging/Clear] No Gemini API key — skipping furniture removal");
+    return imageBuffer;
+  }
+
+  console.log("[Staging/Clear] Removing furniture via Gemini…");
+  const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl: stagingBaseUrl(cfg.region) } });
+
+  async function requestClear() {
+    const res = await ai.models.generateContent({
+      model: STAGING_MODEL,
+      contents: [
+        { inlineData: { mimeType: opts.photoMimeType, data: opts.photoData } },
+        { text: CLEAR_ROOM_INSTRUCTION },
+      ],
+      config: { responseModalities: ["IMAGE"] },
+    });
+    return (res.candidates?.[0]?.content?.parts ?? []).find((p) => p.inlineData?.data)?.inlineData?.data;
+  }
+
+  let imageBase64: string | undefined;
+  try {
+    imageBase64 = await requestClear();
+  } catch (err) {
+    console.warn("[Staging/Clear] Attempt 1 failed, retrying once:", err instanceof Error ? err.message : err);
+    await new Promise((r) => setTimeout(r, 1500));
+    imageBase64 = await requestClear();
+  }
+
+  if (!imageBase64) {
+    throw new Error("[Staging/Clear] Gemini returned no image. Check model name and API access.");
+  }
+
+  const buffer = await sharp(Buffer.from(imageBase64, "base64"))
+    .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
+    .jpeg({ quality: 88, progressive: true })
+    .toBuffer();
+  console.log(`[Staging/Clear] Done — ${buffer.length} bytes`);
+  return buffer;
+}
+
+/** Stage a real room photo using a plain-English brief. Returns a JPEG buffer. */
 // ─────────────────────────────────────────────────────────────────────────────
 // Two-step virtual staging pipeline:
-//   Step 1 — Gemini analyses the photo (text only, cheap ~$0.001)
-//   Step 2 — Reve generates the staged image using Gemini's description (~$0.007)
+//   Step 1 — Gemini analyses the photo (text only, cheap)
+//   Step 2 — Gemini generates the staged image from that description
+// Previously Step 2 went to Reve, with this same Gemini call as a fallback
+// only. Reve sunset 2026-08-14 — this is now the sole path, promoted
+// unchanged from what was already the tested, production fallback.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function virtualStageRoom(
-  cfg: { apiKey?: string; model: string; region?: string; reveApiKey?: string },
+  cfg: { apiKey?: string; model: string; region?: string },
   opts: { photoData: string; photoMimeType: string; brief: string }
-): Promise<{ buffer: Buffer; mock: boolean; usedReve: boolean }> {
+): Promise<{ buffer: Buffer; mock: boolean }> {
   if (!cfg.apiKey) {
     console.log("[Staging] No Gemini API key — returning placeholder (mock mode)");
-    return { buffer: await placeholderBuffer(), mock: true, usedReve: false };
+    return { buffer: await placeholderBuffer(), mock: true };
   }
 
   // ── Step 1: Gemini analyses the room (text model, no image generation) ──────
   console.log("[Staging] Step 1: Gemini analysing room…");
 
   const analysisPrompt = buildStagingAnalysisPrompt(opts.brief);
-
-  const baseUrl =
-    cfg.region === "EU"
-      ? "https://eu-generativelanguage.googleapis.com"
-      : "https://generativelanguage.googleapis.com";
-
-  const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl } });
+  const ai = new GoogleGenAI({ apiKey: cfg.apiKey, httpOptions: { baseUrl: stagingBaseUrl(cfg.region) } });
 
   const analysisResponse = await ai.models.generateContent({
     // Rolling alias, not a pinned version — a pinned model being retired by
@@ -758,46 +793,8 @@ export async function virtualStageRoom(
   console.log("[Staging] Gemini description (first 300 chars):");
   console.log(stagingDescription.slice(0, 300));
 
-  // ── Step 2: Reve generates the staged image (falls back to Gemini on any failure) ──
-  if (cfg.reveApiKey) {
-    console.log("[Staging] Step 2: Reve generating staged image…");
-    try {
-      const imageBuffer = Buffer.from(opts.photoData, "base64");
-
-      // Fixed preamble prepended to every Reve prompt so the background-preservation
-      // instruction is always present, regardless of what Gemini generated.
-      const REVE_PREAMBLE =
-        "This is a photo edit. Do not alter the walls, floor, ceiling, windows, " +
-        "doors, or any architectural features — preserve the original background " +
-        "exactly as it appears in the photo. Only add furniture and accessories " +
-        "as described below.\n\n";
-
-      // Reve enforces a 2560-char limit on edit_instruction. Reserve space for the
-      // preamble so the combined string never exceeds the limit.
-      const maxDescriptionLength = 2560 - REVE_PREAMBLE.length - 3; // 3 for "…"
-      const trimmedDescription = stagingDescription.length > maxDescriptionLength
-        ? stagingDescription.slice(0, maxDescriptionLength) + "…"
-        : stagingDescription;
-      const revePrompt = REVE_PREAMBLE + trimmedDescription;
-
-      const reveBuffer = await stageWithReve(imageBuffer, revePrompt, cfg.reveApiKey);
-
-      const buffer = await sharp(reveBuffer)
-        .resize(RENDER_WIDTH, RENDER_HEIGHT, { fit: "cover" })
-        .jpeg({ quality: 88, progressive: true })
-        .toBuffer();
-
-      console.log(`[Staging] Complete via Reve — ${buffer.length} bytes`);
-      return { buffer, mock: false, usedReve: true };
-    } catch (reveErr) {
-      console.error("[Staging] Reve failed, falling back to Gemini image generation:", reveErr);
-    }
-  }
-
-  // Reve not configured or failed — fall back to Gemini image editing.
-  // This is the last line of defence, so retry once on a transient overload
-  // (Gemini's "high demand" 503) rather than failing the whole request.
-  console.log("[Staging] Falling back to Gemini image generation…");
+  // ── Step 2: Gemini generates the staged image ────────────────────────────────
+  console.log("[Staging] Step 2: Gemini generating staged image…");
 
   // Put the image first so Gemini treats this as an edit, not a new generation.
   // The instruction is intentionally short to reinforce editing over recreation.
@@ -805,7 +802,7 @@ export async function virtualStageRoom(
 
   async function requestGeminiEdit() {
     const res = await ai.models.generateContent({
-      model: cfg.model,
+      model: STAGING_MODEL,
       contents: [
         { inlineData: { mimeType: opts.photoMimeType, data: opts.photoData } },
         { text: geminiEditInstruction },
@@ -819,7 +816,7 @@ export async function virtualStageRoom(
   try {
     imageBase64 = await requestGeminiEdit();
   } catch (err) {
-    console.warn("[Staging] Gemini fallback attempt 1 failed, retrying once:", err instanceof Error ? err.message : err);
+    console.warn("[Staging] Attempt 1 failed, retrying once:", err instanceof Error ? err.message : err);
     await new Promise((r) => setTimeout(r, 1500));
     imageBase64 = await requestGeminiEdit();
   }
@@ -833,8 +830,8 @@ export async function virtualStageRoom(
     .jpeg({ quality: 88, progressive: true })
     .toBuffer();
 
-  console.log(`[Staging] Complete via Gemini fallback — ${buffer.length} bytes`);
-  return { buffer, mock: false, usedReve: false };
+  console.log(`[Staging] Complete — ${buffer.length} bytes`);
+  return { buffer, mock: false };
 }
 
 function buildStagingAnalysisPrompt(brief: string): string {
@@ -860,62 +857,63 @@ STRICT RULES:
 - Start with: "Keep the..."`;
 }
 
-async function stageWithReve(
-  imageBuffer: Buffer,
-  stagingPrompt: string,
-  reveApiKey?: string,
-  fast = false
-): Promise<Buffer> {
-  if (!reveApiKey) {
-    throw new Error("[Staging] REVE_API_KEY not configured — add it to Railway environment variables");
-  }
-
-  const version = fast ? "fast" : "latest";
-  console.log(`[Staging] Calling Reve API (version: ${version})…`);
-  console.log("[Staging] Prompt length:", stagingPrompt.length);
-
-  const response = await fetch("https://api.reve.com/v1/image/edit", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${reveApiKey}`,
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-    },
-    body: JSON.stringify({
-      reference_image: imageBuffer.toString("base64"),
-      edit_instruction: stagingPrompt,
-      version,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("[Staging] Reve API error:", response.status, errorText);
-    if (response.status === 402) {
-      throw new Error("REVE_OUT_OF_CREDITS: Reve budget exhausted — top up credits to resume renders");
-    }
-    if (response.status === 429) {
-      throw new Error("REVE_RATE_LIMITED: Reve rate limit exceeded — too many requests");
-    }
-    throw new Error(`Reve error: ${response.status} — ${errorText}`);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data = await response.json() as Record<string, any>;
-
-  // Log full response keys so we can confirm field names if anything goes wrong
-  console.log("[Staging] Reve response keys:", Object.keys(data));
-
-  // Reve returns the image as base64-encoded PNG in the `image` field
-  const base64 = data.image as string | undefined;
-
-  if (!base64) {
-    console.error("[Staging] Unexpected Reve response shape:", JSON.stringify(data, null, 2));
-    throw new Error("No image in Reve response — check Railway logs");
-  }
-
-  return Buffer.from(base64, "base64");
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// DEPRECATED 2026-08 — Reve API sunset 2026-08-14. Replaced by Gemini
+// (STAGING_MODEL) throughout clearFurnishedRoom() and virtualStageRoom().
+// Kept for reference only; not called anywhere. Safe to delete once nobody
+// needs to compare behaviour against the old provider.
+// ─────────────────────────────────────────────────────────────────────────────
+// async function stageWithReve(
+//   imageBuffer: Buffer,
+//   stagingPrompt: string,
+//   reveApiKey?: string,
+//   fast = false
+// ): Promise<Buffer> {
+//   if (!reveApiKey) {
+//     throw new Error("[Staging] REVE_API_KEY not configured — add it to Railway environment variables");
+//   }
+//
+//   const version = fast ? "fast" : "latest";
+//   console.log(`[Staging] Calling Reve API (version: ${version})…`);
+//   console.log("[Staging] Prompt length:", stagingPrompt.length);
+//
+//   const response = await fetch("https://api.reve.com/v1/image/edit", {
+//     method: "POST",
+//     headers: {
+//       Authorization: `Bearer ${reveApiKey}`,
+//       "Content-Type": "application/json",
+//       "Accept": "application/json",
+//     },
+//     body: JSON.stringify({
+//       reference_image: imageBuffer.toString("base64"),
+//       edit_instruction: stagingPrompt,
+//       version,
+//     }),
+//   });
+//
+//   if (!response.ok) {
+//     const errorText = await response.text();
+//     console.error("[Staging] Reve API error:", response.status, errorText);
+//     if (response.status === 402) {
+//       throw new Error("REVE_OUT_OF_CREDITS: Reve budget exhausted — top up credits to resume renders");
+//     }
+//     if (response.status === 429) {
+//       throw new Error("REVE_RATE_LIMITED: Reve rate limit exceeded — too many requests");
+//     }
+//     throw new Error(`Reve error: ${response.status} — ${errorText}`);
+//   }
+//
+//   const data = await response.json() as Record<string, any>;
+//   console.log("[Staging] Reve response keys:", Object.keys(data));
+//   const base64 = data.image as string | undefined;
+//
+//   if (!base64) {
+//     console.error("[Staging] Unexpected Reve response shape:", JSON.stringify(data, null, 2));
+//     throw new Error("No image in Reve response — check Railway logs");
+//   }
+//
+//   return Buffer.from(base64, "base64");
+// }
 
 /** Generate a room image using the Gemini API. Returns a PNG buffer. */
 function buildInspirationPrompt(roomType: string, styleId: string | null | undefined, userPrompt: string, dimsMm: RoomDimensionsMm): string {

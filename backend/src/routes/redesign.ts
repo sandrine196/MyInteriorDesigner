@@ -151,7 +151,7 @@ export async function redesignRoutes(app: FastifyInstance) {
     const photoData  = photoBuffer.toString("base64");
     const uuid       = randomUUID();
     const prefix     = `redesigns/${sessionId}`;
-    const geminiCfg  = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
+    const geminiCfg  = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region };
 
     // The original photo is NOT stored — the browser already has it for the
     // before/after slider, so persisting it would be pure storage waste.
@@ -159,11 +159,10 @@ export async function redesignRoutes(app: FastifyInstance) {
     try {
       // Step 1: Clear furniture — only if the room actually has any. Mirrors
       // the agent staging tool: skipping this for an already-empty room saves
-      // a Reve call and roughly halves the wait (~20s vs ~40s).
+      // a Gemini call and roughly halves the wait (~20s vs ~40s).
       let clearedBuffer: Buffer;
       if (isFurnished) {
-        const cleared = await clearFurnishedRoom({ reveApiKey: config.ai.reveApiKey }, { photoData, photoMimeType });
-        clearedBuffer = cleared.buffer;
+        clearedBuffer = await clearFurnishedRoom({ apiKey: config.ai.apiKey, region: config.ai.region }, { photoData, photoMimeType });
       } else {
         // Already empty — normalise to the same size/format the cleared path
         // would produce, so restage and downstream handling stay consistent.
@@ -247,7 +246,7 @@ export async function redesignRoutes(app: FastifyInstance) {
       if (!imgRes.ok) throw new Error("Could not fetch cleared room image");
       const clearedBuffer = Buffer.from(await imgRes.arrayBuffer());
 
-      const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region, reveApiKey: config.ai.reveApiKey };
+      const geminiCfg = { apiKey: config.ai.apiKey, model: config.ai.model, region: config.ai.region };
       const staged = await virtualStageRoom(geminiCfg, {
         photoData:     clearedBuffer.toString("base64"),
         // Older sessions may still hold PNG cleared images
