@@ -88,23 +88,38 @@ function normalizeRoomType(projectRoomType: string | null): string {
   }
 }
 
-const ROOM_PRIORITIES: Record<string, { primary: string[]; secondary: string[] }> = {
-  dining_room: {
-    primary:   ["dining table", "extending table", "round dining", "oval dining", "kitchen table"],
-    secondary: ["dining chair", "dining bench", "sideboard", "buffet", "bar stool"],
-  },
-  living_room: {
-    primary:   ["sofa", "couch", "settee", "armchair", "corner unit", "love seat"],
-    secondary: ["coffee table", "side table", "tv unit", "shelving", "bookcase", "footstool", "ottoman"],
-  },
-  bedroom: {
-    primary:   ["bed frame", "ottoman bed", "double bed", "king size", "super king", "single bed", "divan", "sleigh bed"],
-    secondary: ["wardrobe", "chest of drawers", "bedside", "dressing table", "blanket box"],
-  },
-  home_office: {
-    primary:   ["desk", "office desk", "writing desk", "computer desk"],
-    secondary: ["office chair", "bookcase", "bookshelf", "shelving", "filing cabinet"],
-  },
+type ProductRole = { name: string; keywords: string[] };
+
+// Ordered list of furniture "roles" a room needs one of, each — picked in
+// this order so a room can't fill all its slots with one role (e.g. sofas)
+// and starve the others. Every room type includes lighting: it's easy to
+// forget when picking by room-category alone since the DB category field
+// no longer distinguishes furniture type.
+const ROOM_ROLES: Record<string, ProductRole[]> = {
+  dining_room: [
+    { name: "table",    keywords: ["dining table", "extending table", "round dining", "oval dining", "kitchen table"] },
+    { name: "seating",  keywords: ["dining chair", "dining bench", "bar stool"] },
+    { name: "storage",  keywords: ["sideboard", "buffet"] },
+    { name: "lighting", keywords: ["lamp", "light", "pendant", "chandelier"] },
+  ],
+  living_room: [
+    { name: "seating",  keywords: ["sofa", "couch", "settee", "armchair", "corner unit", "love seat"] },
+    { name: "surface",  keywords: ["coffee table", "side table"] },
+    { name: "storage",  keywords: ["tv unit", "shelving", "bookcase", "display unit", "cabinet"] },
+    { name: "lighting", keywords: ["lamp", "light", "pendant", "chandelier"] },
+  ],
+  bedroom: [
+    { name: "bed",      keywords: ["bed frame", "ottoman bed", "double bed", "king size", "super king", "single bed", "divan", "sleigh bed"] },
+    { name: "storage",  keywords: ["wardrobe", "chest of drawers", "blanket box"] },
+    { name: "surface",  keywords: ["bedside", "dressing table"] },
+    { name: "lighting", keywords: ["lamp", "light", "pendant", "chandelier"] },
+  ],
+  home_office: [
+    { name: "desk",     keywords: ["desk", "office desk", "writing desk", "computer desk"] },
+    { name: "seating",  keywords: ["office chair"] },
+    { name: "storage",  keywords: ["bookcase", "bookshelf", "shelving", "filing cabinet"] },
+    { name: "lighting", keywords: ["lamp", "light", "pendant", "chandelier"] },
+  ],
 };
 
 async function autoSelectProducts(project: {
@@ -114,7 +129,7 @@ async function autoSelectProducts(project: {
   designStyle: string | null;
 }) {
   const roomCategory = normalizeRoomType(project.roomType);
-  const priorities   = ROOM_PRIORITIES[roomCategory] ?? ROOM_PRIORITIES["living_room"];
+  const roles        = ROOM_ROLES[roomCategory] ?? ROOM_ROLES["living_room"];
   const retailers    = parseRetailers(project.preferredRetailers);
 
   const where: Record<string, unknown> = { category: roomCategory };
@@ -123,37 +138,56 @@ async function autoSelectProducts(project: {
     where.priceGbp = { lte: Math.max(Math.round(project.budgetMax * 0.4), 500) };
   }
 
+  const candidates = await prisma.product.findMany({ where, take: 200, orderBy: { title: "asc" } });
+
   function hasStyle(p: { styleTags: string | null }, style: string): boolean {
     try { return (JSON.parse(p.styleTags ?? "[]") as string[]).includes(style); }
     catch { return false; }
   }
 
-  function isPrimary(title: string): boolean {
+  function matchesRole(title: string, role: ProductRole): boolean {
     const t = title.toLowerCase();
-    return priorities.primary.some((kw) => t.includes(kw));
+    return role.keywords.some((kw) => t.includes(kw));
   }
 
   function shuffle<T>(arr: T[]): T[] {
-    return arr.sort(() => Math.random() - 0.5);
+    return [...arr].sort(() => Math.random() - 0.5);
   }
 
-  async function fetchSorted(withStyle: boolean) {
-    const candidates = await prisma.product.findMany({ where, take: 200, orderBy: { title: "asc" } });
-    let pool = candidates;
-    if (withStyle && project.designStyle) {
-      const styled = candidates.filter((p) => hasStyle(p, project.designStyle!));
-      if (styled.length >= 3) pool = styled;
+  const picked: typeof candidates = [];
+  const pickedIds = new Set<string>();
+
+  // One item per role first, in role order — guarantees a mix (seating +
+  // surface + storage + lighting, etc.) instead of the old keyword-sort
+  // that let a style with lots of sofas fill all 6 slots with just sofas.
+  for (const role of roles) {
+    const inRole = candidates.filter((p) => !pickedIds.has(p.id) && matchesRole(p.title, role));
+    if (inRole.length === 0) continue;
+
+    // Prefer a style match within this role, but fall back to any item in
+    // the role rather than skip it — some styles (e.g. curated_maximalism)
+    // currently have zero tagged lighting/coffee-table products, and a
+    // slightly off-style item beats missing furniture entirely.
+    const styled = project.designStyle ? inRole.filter((p) => hasStyle(p, project.designStyle!)) : [];
+    const pool   = styled.length > 0 ? styled : inRole;
+    const pick   = shuffle(pool)[0];
+    picked.push(pick);
+    pickedIds.add(pick.id);
+  }
+
+  // Fill remaining slots (up to 6) with more style-matched items.
+  if (picked.length < 6) {
+    const remaining = candidates.filter((p) => !pickedIds.has(p.id));
+    const styled    = project.designStyle ? remaining.filter((p) => hasStyle(p, project.designStyle!)) : [];
+    const pool      = styled.length > 0 ? styled : remaining;
+    for (const p of shuffle(pool)) {
+      if (picked.length >= 6) break;
+      picked.push(p);
+      pickedIds.add(p.id);
     }
-    const primary   = shuffle(pool.filter((p) => isPrimary(p.title)));
-    const secondary = shuffle(pool.filter((p) => !isPrimary(p.title)));
-    return [...primary, ...secondary].slice(0, 6);
   }
 
-  let products = await fetchSorted(true);
-  if (products.length < 3 && project.designStyle) {
-    products = await fetchSorted(false);
-  }
-  return products;
+  return picked;
 }
 
 /**
