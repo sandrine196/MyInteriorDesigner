@@ -30,7 +30,7 @@ Users
 myinteriordesigner.co.uk          ← Vercel (Next.js frontend)
   │  NEXT_PUBLIC_API_URL
   ▼
-api.myinteriordesigner.co.uk      ← Railway (Fastify backend)
+myinteriordesigner-production.up.railway.app  ← Railway (Fastify backend)
   ├── PostgreSQL (Railway add-on)
   ├── Cloudflare R2 (renders + floor plans)
   ├── Gemini API (image generation)
@@ -38,10 +38,15 @@ api.myinteriordesigner.co.uk      ← Railway (Fastify backend)
   └── Resend (transactional email)
 ```
 
+> **Note:** the backend is served directly from Railway's generated `*.up.railway.app`
+> domain. A custom `api.myinteriordesigner.co.uk` domain was never actually
+> configured in Railway — don't chase it if you see it mentioned elsewhere (old
+> notes, tickets, etc.); it doesn't exist.
+
 | Environment | Frontend | Backend | Database |
 |---|---|---|---|
 | **Local dev** | `localhost:3001` | `localhost:3000` | SQLite (`dev.db`) |
-| **Production** | `myinteriordesigner.co.uk` | `api.myinteriordesigner.co.uk` | PostgreSQL (Railway) |
+| **Production** | `myinteriordesigner.co.uk` | `myinteriordesigner-production.up.railway.app` | PostgreSQL (Railway) |
 
 **Build commands:**
 
@@ -239,7 +244,7 @@ DEPLOYMENT_REGION=UK
 Go to: Vercel → your project → Settings → Environment Variables
 
 ```bash
-NEXT_PUBLIC_API_URL=https://api.myinteriordesigner.co.uk
+NEXT_PUBLIC_API_URL=https://myinteriordesigner-production.up.railway.app
 NEXT_PUBLIC_REGION=UK
 NEXT_PUBLIC_ENABLE_ANALYTICS=true
 NEXT_PUBLIC_COOKIE_CONSENT=false
@@ -435,12 +440,12 @@ Run these immediately after every deploy:
 
 ```bash
 # 1. Health check — database + storage + AI provider status
-curl https://api.myinteriordesigner.co.uk/health
+curl https://myinteriordesigner-production.up.railway.app/health
 # Expected:
 # {"status":"ok","services":{"database":"ok","storage":"r2","ai":"gemini"}}
 
 # 2. Auth — register a test user
-curl -s -X POST https://api.myinteriordesigner.co.uk/auth/register \
+curl -s -X POST https://myinteriordesigner-production.up.railway.app/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"deploy-test@example.com","password":"testpass123"}' | python3 -m json.tool
 # Expected: {"token":"...","user":{"id":"...","email":"...","tier":"free"}}
@@ -536,7 +541,7 @@ Railway → Deployments → click failing deploy → View Logs
 
 # Common causes:
 # 1. GEMINI_API_KEY missing or invalid
-curl https://api.myinteriordesigner.co.uk/health
+curl https://myinteriordesigner-production.up.railway.app/health
 # → ai field shows "gemini" but renders fail → key issue
 
 # 2. USE_MOCK_RENDER=true accidentally set
@@ -632,7 +637,7 @@ Railway → your service → is it running? → check logs
 Vercel → your project → is the latest deployment successful?
 
 # 3. Quick health check
-curl -I https://api.myinteriordesigner.co.uk/health
+curl -I https://myinteriordesigner-production.up.railway.app/health
 
 # 4. If Railway service is crashed: redeploy the last working version
 Railway → Deployments → previous deploy → Redeploy
