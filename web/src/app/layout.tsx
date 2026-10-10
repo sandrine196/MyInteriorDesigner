@@ -32,6 +32,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {/* Impact requires a `value` attribute, which React's meta typings omit */}
+        <meta name="impact-site-verification" {...{ value: "6d9a136d-0416-4e23-a695-6ed5181f6b79" }} />
+      </head>
       <body className={`${geist.className} bg-stone-50 text-stone-900 antialiased`}>
         {children}
         <CookieBanner />
