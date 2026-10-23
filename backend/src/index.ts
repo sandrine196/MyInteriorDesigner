@@ -152,9 +152,9 @@ await app.register(fastifyStatic, {
   prefix: "/uploads/",
   decorateReply: false,
   setHeaders(res) {
-    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    res.header("Cache-Control", "public, max-age=604800, immutable");
     // Allow the frontend (different port/origin) to load these images in <img> tags
-    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.header("Cross-Origin-Resource-Policy", "cross-origin");
   },
 });
 
